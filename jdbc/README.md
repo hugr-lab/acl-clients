@@ -87,3 +87,25 @@ verification. `../dev/jdbc-e2e.sh` runs the end-to-end tests against the dev nod
 
 Arrow's memory layer needs `--add-opens=java.base/java.nio=ALL-UNNAMED` on Java 17+. The build sets
 it for the tests; a host application (DBeaver) sets it in its JVM options.
+
+## Releasing
+
+Push a tag `v<major>.<minor>.<patch>` (for example `v0.1.0`). `.github/workflows/release.yml` then:
+
+1. takes the version from the tag and runs the tests;
+2. creates the GitHub release with `acl-jdbc-<version>-all.jar` (the one jar DBeaver loads) and its
+   `.sha256`;
+3. publishes `io.github.hugr-lab:acl-jdbc:<version>` to **Maven Central**. The published artifacts
+   are the jar with its dependencies in the pom, the `all` classifier, sources and javadoc, all
+   signed.
+
+The Central step runs only once the repository has four secrets, and says it was skipped until then:
+
+- `CENTRAL_USERNAME` / `CENTRAL_PASSWORD`: a user token from central.sonatype.com, whose account has
+  verified the namespace `io.github.hugr-lab` (via the GitHub organization);
+- `GPG_PRIVATE_KEY`: an armored private key whose public half is on a keyserver
+  (`keys.openpgp.org`);
+- `GPG_PASSPHRASE`: that key's passphrase.
+
+Once the driver is on Central, DBeaver can add it by its Maven coordinates (Driver Manager →
+Libraries → Add Artifact) and offers updates by itself.
