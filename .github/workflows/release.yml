@@ -1,0 +1,54 @@
+name: Release
+
+# A tag v<major>.<minor>.<patch> releases the JDBC driver: the tests run, the version comes from the
+# tag, and the GitHub release gets the single jar DBeaver loads plus its checksum. Maven Central
+# follows in the same run once the repository has its secrets (see jdbc/README.md, "Releasing");
+# until then that step says it is skipped.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          server-id: central
+          server-username: CENTRAL_USERNAME
+          server-password: CENTRAL_PASSWORD
+      - name: Version from the tag
+        working-directory: jdbc
+        run: mvn -B -q versions:set -DnewVersion="${GITHUB_REF_NAME#v}" -DgenerateBackupPoms=false
+      - name: Test and package
+        working-directory: jdbc
+        run: mvn -B package
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          jar="jdbc/target/acl-jdbc-${GITHUB_REF_NAME#v}-all.jar"
+          sha256sum "$jar" | sed 's|jdbc/target/||' > "$jar.sha256"
+          gh release create "$GITHUB_REF_NAME" "$jar" "$jar.sha256" --title "acl-jdbc ${GITHUB_REF_NAME}" \
+            --notes "The duckdb-acl JDBC driver. For DBeaver: add \`$(basename "$jar")\` in Driver Manager, class \`io.github.hugrlab.acl.jdbc.AclDriver\`, URL template \`jdbc:acl://{host}:{port}\` - see the README."
+      - name: Maven Central
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        working-directory: jdbc
+        run: |
+          if [ -z "$CENTRAL_USERNAME" ]; then
+            echo "::notice::Maven Central skipped: CENTRAL_USERNAME / CENTRAL_PASSWORD / GPG_PRIVATE_KEY / GPG_PASSPHRASE are not set"
+            exit 0
+          fi
+          echo "$GPG_KEY" | gpg --batch --import
+          mvn -B -P central -DskipTests deploy

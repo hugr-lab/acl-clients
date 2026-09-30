@@ -17,6 +17,19 @@
     </license>
   </licenses>
 
+  <developers>
+    <developer>
+      <id>hugr-lab</id>
+      <name>Hugr Lab</name>
+      <url>https://github.com/hugr-lab</url>
+    </developer>
+  </developers>
+  <scm>
+    <url>https://github.com/hugr-lab/acl-clients</url>
+    <connection>scm:git:https://github.com/hugr-lab/acl-clients.git</connection>
+    <developerConnection>scm:git:git@github.com:hugr-lab/acl-clients.git</developerConnection>
+  </scm>
+
   <properties>
     <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -107,4 +120,78 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <!-- Maven Central (`mvn -P central deploy`): sources, javadoc, GPG signatures, and the Central
+         Portal's publishing plugin. Needs a verified io.github.hugr-lab namespace, a Portal token in
+         settings.xml server "central", and a GPG key - the release workflow supplies all three from
+         repository secrets, and skips this step while they are not set. -->
+    <profile>
+      <id>central</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>3.3.1</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar-no-fork</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>3.11.2</version>
+            <configuration>
+              <doclint>none</doclint>
+            </configuration>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.2.7</version>
+            <configuration>
+              <gpgArguments>
+                <arg>--pinentry-mode</arg>
+                <arg>loopback</arg>
+              </gpgArguments>
+            </configuration>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>0.8.0</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>true</autoPublish>
+              <waitUntil>published</waitUntil>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
