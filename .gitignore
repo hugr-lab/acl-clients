@@ -1,0 +1,16 @@
+# Java
+jdbc/target/
+examples/java/target/
+*.class
+# .NET
+examples/dotnet/bin/
+examples/dotnet/obj/
+# Go
+examples/go/go-example
+# Python
+__pycache__/
+.venv/
+# local
+.env
+.DS_Store
+dev/.work/

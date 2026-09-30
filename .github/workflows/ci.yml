@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  jdbc:
+    name: JDBC driver
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - name: Test and package
+        working-directory: jdbc
+        run: mvn -B package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: acl-jdbc
+          path: jdbc/target/acl-jdbc-*-all.jar
+
+  examples:
+    name: Examples build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Go
+        working-directory: examples/go
+        run: go vet ./... && go build ./...
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python
+        run: python -m py_compile examples/python/connect.py
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: .NET
+        working-directory: examples/dotnet
+        run: dotnet build -c Release
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - name: Java
+        working-directory: examples/java
+        run: mvn -B -q compile
