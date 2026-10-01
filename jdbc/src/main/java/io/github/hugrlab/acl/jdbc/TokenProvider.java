@@ -33,12 +33,9 @@ final class TokenProvider {
 		if (flow == AclConfig.Flow.PASSWORD && (config.user == null || config.password == null)) {
 			throw new AuthException("flow=password needs user and password");
 		}
-		DoorIssuer chosen = chooseIssuer(config);
-		String clientId = config.clientId != null ? config.clientId : chosen.clientId();
-		if (clientId == null) {
-			throw new AuthException("the door names no client id for " + chosen.issuer()
-			                        + " - set the clientId property (a public OIDC client of that issuer)");
-		}
+		String flowName = flowName(flow);
+		DoorIssuer chosen = chooseIssuer(config, flowName);
+		String clientId = config.clientId != null ? config.clientId : chooseClient(config, chosen, flowName);
 		Oidc oidc = endpoints(chosen);
 		// a password sign-in is keyed by the password too - a wrong password never gets the right one's
 		// token from the cache - and kept in memory only: not even a hash of a password goes to disk
@@ -79,8 +76,20 @@ final class TokenProvider {
 		}
 	}
 
-	/** The connection's issuer when it names one, else the first the door trusts with a client id. */
-	private DoorIssuer chooseIssuer(AclConfig config) throws AuthException {
+	/**
+	 * The flow as the door names it in a client's {@code flows}. The driver's own password sign-in is
+	 * the IdP's password grant run by the driver - a client that runs the browser or device sign-in is
+	 * a public client of that IdP, which is what the grant needs.
+	 */
+	private static String flowName(AclConfig.Flow flow) {
+		return flow == AclConfig.Flow.DEVICE ? "device" : "authcode";
+	}
+
+	/**
+	 * The connection's issuer when it names one (by URL or by the door's name), else the first issuer
+	 * the door trusts that has a client for this flow, else the first with any client.
+	 */
+	private DoorIssuer chooseIssuer(AclConfig config, String flow) throws AuthException {
 		List<DoorIssuer> issuers = List.of();
 		if (config.discovery) {
 			try {
@@ -95,7 +104,7 @@ final class TokenProvider {
 		}
 		if (config.issuer != null) {
 			for (DoorIssuer issuer : issuers) {
-				if (sameIssuer(issuer.issuer(), config.issuer)) {
+				if (sameIssuer(issuer.issuer(), config.issuer) || config.issuer.equals(issuer.name())) {
 					return issuer;
 				}
 			}
@@ -103,10 +112,18 @@ final class TokenProvider {
 				throw new AuthException("the door does not trust the issuer " + config.issuer + "; it trusts "
 				                        + issuers.stream().map(DoorIssuer::issuer).toList());
 			}
-			return new DoorIssuer(config.issuer, null, null, null);
+			return DoorIssuer.configured(config.issuer);
+		}
+		if (config.clientId != null && !issuers.isEmpty()) {
+			return issuers.get(0); // the connection's own client: any issuer the door names will do
 		}
 		for (DoorIssuer issuer : issuers) {
-			if (issuer.clientId() != null) {
+			if (issuer.clients().stream().anyMatch(c -> c.runs(flow))) {
+				return issuer;
+			}
+		}
+		for (DoorIssuer issuer : issuers) {
+			if (!issuer.clients().isEmpty()) {
 				return issuer;
 			}
 		}
@@ -117,13 +134,37 @@ final class TokenProvider {
 		                        + "or connect with a token");
 	}
 
+	/** The connection's client by name, else the issuer's first client that runs the flow, else its first. */
+	private static String chooseClient(AclConfig config, DoorIssuer issuer, String flow) throws AuthException {
+		if (config.client != null) {
+			for (DoorIssuer.DoorClient client : issuer.clients()) {
+				if (config.client.equals(client.name())) {
+					return client.clientId();
+				}
+			}
+			throw new AuthException("the door names no client " + config.client + " for " + issuer.issuer()
+			                        + "; it names " + issuer.clients().stream().map(DoorIssuer.DoorClient::name).toList());
+		}
+		for (DoorIssuer.DoorClient client : issuer.clients()) {
+			if (client.runs(flow)) {
+				return client.clientId();
+			}
+		}
+		if (!issuer.clients().isEmpty()) {
+			return issuer.clients().get(0).clientId();
+		}
+		throw new AuthException("the door names no client for " + issuer.issuer()
+		                        + " - set the clientId property (a public OIDC client of that issuer)");
+	}
+
 	private static Oidc endpoints(DoorIssuer issuer) throws AuthException {
 		try {
 			return Oidc.discover(issuer.issuer());
 		} catch (IOException e) {
 			if (issuer.tokenEndpoint() != null) {
 				// the door's own copy of the endpoints: enough for password and device, not the browser
-				return new Oidc(issuer.issuer(), null, issuer.tokenEndpoint(), issuer.deviceEndpoint());
+				return new Oidc(issuer.issuer(), issuer.authorizationEndpoint(), issuer.tokenEndpoint(),
+				    issuer.deviceEndpoint());
 			}
 			throw new AuthException("could not read the endpoints of " + issuer.issuer() + ": " + e.getMessage(), e);
 		}

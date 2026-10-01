@@ -34,9 +34,10 @@ ACL ADMIN CREATE VIRTUAL TABLE sales.orders AS memory.main.orders;
 ACL ADMIN CREATE ROLE analyst;
 ACL ADMIN GRANT CATALOG sales TO ROLE analyst WITH (select) MAIN;
 ACL ADMIN GRANT TABLE sales.orders TO ROLE analyst WITH (select) RLS (tenant = acl_claim('tenant'));
-ACL ADMIN CREATE ISSUER '$KC_REALM' KEYS FROM '$KC_REALM/protocol/openid-connect/certs'
-    AUDIENCES ('account') ALGS (RS256) ROLE CLAIM 'realm_access.roles'
-    CLAIM MAP '{"tenant": "tenant"}' CLIENT ID 'acl-desktop';
+-- duckdb-acl spec 095: the realm's keys by its OIDC discovery; the one client runs every flow, the
+-- door's password handshake included (a node runs it as exactly one client)
+ACL ADMIN CREATE ISSUER '$KC_REALM' AUDIENCES ('account') ROLE CLAIM 'realm_access.roles'
+    CLAIM MAP '{"tenant": "tenant"}' CLIENT ID 'acl-desktop' FLOWS (password, authcode, device);
 SET GLOBAL acl_allow_anonymous_admin = false;
 SELECT acl_flight_serve('grpc+tls://0.0.0.0:$PORT', '$WORK/node.crt', '$WORK/node.key');
 SELECT 'node up: grpc+tls://localhost:$PORT' AS status;
