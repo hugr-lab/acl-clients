@@ -165,7 +165,8 @@ final class FakeIdp implements AutoCloseable {
 	}
 
 	Discovery discovery() {
-		return config -> List.of(new DoorIssuer(issuer, CLIENT, issuer + "/token", issuer + "/device"));
+		return config -> List.of(new DoorIssuer("kc", issuer, issuer + "/token", issuer + "/device", issuer + "/authorize",
+		    List.of(new DoorIssuer.DoorClient("desktop", CLIENT, List.of("authcode", "device")))));
 	}
 
 	@Override

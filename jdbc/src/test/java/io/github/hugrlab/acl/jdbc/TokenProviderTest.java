@@ -247,12 +247,63 @@ class TokenProviderTest {
 
 	@Test
 	void discoveryAnswerParses() throws IOException {
-		List<DoorIssuer> issuers = FlightDiscovery.parse(("{\"issuers\":[{\"issuer\":\"https://a\"},"
-		                                                  + "{\"issuer\":\"https://b\",\"client_id\":\"app\","
-		                                                  + "\"token_endpoint\":\"https://b/token\"}]}")
+		List<DoorIssuer> issuers = FlightDiscovery.parse(("{\"issuers\":[{\"name\":\"a\",\"issuer\":\"https://a\","
+		                                                  + "\"clients\":[]},"
+		                                                  + "{\"name\":\"b\",\"issuer\":\"https://b\","
+		                                                  + "\"token_endpoint\":\"https://b/token\","
+		                                                  + "\"clients\":[{\"name\":\"desktop\",\"client_id\":\"app\","
+		                                                  + "\"flows\":[\"authcode\",\"device\"]},"
+		                                                  + "{\"name\":\"no-id\",\"flows\":[\"device\"]}]}]}")
 		                                                     .getBytes());
 		assertEquals(2, issuers.size());
-		assertEquals("app", issuers.get(1).clientId());
+		assertEquals("b", issuers.get(1).name());
+		assertEquals(1, issuers.get(1).clients().size(), "a client without a client id is not one to sign in as");
+		assertEquals("app", issuers.get(1).clients().get(0).clientId());
+		assertTrue(issuers.get(1).clients().get(0).runs("device"));
 		assertTrue(FlightDiscovery.parse(new byte[0]).isEmpty(), "an older door answers nothing");
+	}
+
+	/** Two clients of one issuer: a web app that runs the browser sign-in only, and the desktop app. */
+	private TokenProvider twoClients() {
+		return new TokenProvider(config -> List.of(new DoorIssuer("kc", idp.issuer, null, null, null,
+		                             List.of(new DoorIssuer.DoorClient("web", "web-app", List.of("authcode")),
+		                                 new DoorIssuer.DoorClient("desktop", FakeIdp.CLIENT,
+		                                     List.of("authcode", "device"))))),
+		    ui);
+	}
+
+	@Test
+	void theClientIsTheFirstThatRunsTheFlow() throws SQLException {
+		// device: only the desktop client runs it - the web app's id would be refused by the IdP
+		twoClients().acquire(config("flow", "device", "loginTimeout", "10"));
+		assertEquals(List.of("device"), idp.grants);
+	}
+
+	@Test
+	void theConnectionNamesTheClient() throws SQLException {
+		twoClients().acquire(config("flow", "authcode", "client", "desktop", "loginTimeout", "10"));
+		assertEquals(List.of("authcode"), idp.grants);
+		AuthException e = assertThrows(AuthException.class,
+		    () -> twoClients().acquire(config("flow", "authcode", "client", "nosuch", "loginTimeout", "10")));
+		assertTrue(e.getMessage().contains("names no client nosuch") && e.getMessage().contains("desktop"),
+		    e.getMessage());
+	}
+
+	@Test
+	void theConnectionNamesTheIssuerByItsName() throws SQLException {
+		provider.acquire(config("issuer", "kc", "user", "alice", "password", "secret"));
+		assertEquals(List.of("password:alice"), idp.grants);
+		AuthException e = assertThrows(AuthException.class,
+		    () -> provider.acquire(config("issuer", "elsewhere", "user", "alice", "password", "secret")));
+		assertTrue(e.getMessage().contains("does not trust the issuer elsewhere"), e.getMessage());
+	}
+
+	@Test
+	void anIssuerWithoutClientsNamesTheWayOut() {
+		TokenProvider bare = new TokenProvider(
+		    config -> List.of(new DoorIssuer("kc", idp.issuer, null, null, null, List.of())), ui);
+		AuthException e = assertThrows(AuthException.class,
+		    () -> bare.acquire(config("user", "alice", "password", "secret")));
+		assertTrue(e.getMessage().contains("set the clientId property"), e.getMessage());
 	}
 }

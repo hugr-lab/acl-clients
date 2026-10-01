@@ -84,8 +84,24 @@ final class FlightDiscovery implements Discovery {
 		if (issuers instanceof List<?> list) {
 			for (Object item : list) {
 				if (item instanceof Map<?, ?> m && m.get("issuer") != null) {
-					out.add(new DoorIssuer(text(m, "issuer"), text(m, "client_id"), text(m, "token_endpoint"),
-					    text(m, "device_authorization_endpoint")));
+					List<DoorIssuer.DoorClient> clients = new ArrayList<>();
+					if (m.get("clients") instanceof List<?> listed) {
+						for (Object entry : listed) {
+							if (entry instanceof Map<?, ?> c && c.get("client_id") != null) {
+								List<String> flows = new ArrayList<>();
+								if (c.get("flows") instanceof List<?> named) {
+									for (Object flow : named) {
+										flows.add(String.valueOf(flow));
+									}
+								}
+								clients.add(new DoorIssuer.DoorClient(text(c, "name"), text(c, "client_id"),
+								    List.copyOf(flows)));
+							}
+						}
+					}
+					out.add(new DoorIssuer(text(m, "name"), text(m, "issuer"), text(m, "token_endpoint"),
+					    text(m, "device_authorization_endpoint"), text(m, "authorization_endpoint"),
+					    List.copyOf(clients)));
 				}
 			}
 		}

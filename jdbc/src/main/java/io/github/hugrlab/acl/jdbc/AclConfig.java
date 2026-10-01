@@ -33,6 +33,7 @@ final class AclConfig {
 	static final String FLOW = "flow";
 	static final String ISSUER = "issuer";
 	static final String CLIENT_ID = "clientId";
+	static final String CLIENT = "client";
 	static final String SCOPE = "scope";
 	static final String TOKEN = "token";
 	static final String USER = "user";
@@ -42,7 +43,7 @@ final class AclConfig {
 	static final String LOGIN_TIMEOUT = "loginTimeout";
 	static final String REDIRECT_PORT = "redirectPort";
 	static final String DISCOVERY = "discovery";
-	static final Set<String> OWN = Set.of(FLOW, ISSUER, CLIENT_ID, SCOPE, TOKEN, USER, PASSWORD, TOKEN_CACHE,
+	static final Set<String> OWN = Set.of(FLOW, ISSUER, CLIENT_ID, CLIENT, SCOPE, TOKEN, USER, PASSWORD, TOKEN_CACHE,
 	    TOKEN_CACHE_FILE, LOGIN_TIMEOUT, REDIRECT_PORT, DISCOVERY);
 
 	// read by the discovery handshake as well as passed on: the door is one TLS endpoint for both
@@ -55,6 +56,7 @@ final class AclConfig {
 	final Flow flow;
 	final String issuer;
 	final String clientId;
+	final String client;
 	final String scope;
 	final String token;
 	final String user;
@@ -75,6 +77,7 @@ final class AclConfig {
 		this.flow = parseEnum(Flow.class, all.getProperty(FLOW, "auto"), FLOW);
 		this.issuer = blankToNull(all.getProperty(ISSUER));
 		this.clientId = blankToNull(all.getProperty(CLIENT_ID));
+		this.client = blankToNull(all.getProperty(CLIENT));
 		this.scope = all.getProperty(SCOPE, "openid");
 		this.token = blankToNull(all.getProperty(TOKEN));
 		this.user = blankToNull(all.getProperty(USER));

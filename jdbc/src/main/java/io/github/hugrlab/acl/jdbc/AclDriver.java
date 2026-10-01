@@ -64,8 +64,13 @@ public final class AclDriver implements Driver {
 		out.add(property(AclConfig.FLOW, "auto", "How to sign in: auto (token, else user+password, else browser, else "
 		                                             + "device code), authcode, device, password, token",
 		    "auto", "authcode", "device", "password", "token"));
-		out.add(property(AclConfig.ISSUER, null, "The OIDC issuer to sign in with; default: the one the door names"));
-		out.add(property(AclConfig.CLIENT_ID, null, "The public OIDC client id; default: the one the door names"));
+		out.add(property(AclConfig.ISSUER, null,
+		    "The OIDC issuer to sign in with, by URL or by the door's name for it; default: the first the door names "
+		        + "with a client for the flow"));
+		out.add(property(AclConfig.CLIENT, null,
+		    "The door's client to sign in as, by name; default: the issuer's first client that runs the flow"));
+		out.add(property(AclConfig.CLIENT_ID, null,
+		    "A public OIDC client id to use instead of the door's clients (no discovery needed)"));
 		out.add(property(AclConfig.SCOPE, "openid", "The scopes requested"));
 		out.add(property(AclConfig.TOKEN, null, "A bearer token (flow=token): used as is, never refreshed"));
 		out.add(property(AclConfig.TOKEN_CACHE, "memory",

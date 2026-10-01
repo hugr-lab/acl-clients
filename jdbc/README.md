@@ -5,9 +5,12 @@ opens the connection through Apache Arrow's Flight SQL JDBC driver with the toke
 
 ## How a connection gets its token
 
-1. **Which issuer.** The driver asks the door, over its Flight Handshake (`discover-auth`, no
-   credentials needed), which OIDC issuer it trusts and with which public client id. Setting `issuer`
-   / `clientId` overrides that; with `discovery=false` they are required.
+1. **Which issuer and client.** The driver asks the door, over its Flight Handshake (`discover-auth`,
+   no credentials needed), which OIDC issuers it trusts and, for each, the clients a driver may sign
+   in as - a public client id and the flows it runs (duckdb-acl spec 095). It takes the first issuer
+   with a client for the flow it runs, and that issuer's first such client. `issuer` (a URL, or the
+   door's name for it) and `client` (the door's name for a client) choose instead; `clientId` uses a
+   client id of your own. With `discovery=false`, `issuer` and `clientId` are required.
 2. **A token already held.** Tokens are cached per issuer, client and sign-in. A token that is still
    valid is reused. One that has expired is refreshed silently with the refresh token.
 3. **Otherwise, sign in** (`flow`):
@@ -38,14 +41,15 @@ the URL.
 | `flow` | `auto` | `auto`, `authcode`, `device`, `password`, `token` |
 | `user`, `password` | | for `flow=password` (never passed to the door) |
 | `token` | | for `flow=token` |
-| `issuer` | the door's | the OIDC issuer URL; must be one the door trusts |
-| `clientId` | the door's | a **public** client of the issuer (no secret lives in a desktop driver) |
+| `issuer` | the door's | the OIDC issuer, by URL or by the door's name; must be one the door trusts |
+| `client` | the door's | the door's client to sign in as, by name (`acl_clients()` on the node) |
+| `clientId` | the door's | a **public** client id of your own instead of the door's clients (no secret lives in a desktop driver) |
 | `scope` | `openid` | |
 | `tokenCache` | `memory` | `memory` (this JVM), `file` (also across restarts), `none`. A password sign-in is kept in memory only, keyed by the password too |
 | `tokenCacheFile` | `~/.acl-jdbc/tokens.json` | owner-only (0600) where the OS supports it |
 | `loginTimeout` | `300` | seconds to wait for a browser or device sign-in |
 | `redirectPort` | `0` | the loopback port for the browser redirect; `0` = any free port |
-| `discovery` | `true` | ask the door for issuer and client |
+| `discovery` | `true` | ask the door for its issuers and clients |
 
 Every other property goes to Arrow's driver unchanged. The TLS ones are also used for discovery:
 

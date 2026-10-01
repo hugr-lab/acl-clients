@@ -6,6 +6,8 @@ Keycloak to run them against (`dev/`). Read `specs/001-architecture/spec.md` for
 side lives in duckdb-acl:
 
 - spec 064: discovery and the password handshake;
+- spec 095: issuers and clients - discovery lists `clients[]` per issuer (our spec 003), and the
+  door's password handshake runs as exactly one `FLOWS (password)` client;
 - spec 059: token freshness at connect;
 - spec 089: unpadded BasicAuth.
 
