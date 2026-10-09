@@ -4,8 +4,9 @@
 naming the node's datasets as the node does (`acl://dev` + `sales.main.orders`), and hands the node its
 run as the parent (the ADBC call header `x-openlineage-parent`). The node then records, under that run:
 
+- one run for the read of `sales.main.orders` (a read under a declared parent is a step);
 - one run for the `executemany` (one DoPut, however many rows - duckdb-acl spec 112);
-- one run for the bulk ingest (`adbc_ingest`);
+- one run for the bulk ingest (`adbc_ingest`).
 
 ```sh
 examples/pipelines/python/run.sh

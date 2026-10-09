@@ -9,11 +9,12 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 VENV="$HERE/.venv"
-if [ ! -x "$VENV/bin/dbt-ol" ]; then
+if [ ! -f "$VENV/.installed" ]; then # a marker written last: a half-done install is done again
 	python3 -m venv "$VENV"
 	# the node is duckdb 2.0: its quack protocol needs a 2.0 client (a pre-release until 2.0.0 is out)
 	"$VENV/bin/pip" install -q "dbt-core==1.12.5" "dbt-duckdb==1.11.0" "openlineage-dbt==1.53.0"
 	"$VENV/bin/pip" install -q --pre --upgrade "duckdb>=2.0.0.dev0"
+	touch "$VENV/.installed"
 fi
 export ACL_TOKEN="${ACL_TOKEN:-$("$ROOT/dev/token.sh")}"
 export ACL_CA_CERT="${ACL_CA_CERT:-$ROOT/dev/.work/node.crt}"

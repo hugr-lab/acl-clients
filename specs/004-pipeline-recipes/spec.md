@@ -29,8 +29,8 @@ joins the node's in one graph - but only with settings nobody would guess:
    lines up and what does not:
    - `spark/` - a PySpark job reading and writing through the driver; the `spark-submit` flags (the
      OpenLineage listener, the `pattern` resolver mapping the door's address to the node's namespace,
-     the parent/root parent conf); three-part names; reading a STRUCT table through `query` with the
-     columns Spark can map; `mode("append")` (overwrite = drop + create, which needs `drop`/`create`
+     the parent/root parent conf); three-part names; documenting how a STRUCT table is read (`query` with
+     the columns Spark can map); `mode("append")` (overwrite = drop + create, which needs `drop`/`create`
      on the schema; `truncate` needs a dialect - not offered).
    - `dbt/` - a dbt-duckdb project: `profiles.yml` attaching the node through quack **under the
      virtual catalog's name**, the stock materializations, `generate_schema_name` returning the
@@ -43,9 +43,10 @@ joins the node's in one graph - but only with settings nobody would guess:
      with lineage on.
 2. **The driver takes the parent from the environment.** When the connection's properties carry no
    `x-openlineage-parent` / `x-openlineage-root-parent`, the driver adds them from
-   `OPENLINEAGE_PARENT_ID` / `OPENLINEAGE_ROOT_PARENT_ID` if set (`acl.lineageFromEnv=false` turns it
-   off). A value the node refuses (spec 109) fails the connection with the node's message - nothing is
-   rewritten on the client.
+   `OPENLINEAGE_PARENT_ID` / `OPENLINEAGE_ROOT_PARENT_ID` if set (`lineageFromEnv=false` turns it
+   off). The environment is ambient, so a value not in the node's form (`<ns>/<job>/<UUID>`, spec 109)
+   is skipped with a warning naming the variable - a stray variable must not fail every call; a header
+   the connection sets itself (in any case) wins and is sent as written.
 3. **Targets: Spark 3.5 and 4.** Both run on Java 17 (Spark 4 requires it), which the driver already
    targets; the Spark recipe is checked on both. A Spark 3.x cluster on Java 11 is out of scope (owner,
    2026-10-09): the driver stays Java 17 until a deployment asks for 11.
@@ -74,8 +75,8 @@ this path.
 ## As built
 
 - **Driver.** `lineageFromEnv` (default true): `AclConfig` adds `x-openlineage-parent` /
-  `x-openlineage-root-parent` from `OPENLINEAGE_PARENT_ID` / `OPENLINEAGE_ROOT_PARENT_ID` when the
-  connection sets neither; the environment is injected for the unit tests (4 new cases).
+  `x-openlineage-root-parent` from `OPENLINEAGE_PARENT_ID` / `OPENLINEAGE_ROOT_PARENT_ID` for each header
+  the connection does not set itself; the environment is injected for the unit tests (4 new cases).
 - **dev.** `ACL_PIPELINES=1 dev/node.sh` adds `sales.spark_out`, `sales.py_out`, the schema
   `sales.dbt_home` (`AS memory.dbt_home`, granted select/insert/update/delete/create/drop), the quack
   door on :31900, lineage on under `acl://dev`, and acl-otel to Marquez when `ACL_OTEL` names it; the
@@ -85,6 +86,16 @@ this path.
   `acl://dev` + `sales.main.spark_out`; dbt twice in a row - the node's runs reach the model's final
   name through the swap (that needed duckdb-acl 113 to record a RENAME as a run: in a live alias the
   final name never appeared before); the Python job and the node's runs meet at `sales.main.py_out`.
+- **Review passes (driver, scripts, docs), fixed:** a malformed environment value is skipped with a
+  warning instead of failing every call; a connection's own header in another case wins (no second
+  header); a test proves Arrow 19 sends the property as a call header; the Spark runner keeps the token
+  off `docker run`'s command line, parses `<ns>/<job>/<UUID>` strictly (a namespace with `/`), takes
+  the root from `OPENLINEAGE_ROOT_PARENT_ID` instead of inventing one, and derives the resolver's name
+  from `ACL_LINEAGE_NAMESPACE`; the Python job trusts the dev certificate (`ACL_CA_CERT`) instead of
+  skipping verification, sends FAIL when the connect fails and exits non-zero; installs end with a
+  marker (a half-done venv is redone), the Python packages are pinned; `dev/node.sh` regenerates an
+  older certificate without `host.docker.internal`; the e2e runs each recipe under a parent named for
+  that run (stale Marquez data never passes a check) and polls up to 60 s.
 - **Found on the way:** `pip install --pre` pulls dbt-core 2.0 (a release candidate of the new
   engine) - the recipe pins dbt-core 1.12.5 and takes the 2.0 duckdb client separately; the quack client
   speaks http to `localhost` (documented).

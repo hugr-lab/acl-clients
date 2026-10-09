@@ -18,7 +18,9 @@ KC_REALM="${ACL_KEYCLOAK:-http://localhost:18070/realms/acl-dev}"
 WORK="$HERE/.work"
 [ -x "$DUCKDB" ] || { echo "no duckdb CLI at $DUCKDB - build duckdb-acl first" >&2; exit 1; }
 mkdir -p "$WORK"
-if [ ! -f "$WORK/node.crt" ]; then
+# made once; again when an older one lacks host.docker.internal (the quack client reaches a TLS door
+# by a name other than localhost - the pipeline recipes)
+if [ ! -f "$WORK/node.crt" ] || ! openssl x509 -in "$WORK/node.crt" -noout -text 2>/dev/null | grep -q host.docker.internal; then
 	openssl req -x509 -newkey rsa:2048 -nodes -days 365 -subj "/CN=localhost" \
 		-addext "subjectAltName=DNS:localhost,DNS:host.docker.internal,IP:127.0.0.1" \
 		-keyout "$WORK/node.key" -out "$WORK/node.crt" 2>/dev/null

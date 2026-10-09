@@ -4,11 +4,12 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.sql.SQLException;
-import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
 import java.util.function.UnaryOperator;
+import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 /**
  * One connection's settings: {@code jdbc:acl://host:port[?key=value&...]} plus the JDBC properties
@@ -54,6 +55,9 @@ final class AclConfig {
 	static final String ROOT_PARENT_HEADER = "x-openlineage-root-parent";
 	static final String PARENT_ENV = "OPENLINEAGE_PARENT_ID";
 	static final String ROOT_PARENT_ENV = "OPENLINEAGE_ROOT_PARENT_ID";
+	// <namespace>/<job>/<runId>, the run id a UUID - the form the node accepts (duckdb-acl spec 109)
+	private static final Pattern RUN_REF = Pattern.compile("[^/\\s]+(/[^\\s]*)?/[^/\\s]+/[0-9a-fA-F-]{36}");
+	private static final Logger LOG = Logger.getLogger(AclConfig.class.getName());
 
 	// read by the discovery handshake as well as passed on: the door is one TLS endpoint for both
 	static final String USE_ENCRYPTION = "useEncryption";
@@ -114,15 +118,27 @@ final class AclConfig {
 		}
 	}
 
-	/** A header the connection does not set itself, from the variable an orchestrator set. */
+	/**
+	 * A header the connection does not set itself (in any case: gRPC lowercases header names), from the
+	 * variable an orchestrator set. The environment is ambient - a value not in the node's form is
+	 * skipped with a warning naming the variable, never the value, rather than failing every call.
+	 */
 	private void fromEnv(String header, String variable, UnaryOperator<String> env) {
-		if (passthrough.getProperty(header) != null) {
-			return; // the connection's own value wins
+		for (String key : passthrough.stringPropertyNames()) {
+			if (key.equalsIgnoreCase(header)) {
+				return; // the connection's own value wins
+			}
 		}
 		String value = blankToNull(env.apply(variable));
-		if (value != null) {
-			passthrough.setProperty(header, value.trim());
+		if (value == null) {
+			return;
 		}
+		value = value.trim();
+		if (!RUN_REF.matcher(value).matches()) {
+			LOG.warning(variable + " is not <namespace>/<job>/<runId> with a UUID run id - not sent");
+			return;
+		}
+		passthrough.setProperty(header, value);
 	}
 
 	static boolean accepts(String url) {
@@ -200,11 +216,6 @@ final class AclConfig {
 			return Flow.PASSWORD;
 		}
 		return browserAvailable ? Flow.AUTHCODE : Flow.DEVICE;
-	}
-
-	static List<String> ownKeys() {
-		return List.of(FLOW, ISSUER, CLIENT_ID, SCOPE, TOKEN, TOKEN_CACHE, TOKEN_CACHE_FILE, LOGIN_TIMEOUT,
-		    REDIRECT_PORT, DISCOVERY);
 	}
 
 	private static String decode(String s) {

@@ -12,7 +12,7 @@ if [ "${1:-up}" = "down" ]; then
 fi
 docker compose -p acl-clients-marquez -f "$HERE/marquez-compose.yml" up -d
 for _ in $(seq 1 60); do
-	curl -sf "http://localhost:$MARQUEZ_PORT/api/v1/namespaces" >/dev/null && { echo "marquez: http://localhost:$MARQUEZ_PORT"; exit 0; }
+	curl -sf --max-time 5 "http://localhost:$MARQUEZ_PORT/api/v1/namespaces" >/dev/null && { echo "marquez: http://localhost:$MARQUEZ_PORT"; exit 0; }
 	sleep 2
 done
 echo "marquez did not come up on :$MARQUEZ_PORT" >&2

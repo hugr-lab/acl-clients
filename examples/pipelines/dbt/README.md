@@ -1,7 +1,7 @@
 # dbt through a duckdb-acl node
 
 A dbt-duckdb project whose models live in the node's schema `sales.dbt_home` (granted `select, insert,
-create, drop`). `run.sh` makes a venv (dbt-core 1.12, dbt-duckdb 1.11, openlineage-dbt) and runs
+update, delete, create, drop`). `run.sh` makes a venv (dbt-core 1.12, dbt-duckdb 1.11, openlineage-dbt) and runs
 `dbt-ol`.
 
 ```sh
@@ -20,6 +20,7 @@ examples/pipelines/dbt/run.sh            # twice: the second run swaps every mod
   duckdb.
 - The client's duckdb must be 2.0 (the node's); until 2.0.0 is released that is a pre-release.
 - The quack client speaks plain http to `localhost`: reach a TLS door by another name its certificate
-  carries (the dev certificate has `host.docker.internal`).
+  carries (the dev certificate has `host.docker.internal`, which Docker Desktop resolves on the host;
+  on Linux add it to `/etc/hosts` or set `ACL_QUACK_DOOR` to a name of the node's certificate).
 - dbt-ol names the model in its adapter's namespace (`duckdb://:memory:`), the node in its own; the
   names are the same.

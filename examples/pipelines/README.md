@@ -28,7 +28,8 @@ The node records its runs as steps of the engine's run when it gets the parent
 (`<namespace>/<job>/<runId>`, OpenLineage's `OPENLINEAGE_PARENT_ID`):
 
 - **JDBC** (Spark): the driver sends `OPENLINEAGE_PARENT_ID` / `OPENLINEAGE_ROOT_PARENT_ID` from the
-  environment as the lineage headers (`lineageFromEnv`, on by default) - set by Airflow for its task;
+  environment as the lineage headers (`lineageFromEnv`, on by default) - set by the orchestrator for
+  its task (in Airflow from the OpenLineage provider's `lineage_parent_id` macro);
 - **ADBC** (Python): the call header `x-openlineage-parent`;
 - **quack** (dbt): a pre-hook that SETs `acl_lineage_parent` on the node's session.
 

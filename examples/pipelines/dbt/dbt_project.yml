@@ -7,7 +7,7 @@ macro-paths: [macros]
 models:
   acl_pipelines:
     # the node's virtual catalog (the attach alias in profiles.yml) and a schema granted with
-    # select, insert, create and drop - dbt writes there and nowhere else
+    # select, insert, update, delete, create and drop - dbt writes there and nowhere else
     +database: sales
     +schema: dbt_home
     +materialized: table

@@ -7,10 +7,11 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 VENV="$HERE/.venv"
-if [ ! -x "$VENV/bin/python" ]; then
+if [ ! -f "$VENV/.installed" ]; then # a marker written last: a half-done install is done again
 	python3 -m venv "$VENV"
-	"$VENV/bin/pip" install -q adbc-driver-flightsql pyarrow "openlineage-python==1.53.0"
+	"$VENV/bin/pip" install -q "adbc-driver-flightsql==1.12.0" "pyarrow==26.0.0" "openlineage-python==1.53.0"
+	touch "$VENV/.installed"
 fi
 export ACL_TOKEN="${ACL_TOKEN:-$("$ROOT/dev/token.sh")}"
-export ACL_INSECURE="${ACL_INSECURE:-1}" # the dev node's self-signed certificate
+export ACL_CA_CERT="${ACL_CA_CERT:-$ROOT/dev/.work/node.crt}" # the dev node's self-signed certificate
 exec "$VENV/bin/python" "$HERE/job.py"

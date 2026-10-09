@@ -106,4 +106,42 @@ class AclConfigTest {
 		Properties out = AclConfig.parse("jdbc:acl://door:1", info, env::get).delegateProperties("t");
 		assertNull(out.getProperty(AclConfig.PARENT_HEADER));
 	}
+
+	@Test
+	void aDifferentlyCasedOwnHeaderStillWins() throws SQLException {
+		Properties info = new Properties();
+		info.setProperty("X-OpenLineage-Parent", "mine/job/01929e3a-0000-7000-8000-000000000009");
+		java.util.Map<String, String> env = java.util.Map.of(AclConfig.PARENT_ENV, "airflow/daily.load/01929e3a-0000-7000-8000-000000000001");
+		Properties out = AclConfig.parse("jdbc:acl://door:1", info, env::get).delegateProperties("t");
+		assertNull(out.getProperty(AclConfig.PARENT_HEADER), "no second header beside the connection's own");
+		assertEquals("mine/job/01929e3a-0000-7000-8000-000000000009", out.getProperty("X-OpenLineage-Parent"));
+	}
+
+	@Test
+	void aMalformedEnvironmentValueIsNotSent() throws SQLException {
+		for (String bad : new String[] {"airflow/daily/not-a-uuid", "no-slashes", "a/b/01929e3a-0000-7000-8000-000000000001\nx: y"}) {
+			java.util.Map<String, String> env = java.util.Map.of(AclConfig.PARENT_ENV, bad);
+			Properties out = AclConfig.parse("jdbc:acl://door:1", new Properties(), env::get).delegateProperties("t");
+			assertNull(out.getProperty(AclConfig.PARENT_HEADER), bad);
+		}
+	}
+
+	@Test
+	void aNamespaceWithASlashIsAccepted() throws SQLException {
+		java.util.Map<String, String> env = java.util.Map.of(AclConfig.ROOT_PARENT_ENV, "airflow://prod/daily/01929e3a-0000-7000-8000-0000000000ff");
+		Properties out = AclConfig.parse("jdbc:acl://door:1", new Properties(), env::get).delegateProperties("t");
+		assertEquals("airflow://prod/daily/01929e3a-0000-7000-8000-0000000000ff", out.getProperty(AclConfig.ROOT_PARENT_HEADER));
+		assertNull(out.getProperty(AclConfig.PARENT_HEADER), "a root without a parent is the root alone");
+	}
+
+	// the load-bearing assumption: Arrow's driver sends a property it does not own as a call header
+	@Test
+	void arrowSendsTheParentAsAHeader() throws SQLException {
+		java.util.Map<String, String> env = java.util.Map.of(AclConfig.PARENT_ENV, "airflow/daily.load/01929e3a-0000-7000-8000-000000000001");
+		Properties out = AclConfig.parse("jdbc:acl://door:1", new Properties(), env::get).delegateProperties("t");
+		org.apache.arrow.driver.jdbc.utils.ArrowFlightConnectionConfigImpl arrow =
+		    new org.apache.arrow.driver.jdbc.utils.ArrowFlightConnectionConfigImpl(out);
+		assertEquals("airflow/daily.load/01929e3a-0000-7000-8000-000000000001",
+		    arrow.getHeaderAttributes().get(AclConfig.PARENT_HEADER));
+	}
 }

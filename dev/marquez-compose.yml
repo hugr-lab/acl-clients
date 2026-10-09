@@ -1,5 +1,5 @@
 # spec 004: a Marquez (an OpenLineage backend) to look at the joined lineage graph of the pipeline
-# recipes - its API and UI on 127.0.0.1:${MARQUEZ_PORT:-5050}
+# recipes - its API on 127.0.0.1:${MARQUEZ_PORT:-5050}
 services:
   db:
     image: postgres:14
