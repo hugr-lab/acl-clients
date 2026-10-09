@@ -87,8 +87,14 @@ procedures, and the active catalog switched with `USE` (spec 006). The tree DBea
 principal's own: catalogs, nested schemas (`raw.eu`), tables and views with their comments, columns
 with duckdb's types (`STRUCT(...)`, `VARCHAR[]`), and table functions with their parameters and result
 columns. A second connection with `acl.mode=manage` runs management SQL (`ACL ...`) as typed, and
-`acl.mode=native` native SQL (`ACL NATIVE ...`) - the node decides by the principal's scope.
+`acl.mode=native` native SQL (`ACL NATIVE ...`) - the node decides by the principal's scope. A `USE`
+is the session's in every mode (the tree is always virtual), so switching the active catalog works in
+each.
 
 ## License
 
 MIT. The driver jar bundles Apache Arrow's Flight SQL JDBC driver (Apache License 2.0) unchanged.
+Parts of the driver (`DuckTypes`, `AclStruct`, `AclDatabaseMetaData`, `MetadataSql`) are adapted from
+[duckdb-java](https://github.com/duckdb/duckdb-java) (MIT, Copyright 2018-2025 Stichting DuckDB
+Foundation); its licence is in [`jdbc/THIRD-PARTY.md`](jdbc/THIRD-PARTY.md) and ships in both jars as
+`META-INF/THIRD-PARTY.md`.
