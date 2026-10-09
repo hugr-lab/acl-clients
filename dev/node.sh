@@ -8,6 +8,9 @@
 #   ACL_PIPELINES=1 dev/node.sh                    # + the pipeline recipes' objects (spec 004): writable
 #       tables, a dbt schema, the quack door on :31900, lineage on - sent to Marquez (dev/marquez.sh)
 #       by acl-otel when ACL_OTEL names its built extension
+#   ACL_METADATA=1 dev/node.sh                     # + what a tool's tree shows (spec 006): nested types with a
+#       COMMENT (a STRUCT in a LIST too), a view, table functions, a nested schema sales.raw.eu, a second
+#       catalog, a masked column
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ACL_REPO="${ACL_REPO:-$HERE/../../duckdb-acl}"
@@ -53,6 +56,45 @@ SET GLOBAL acl_lineage_level = 'on';
 SET GLOBAL acl_lineage_namespace = 'acl://dev';"
 	PIPELINES_SERVE="SELECT acl_quack_serve('quack:0.0.0.0:$QUACK_PORT', 'dev-quack-server-token', '$WORK/node.crt', '$WORK/node.key');"
 fi
+METADATA=""
+if [ -n "${ACL_METADATA:-}" ]; then
+	# spec 006: every kind of object a JDBC tool lists, granted to the ordinary role analyst
+	METADATA="CREATE TYPE mood AS ENUM ('calm', 'busy');
+CREATE SCHEMA memory.raw_eu;
+CREATE TABLE customers (id INTEGER, name VARCHAR,
+    address STRUCT(city VARCHAR, zip VARCHAR, geo STRUCT(lat DOUBLE, lon DOUBLE)),
+    tags VARCHAR[], scores INTEGER[3], attrs MAP(VARCHAR, INTEGER), balance DECIMAL(18,3), mood mood,
+    ssn VARCHAR, seen TIMESTAMP WITH TIME ZONE, visits STRUCT(city VARCHAR, n INTEGER)[]);
+INSERT INTO customers VALUES
+    (1, 'Ann', {'city': 'Berlin', 'zip': '10115', 'geo': {'lat': 52.5, 'lon': 13.4}}, ['a', 'b'], [1, 2, 3],
+     MAP {'x': 1}, 12.345, 'calm', '123-45-6789', TIMESTAMPTZ '2026-10-09 10:00:00+00',
+     [{'city': 'Berlin', 'n': 2}, {'city': 'Paris', 'n': 1}]);
+CREATE TABLE memory.raw_eu.events (id INTEGER, kind VARCHAR);
+INSERT INTO memory.raw_eu.events VALUES (1, 'click');
+CREATE TABLE products (sku VARCHAR, price DOUBLE);
+INSERT INTO products VALUES ('p-1', 9.5);
+SET GLOBAL acl_allow_anonymous_admin = true;
+ACL ADMIN CREATE VIRTUAL TABLE sales.customers AS memory.main.customers PRIMARY KEY (id)
+    COMMENT 'customers with nested types';
+ACL ADMIN GRANT TABLE sales.customers TO ROLE analyst WITH (select)
+    COLUMNS (id, name, address, tags, scores, attrs, balance, mood, ssn = '***', seen, visits);
+ACL ADMIN CREATE VIRTUAL VIEW sales.big_orders COMMENT 'orders over 50'
+    AS SELECT id, amount FROM memory.main.orders WHERE amount > 50;
+ACL ADMIN CREATE VIRTUAL SCHEMA sales.raw.eu AS memory.raw_eu COMMENT 'raw zone, eu';
+-- USE SCHEMA needs a schema grant (duckdb-acl spec 114): the catalog grant lists it, but does not seat it
+ACL ADMIN GRANT SCHEMA sales.raw.eu TO ROLE analyst WITH (select);
+ACL ADMIN CREATE VIRTUAL TABLE FUNCTION sales.orders_over(threshold INTEGER)
+    RETURNS TABLE (id INTEGER, amount INTEGER) COMMENT 'orders at or over a threshold'
+    AS SELECT id::INTEGER AS id, amount::INTEGER AS amount FROM memory.main.orders WHERE amount >= acl_arg(1);
+SELECT acl_add_table_function('sales', 'all_tenants', 'SELECT DISTINCT tenant FROM memory.main.orders', '',
+    'tenant VARCHAR', 'every tenant');
+ACL ADMIN CREATE VIRTUAL SCALAR sales.shout(text VARCHAR) RETURNS VARCHAR AS upper(acl_arg(1));
+ACL ADMIN CREATE VIRTUAL REFERENCE sales.order_customer FROM orders TO customers ON (id = id);
+ACL ADMIN CREATE VIRTUAL CATALOG inventory COMMENT 'a second catalog';
+ACL ADMIN CREATE VIRTUAL TABLE inventory.products AS memory.main.products COMMENT 'the price list';
+ACL ADMIN GRANT CATALOG inventory TO ROLE analyst WITH (select);
+SET GLOBAL acl_allow_anonymous_admin = false;"
+fi
 cat > "$WORK/node.sql" <<SQL
 LOAD httpfs;
 $OTEL
@@ -74,6 +116,7 @@ ACL ADMIN CREATE ISSUER '$KC_REALM' AUDIENCES ('account') ROLE CLAIM 'realm_acce
     CLAIM MAP '{"tenant": "tenant"}' CLIENT ID 'acl-desktop' FLOWS (password, authcode, device);
 SET GLOBAL acl_allow_anonymous_admin = false;
 $PIPELINES
+$METADATA
 SELECT acl_flight_serve('grpc+tls://0.0.0.0:$PORT', '$WORK/node.crt', '$WORK/node.key');
 $PIPELINES_SERVE
 SELECT 'node up: grpc+tls://localhost:$PORT' AS status;

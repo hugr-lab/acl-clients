@@ -43,6 +43,29 @@ class AclConfigTest {
 		assertNull(out.getProperty("tokenCache"));
 	}
 
+	// spec 006: Arrow would send catalog as SetSessionOptions, which the door refuses - ours, applied by USE
+	@Test
+	void catalogSchemaModeAndNestedAreOurs() throws SQLException {
+		Properties info = new Properties();
+		info.setProperty("schema", "raw.eu");
+		info.setProperty("acl.mode", "manage");
+		AclConfig c = AclConfig.parse("jdbc:acl://door:1?catalog=inventory&nested=json", info);
+		assertEquals("inventory", c.catalog);
+		assertEquals("raw.eu", c.schema);
+		assertEquals(AclConfig.Mode.MANAGE, c.mode);
+		assertEquals(AclConfig.Nested.JSON, c.nested);
+		Properties out = c.delegateProperties("t");
+		assertNull(out.getProperty("catalog"), "never handed to Arrow");
+		assertNull(out.getProperty("schema"));
+		assertNull(out.getProperty("acl.mode"));
+		assertNull(out.getProperty("nested"));
+		AclConfig plain = AclConfig.parse("jdbc:acl://door:1", null);
+		assertEquals(AclConfig.Mode.DATA, plain.mode);
+		assertEquals(AclConfig.Nested.OBJECT, plain.nested);
+		assertNull(plain.catalog);
+		assertThrows(SQLException.class, () -> AclConfig.parse("jdbc:acl://door:1?acl.mode=root", null));
+	}
+
 	@Test
 	void autoPicksFromWhatTheConnectionSupplies() throws SQLException {
 		Properties token = new Properties();

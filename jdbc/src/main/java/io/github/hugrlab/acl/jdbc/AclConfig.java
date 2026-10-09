@@ -31,6 +31,16 @@ final class AclConfig {
 		MEMORY, FILE, NONE
 	}
 
+	/** What every statement of the connection is sent as (spec 006): data, management or native SQL. */
+	enum Mode {
+		DATA, MANAGE, NATIVE
+	}
+
+	/** How a STRUCT / MAP / LIST value is handed out by {@code getObject}. */
+	enum Nested {
+		OBJECT, JSON
+	}
+
 	// the keys this driver owns: documented in getPropertyInfo and never passed on
 	static final String FLOW = "flow";
 	static final String ISSUER = "issuer";
@@ -46,8 +56,14 @@ final class AclConfig {
 	static final String REDIRECT_PORT = "redirectPort";
 	static final String DISCOVERY = "discovery";
 	static final String LINEAGE_FROM_ENV = "lineageFromEnv";
+	// spec 006: Arrow would send catalog as Flight SetSessionOptions, which the door refuses - ours, applied
+	// with USE once the connection holds its session
+	static final String CATALOG = "catalog";
+	static final String SCHEMA = "schema";
+	static final String MODE = "acl.mode";
+	static final String NESTED = "nested";
 	static final Set<String> OWN = Set.of(FLOW, ISSUER, CLIENT_ID, CLIENT, SCOPE, TOKEN, USER, PASSWORD, TOKEN_CACHE,
-	    TOKEN_CACHE_FILE, LOGIN_TIMEOUT, REDIRECT_PORT, DISCOVERY, LINEAGE_FROM_ENV);
+	    TOKEN_CACHE_FILE, LOGIN_TIMEOUT, REDIRECT_PORT, DISCOVERY, LINEAGE_FROM_ENV, CATALOG, SCHEMA, MODE, NESTED);
 
 	// spec 004: the lineage parent an orchestrator hands its task (OpenLineage's own variables), sent
 	// as the call headers the node reads (duckdb-acl spec 107/109) when the connection names none
@@ -82,6 +98,10 @@ final class AclConfig {
 	final boolean useEncryption;
 	final boolean disableCertificateVerification;
 	final String tlsRootCerts;
+	final String catalog;
+	final String schema;
+	final Mode mode;
+	final Nested nested;
 	private final Properties passthrough;
 
 	private AclConfig(String host, int port, Properties all, UnaryOperator<String> env) throws SQLException {
@@ -105,6 +125,10 @@ final class AclConfig {
 		this.useEncryption = parseBool(all.getProperty(USE_ENCRYPTION, "true"));
 		this.disableCertificateVerification = parseBool(all.getProperty(DISABLE_CERT_VERIFICATION, "false"));
 		this.tlsRootCerts = blankToNull(all.getProperty(TLS_ROOT_CERTS));
+		this.catalog = blankToNull(all.getProperty(CATALOG));
+		this.schema = blankToNull(all.getProperty(SCHEMA));
+		this.mode = parseEnum(Mode.class, all.getProperty(MODE, "data"), MODE);
+		this.nested = parseEnum(Nested.class, all.getProperty(NESTED, "object"), NESTED);
 		this.passthrough = new Properties();
 		for (String key : all.stringPropertyNames()) {
 			if (!OWN.contains(key)) {

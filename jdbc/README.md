@@ -50,6 +50,9 @@ the URL.
 | `loginTimeout` | `300` | seconds to wait for a browser or device sign-in |
 | `redirectPort` | `0` | the loopback port for the browser redirect; `0` = any free port |
 | `discovery` | `true` | ask the door for its issuers and clients |
+| `catalog`, `schema` | the principal's main catalog | where the connection starts: `USE <catalog>` / `USE SCHEMA <schema>` once connected (Arrow's own `catalog` is a Flight session option the door refuses) |
+| `acl.mode` | `data` | what every statement is sent as: `data` (as written), `manage` (`ACL <statement>`), `native` (`ACL NATIVE <statement>`). The node decides by the principal's scope. Sent as written in every mode: a text that already starts with `ACL`, and a text that is one `USE` statement (`USE c`, `USE c.s`, `USE SCHEMA s` - the session's catalog is virtual; a physical one is `ACL NATIVE USE ...`). A batch is prefixed as a whole. `native` keeps the text's comments after the prefix; `manage` drops its leading ones (the node's management grammar reads none) |
+| `nested` | `object` | STRUCT / MAP / LIST values from `getObject`: `object` (`java.sql.Struct`, `Map`, `java.sql.Array`) or `json` (one JSON text - BI tools, Spark) |
 | `lineageFromEnv` | `true` | send `OPENLINEAGE_PARENT_ID` / `OPENLINEAGE_ROOT_PARENT_ID` (an orchestrator's task) as the node's lineage parent headers - each one the connection does not set itself (`x-openlineage-parent` / `x-openlineage-root-parent`) |
 
 Every other property goes to Arrow's driver unchanged. The TLS ones are also used for discovery:
@@ -60,6 +63,36 @@ Every other property goes to Arrow's driver unchanged. The TLS ones are also use
 | `disableCertificateVerification` | `false` | development only |
 | `tlsRootCerts` | | PEM file with the CA that signed the door's certificate |
 | `trustStore`, `trustStorePassword`, `useSystemTrustStore` | | Arrow's trust store settings |
+
+## What a tool sees (spec 006)
+
+The connection is Arrow's, wrapped where the door needs it said differently:
+
+- **`setCatalog` / `setSchema`** run `USE "<catalog>"` / `USE SCHEMA "<schema>"` (duckdb-acl spec 114;
+  a nested schema is its dotted path, `raw.eu`). `getCatalog` / `getSchema` read
+  `current_database()` / `current_schema()`, kept until a `USE` through any statement of the
+  connection. A `USE` needs a session of the client's own, and a schema needs a schema grant.
+- **`DatabaseMetaData`**: Arrow's answers where the node now sends them (identifier quote, keywords,
+  search escape, terms, catalog-at-start, transactions - duckdb-acl spec 115); the listings run as SQL
+  on the principal's own surfaces - `duckdb_tables()` / `duckdb_views()`,
+  `duckdb_columns()`, `duckdb_functions()`, `acl_function_columns()`, `duckdb_types()`, `acl_keys()`,
+  `acl_references()`, catalogs and schemas from `information_schema.schemata` (a nested schema by its
+  path, `raw.eu`) - so they describe exactly what the principal can read, and an empty answer
+  still has JDBC's columns. Every filter a tool passes goes into the SQL: nothing is listed whole and
+  filtered afterwards, and nothing is cached. The listing SQL calls no function but those listings
+  (an ordinary role reads its own tree through the function gate) and is never prefixed by
+  `acl.mode`.
+- **Results** name duckdb's types: `getColumnTypeName` is `STRUCT(city VARCHAR, ...)`,
+  `DECIMAL(18,3)`, `VARCHAR[]` (the field metadata `ARROW:FLIGHT:SQL:TYPE_NAME`) - a prepared
+  statement's `getMetaData` too, before it runs. A STRUCT value is a `java.sql.Struct` (`AclStruct`)
+  at any depth, a LIST a `java.sql.Array` (`AclArray`) whose elements are those objects, a MAP a
+  `Map`; `getObject(i, Struct.class / Array.class / Map.class / String.class)` answer the same. A
+  `BIGNUM` or `BIT` (duckdb's own bytes on the wire) reads as its text.
+- **Listings the node has nothing for** (indexes, privileges, UDTs, pseudo columns, super types and
+  tables, attributes, row identifiers, version columns, client info properties) are empty, with
+  JDBC's columns.
+- **A prepared statement** refuses the methods that take SQL text (`executeQuery(String)`,
+  `addBatch(String)`, ...), as JDBC 4.3 says.
 
 ## The IdP's client
 
@@ -89,6 +122,24 @@ verification. `../dev/jdbc-e2e.sh` runs the end-to-end tests against the dev nod
 - a device sign-in;
 - the password sign-in and its refusal;
 - tenant-sliced reads.
+
+With `ACL_METADATA=1 ../dev/node.sh` and `ACL_E2E_METADATA=1 ../dev/jdbc-e2e.sh`, `LiveMetadataE2ETest`
+reads the whole tree as an ordinary role (types, functions, keys, catalogs, modes) and writes what it
+saw to `target/metadata-dump.txt`.
+
+`DuckTypes`, `AclStruct` and parts of `AclDatabaseMetaData` / `MetadataSql` are adapted from
+duckdb-java (MIT); see [`THIRD-PARTY.md`](THIRD-PARTY.md), shipped in the jar as
+`META-INF/THIRD-PARTY.md` (CI checks both jars).
+
+The `Forwarding*` bases and `UnsupportedResultSet` are generated from the JDK's `java.sql` interfaces
+by `tools/GenForwarding.java` - regenerate rather than edit them. From `jdbc/`, on JDK 17:
+
+```sh
+docker run --rm -v "$PWD/tools":/w -w /w eclipse-temurin:17 bash -c "java GenForwarding.java"
+cp tools/out/*.java src/main/java/io/github/hugrlab/acl/jdbc/ && rm -rf tools/out
+```
+
+CI regenerates them on JDK 17 and fails when any of the eight files differs.
 
 Arrow's memory layer needs `--add-opens=java.base/java.nio=ALL-UNNAMED` on Java 17+. The build sets
 it for the tests; a host application (DBeaver) sets it in its JVM options.

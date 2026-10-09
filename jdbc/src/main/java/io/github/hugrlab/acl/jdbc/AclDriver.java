@@ -50,7 +50,8 @@ public final class AclDriver implements Driver {
 		}
 		AclConfig config = AclConfig.parse(url, info);
 		String bearer = tokens.acquire(config);
-		return delegate.connect(config.delegateUrl(), config.delegateProperties(bearer));
+		Connection arrow = delegate.connect(config.delegateUrl(), config.delegateProperties(bearer));
+		return arrow == null ? null : new AclConnection(arrow, config);
 	}
 
 	@Override
@@ -84,6 +85,16 @@ public final class AclDriver implements Driver {
 		    "Send OPENLINEAGE_PARENT_ID / OPENLINEAGE_ROOT_PARENT_ID as the lineage parent headers when the "
 		        + "connection sets none",
 		    "true", "false"));
+		out.add(property(AclConfig.CATALOG, null,
+		    "The catalog to start in (USE <catalog> once connected); default: the principal's main catalog"));
+		out.add(property(AclConfig.SCHEMA, null, "The schema to start in (USE SCHEMA <schema> once connected)"));
+		out.add(property(AclConfig.MODE, "data",
+		    "What every statement is sent as: data (as written), manage (ACL <statement>), native (ACL NATIVE "
+		        + "<statement>); the node decides by the principal's scope. Metadata is always the virtual catalog's",
+		    "data", "manage", "native"));
+		out.add(property(AclConfig.NESTED, "object",
+		    "STRUCT / MAP / LIST values from getObject: object (java.sql.Struct, Map, java.sql.Array) or json (text)",
+		    "object", "json"));
 		out.add(property(AclConfig.USE_ENCRYPTION, "true", "TLS to the door", "true", "false"));
 		out.add(property(AclConfig.DISABLE_CERT_VERIFICATION, "false",
 		    "Skip the door's certificate check (development only)", "true", "false"));

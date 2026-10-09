@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  duckdb-acl in DBeaver without a plugin (acl-clients spec 006): the Generic provider with this driver.
+  Merge the <driver> element into DBeaver's own drivers.xml (DBeaverData/workspace6/.metadata/.config/
+  drivers.xml) while DBeaver is closed, or enter the same values in Database -> Driver Manager -> New
+  (the parameters are on its "Adv. parameters" tab). Point <library path> at the -all jar.
+  The DBeaver plugin (spec 007) builds on the same driver.
+-->
+<drivers>
+	<provider id="generic">
+		<driver id="duckdb_acl" category="" categories="sql,analytic" custom="true" embedded="false"
+		        name="duckdb-acl" class="io.github.hugrlab.acl.jdbc.AclDriver"
+		        url="jdbc:acl://{host}:{port}" port="32800"
+		        description="duckdb-acl node: Flight SQL door, OAuth sign-in">
+			<library type="jar" path="/path/to/acl-jdbc-0.1.0-all.jar" custom="true"/>
+			<!-- a table function and a scalar are listed by getFunctions as well as getProcedures -->
+			<parameter name="split-procedures-and-functions" value="true"/>
+			<!-- the active catalog is the session's USE (duckdb-acl spec 114); quoted, so any name works. A USE
+			     is sent as written in every acl.mode; DBeaver reads the active catalog with getCatalog()
+			     (no query-get-active-db: a query of its own would be prefixed in manage/native mode) -->
+			<parameter name="active-entity-type" value="catalog"/>
+			<parameter name="query-set-active-db" value="USE &quot;?&quot;"/>
+			<parameter name="supports-references" value="true"/>
+			<parameter name="supports-indexes" value="false"/>
+		</driver>
+	</provider>
+</drivers>

@@ -19,9 +19,27 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: maven
+      - name: Generated java.sql bases are what tools/GenForwarding.java makes
+        working-directory: jdbc/tools
+        run: |
+          java GenForwarding.java
+          test "$(ls out/*.java | wc -l)" -eq 8
+          for f in out/*.java; do
+            diff -u "../src/main/java/io/github/hugrlab/acl/jdbc/$(basename "$f")" "$f"
+          done
+          rm -rf out
       - name: Test and package
         working-directory: jdbc
         run: mvn -B package
+      - name: duckdb-java's licence in both jars
+        working-directory: jdbc
+        run: |
+          jars=$(ls target/acl-jdbc-*.jar | grep -v -e sources -e javadoc)
+          test "$(echo "$jars" | wc -l)" -eq 2
+          for jar in $jars; do
+            unzip -l "$jar" META-INF/THIRD-PARTY.md | grep -q 'META-INF/THIRD-PARTY.md' \
+              || { echo "no META-INF/THIRD-PARTY.md in $jar"; exit 1; }
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: acl-jdbc
