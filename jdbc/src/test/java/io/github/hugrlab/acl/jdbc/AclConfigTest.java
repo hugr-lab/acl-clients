@@ -70,4 +70,40 @@ class AclConfigTest {
 		assertThrows(SQLException.class, () -> AclConfig.parse("jdbc:acl://d:port", null));
 		assertThrows(SQLException.class, () -> AclConfig.parse("jdbc:acl://:1", null));
 	}
+
+	// spec 004: the orchestrator's parent becomes the call headers the node reads
+	@Test
+	void lineageParentFromTheEnvironment() throws SQLException {
+		java.util.Map<String, String> env = java.util.Map.of(AclConfig.PARENT_ENV, " airflow/daily.load/01929e3a-0000-7000-8000-000000000001 ",
+		    AclConfig.ROOT_PARENT_ENV, "airflow/daily/01929e3a-0000-7000-8000-0000000000ff");
+		Properties out = AclConfig.parse("jdbc:acl://door:1", new Properties(), env::get).delegateProperties("t");
+		assertEquals("airflow/daily.load/01929e3a-0000-7000-8000-000000000001", out.getProperty(AclConfig.PARENT_HEADER));
+		assertEquals("airflow/daily/01929e3a-0000-7000-8000-0000000000ff", out.getProperty(AclConfig.ROOT_PARENT_HEADER));
+		assertNull(out.getProperty(AclConfig.LINEAGE_FROM_ENV), "our key is never passed on");
+	}
+
+	@Test
+	void theConnectionsOwnParentWins() throws SQLException {
+		Properties info = new Properties();
+		info.setProperty(AclConfig.PARENT_HEADER, "mine/job/01929e3a-0000-7000-8000-000000000009");
+		java.util.Map<String, String> env = java.util.Map.of(AclConfig.PARENT_ENV, "airflow/daily.load/01929e3a-0000-7000-8000-000000000001");
+		Properties out = AclConfig.parse("jdbc:acl://door:1", info, env::get).delegateProperties("t");
+		assertEquals("mine/job/01929e3a-0000-7000-8000-000000000009", out.getProperty(AclConfig.PARENT_HEADER));
+	}
+
+	@Test
+	void noEnvironmentNoHeader() throws SQLException {
+		Properties out = AclConfig.parse("jdbc:acl://door:1", new Properties(), k -> null).delegateProperties("t");
+		assertNull(out.getProperty(AclConfig.PARENT_HEADER));
+		assertNull(out.getProperty(AclConfig.ROOT_PARENT_HEADER));
+	}
+
+	@Test
+	void theEnvironmentCanBeTurnedOff() throws SQLException {
+		Properties info = new Properties();
+		info.setProperty(AclConfig.LINEAGE_FROM_ENV, "false");
+		java.util.Map<String, String> env = java.util.Map.of(AclConfig.PARENT_ENV, "airflow/daily.load/01929e3a-0000-7000-8000-000000000001");
+		Properties out = AclConfig.parse("jdbc:acl://door:1", info, env::get).delegateProperties("t");
+		assertNull(out.getProperty(AclConfig.PARENT_HEADER));
+	}
 }

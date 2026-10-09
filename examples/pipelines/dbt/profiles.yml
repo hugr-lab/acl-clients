@@ -1,0 +1,21 @@
+acl_pipelines:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ':memory:'
+      extensions: [httpfs, quack]
+      config_options:
+        # the dev node's self-signed certificate; a real door has a CA's
+        ca_cert_file: "{{ env_var('ACL_CA_CERT') }}"
+      attach:
+        # attached under the VIRTUAL CATALOG's name: dbt names a model <alias>.<schema>.<table>, which
+        # is then the node's own name for it (its lineage dataset name)
+        # (the quack client speaks plain http to `localhost`: the dev door is TLS, so it is reached by a
+        # name the dev certificate carries - host.docker.internal, which Docker Desktop resolves)
+        - path: "quack:{{ env_var('ACL_QUACK_DOOR', 'host.docker.internal:31900') }}"
+          alias: sales
+          type: quack
+          options:
+            token: "{{ env_var('ACL_TOKEN') }}"
+      threads: 1

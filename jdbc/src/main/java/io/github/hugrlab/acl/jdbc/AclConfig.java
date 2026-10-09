@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /**
  * One connection's settings: {@code jdbc:acl://host:port[?key=value&...]} plus the JDBC properties
@@ -43,8 +44,16 @@ final class AclConfig {
 	static final String LOGIN_TIMEOUT = "loginTimeout";
 	static final String REDIRECT_PORT = "redirectPort";
 	static final String DISCOVERY = "discovery";
+	static final String LINEAGE_FROM_ENV = "lineageFromEnv";
 	static final Set<String> OWN = Set.of(FLOW, ISSUER, CLIENT_ID, CLIENT, SCOPE, TOKEN, USER, PASSWORD, TOKEN_CACHE,
-	    TOKEN_CACHE_FILE, LOGIN_TIMEOUT, REDIRECT_PORT, DISCOVERY);
+	    TOKEN_CACHE_FILE, LOGIN_TIMEOUT, REDIRECT_PORT, DISCOVERY, LINEAGE_FROM_ENV);
+
+	// spec 004: the lineage parent an orchestrator hands its task (OpenLineage's own variables), sent
+	// as the call headers the node reads (duckdb-acl spec 107/109) when the connection names none
+	static final String PARENT_HEADER = "x-openlineage-parent";
+	static final String ROOT_PARENT_HEADER = "x-openlineage-root-parent";
+	static final String PARENT_ENV = "OPENLINEAGE_PARENT_ID";
+	static final String ROOT_PARENT_ENV = "OPENLINEAGE_ROOT_PARENT_ID";
 
 	// read by the discovery handshake as well as passed on: the door is one TLS endpoint for both
 	static final String USE_ENCRYPTION = "useEncryption";
@@ -71,7 +80,7 @@ final class AclConfig {
 	final String tlsRootCerts;
 	private final Properties passthrough;
 
-	private AclConfig(String host, int port, Properties all) throws SQLException {
+	private AclConfig(String host, int port, Properties all, UnaryOperator<String> env) throws SQLException {
 		this.host = host;
 		this.port = port;
 		this.flow = parseEnum(Flow.class, all.getProperty(FLOW, "auto"), FLOW);
@@ -99,6 +108,21 @@ final class AclConfig {
 			}
 		}
 		passthrough.setProperty(USE_ENCRYPTION, Boolean.toString(useEncryption));
+		if (parseBool(all.getProperty(LINEAGE_FROM_ENV, "true"))) {
+			fromEnv(PARENT_HEADER, PARENT_ENV, env);
+			fromEnv(ROOT_PARENT_HEADER, ROOT_PARENT_ENV, env);
+		}
+	}
+
+	/** A header the connection does not set itself, from the variable an orchestrator set. */
+	private void fromEnv(String header, String variable, UnaryOperator<String> env) {
+		if (passthrough.getProperty(header) != null) {
+			return; // the connection's own value wins
+		}
+		String value = blankToNull(env.apply(variable));
+		if (value != null) {
+			passthrough.setProperty(header, value.trim());
+		}
 	}
 
 	static boolean accepts(String url) {
@@ -106,6 +130,10 @@ final class AclConfig {
 	}
 
 	static AclConfig parse(String url, Properties info) throws SQLException {
+		return parse(url, info, System::getenv);
+	}
+
+	static AclConfig parse(String url, Properties info, UnaryOperator<String> env) throws SQLException {
 		if (!accepts(url)) {
 			throw new SQLException("not a duckdb-acl URL (expected " + PREFIX + "host:port): " + url);
 		}
@@ -144,7 +172,7 @@ final class AclConfig {
 				all.setProperty(key, info.getProperty(key));
 			}
 		}
-		return new AclConfig(host, port, all);
+		return new AclConfig(host, port, all, env);
 	}
 
 	/** The URL Arrow's driver connects with: the same door, its own scheme. */

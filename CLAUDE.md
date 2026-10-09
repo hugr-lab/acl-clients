@@ -22,7 +22,8 @@ jdbc/                 Maven, Java 17: io.github.hugrlab.acl.jdbc
   FlightDiscovery     the door's discover-auth handshake - the ONLY code using Arrow's shaded names
   Oidc, Http, Tokens, TokenCache, Interaction, DeviceCodeWindow
 examples/{go,python,dotnet,java}
-dev/                  keycloak.sh, node.sh, token.sh, jdbc-e2e.sh
+examples/pipelines/   spark/ (3.5, 4), dbt/, python/ - with lineage (spec 004)
+dev/                  keycloak.sh, node.sh [ACL_PIPELINES=1], token.sh, jdbc-e2e.sh, marquez.sh, pipelines-e2e.sh
 specs/NNN-slug/spec.md
 ```
 
@@ -34,6 +35,8 @@ There is no local JDK, Maven or .NET on the owner's machine; everything builds i
 dev/keycloak.sh && dev/node.sh &                   # the dev node (needs a built ../duckdb-acl)
 docker run --rm -v acl-m2:/root/.m2 -v "$PWD/jdbc":/src -w /src maven:3-eclipse-temurin-17 mvn -B test
 dev/jdbc-e2e.sh [all]                               # driver e2e against the dev node + Keycloak
+dev/marquez.sh && ACL_PIPELINES=1 ACL_OTEL=<acl-otel ext> dev/node.sh &   # lineage on, quack door :31900
+dev/pipelines-e2e.sh [spark3|spark4|dbt|python]     # the recipes + the joined graph in Marquez
 (cd examples/go && GOWORK=off ACL_TOKEN=$(../../dev/token.sh) ACL_INSECURE=1 go run .)
 (cd examples/python && ACL_USER=analyst2 ACL_PASSWORD=analyst2-pass ACL_INSECURE=1 python3 connect.py)
 docker run --rm -v "$PWD/examples/dotnet":/src -w /src -e ACL_URI=https://host.docker.internal:32800 \

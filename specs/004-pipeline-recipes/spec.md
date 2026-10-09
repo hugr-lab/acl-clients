@@ -1,6 +1,6 @@
 # Spec 004: pipeline recipes - Spark, dbt and a Python job, with lineage
 
-- **Status**: draft
+- **Status**: implemented
 - **Date**: 2026-10-09
 - **Node side**: duckdb-acl specs 111 (where a Flight statement runs), 112 (lineage names, one run per
   batch), 113 (dbt's own statements)
@@ -46,10 +46,9 @@ joins the node's in one graph - but only with settings nobody would guess:
    `OPENLINEAGE_PARENT_ID` / `OPENLINEAGE_ROOT_PARENT_ID` if set (`acl.lineageFromEnv=false` turns it
    off). A value the node refuses (spec 109) fails the connection with the node's message - nothing is
    rewritten on the client.
-3. **Java 11.** The driver is built with `maven.compiler.release` 11, so a Spark on Java 11 (still the
-   common cluster JDK) loads it; the tests keep running on 17 and 11. The cost: the driver's 17-only
-   syntax goes (8 places - records in `Tokens`, `Oidc`, `DoorIssuer`, `Http`, a text block / switch
-   arrows) and becomes plain final classes. Arrow's Flight SQL JDBC itself runs on 11.
+3. **Targets: Spark 3.5 and 4.** Both run on Java 17 (Spark 4 requires it), which the driver already
+   targets; the Spark recipe is checked on both. A Spark 3.x cluster on Java 11 is out of scope (owner,
+   2026-10-09): the driver stays Java 17 until a deployment asks for 11.
 
 Not in this spec: mapping nested types for JDBC (a STRUCT reported as JSON text so Spark can read it) -
 a driver behaviour of its own, a follow-up spec; a JDBC dialect for Spark (`truncate`, type names).
@@ -62,9 +61,8 @@ this path.
 
 ## Testing
 
-- Unit: the env default (set / not set / property wins / off switch); the driver compiles and its tests
-  pass on Java 11.
-- e2e (`dev/`): each recipe against the dev node with lineage on and Marquez - the joined graph
+- Unit: the env default (set / not set / property wins / off switch).
+- e2e (`dev/`): the Spark recipe on Spark 3.5 and 4; each recipe against the dev node with lineage on and Marquez - the joined graph
   checked through Marquez's API (the job's datasets are the node's).
 
 ## Alternatives considered
@@ -72,3 +70,21 @@ this path.
 - **Tailor `acl_lineage_namespace` to Spark** (`acl://host:port`): refused by the owner in duckdb-acl
   112 - several engines share a node.
 - **Recipes as docs only**: they drift; runnable directories are checked by the e2e.
+
+## As built
+
+- **Driver.** `lineageFromEnv` (default true): `AclConfig` adds `x-openlineage-parent` /
+  `x-openlineage-root-parent` from `OPENLINEAGE_PARENT_ID` / `OPENLINEAGE_ROOT_PARENT_ID` when the
+  connection sets neither; the environment is injected for the unit tests (4 new cases).
+- **dev.** `ACL_PIPELINES=1 dev/node.sh` adds `sales.spark_out`, `sales.py_out`, the schema
+  `sales.dbt_home` (`AS memory.dbt_home`, granted select/insert/update/delete/create/drop), the quack
+  door on :31900, lineage on under `acl://dev`, and acl-otel to Marquez when `ACL_OTEL` names it; the
+  dev certificate also carries `host.docker.internal`. `dev/marquez.sh`, `dev/pipelines-e2e.sh`.
+- **Recipes, checked by the e2e (2026-10-09):** Spark 3.5 (`apache/spark:3.5.6-java17`) and 4
+  (`4.0.1-scala2.13-java17`), OpenLineage 1.53 - Spark's job and the node's runs meet at
+  `acl://dev` + `sales.main.spark_out`; dbt twice in a row - the node's runs reach the model's final
+  name through the swap (that needed duckdb-acl 113 to record a RENAME as a run: in a live alias the
+  final name never appeared before); the Python job and the node's runs meet at `sales.main.py_out`.
+- **Found on the way:** `pip install --pre` pulls dbt-core 2.0 (a release candidate of the new
+  engine) - the recipe pins dbt-core 1.12.5 and takes the 2.0 duckdb client separately; the quack client
+  speaks http to `localhost` (documented).
