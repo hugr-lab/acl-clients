@@ -1,0 +1,17 @@
+# The dbt recipe (spec 004): stock materializations against a duckdb-acl node attached through quack.
+name: acl_pipelines
+version: '1.0'
+profile: acl_pipelines
+model-paths: [models]
+macro-paths: [macros]
+models:
+  acl_pipelines:
+    # the node's virtual catalog (the attach alias in profiles.yml) and a schema granted with
+    # select, insert, update, delete, create and drop - dbt writes there and nowhere else
+    +database: sales
+    +schema: dbt_home
+    +materialized: table
+    # the node's runs become steps of the orchestrator's task: the parent SET on the node's session
+    # (a plain SET would run on the dbt side, in its own duckdb)
+    +pre-hook:
+      - "FROM quack_query_by_name('sales', 'SET acl_lineage_parent = ''{{ env_var(\"OPENLINEAGE_PARENT_ID\", \"\") }}''')"

@@ -50,6 +50,7 @@ the URL.
 | `loginTimeout` | `300` | seconds to wait for a browser or device sign-in |
 | `redirectPort` | `0` | the loopback port for the browser redirect; `0` = any free port |
 | `discovery` | `true` | ask the door for its issuers and clients |
+| `lineageFromEnv` | `true` | send `OPENLINEAGE_PARENT_ID` / `OPENLINEAGE_ROOT_PARENT_ID` (an orchestrator's task) as the node's lineage parent headers - each one the connection does not set itself (`x-openlineage-parent` / `x-openlineage-root-parent`) |
 
 Every other property goes to Arrow's driver unchanged. The TLS ones are also used for discovery:
 

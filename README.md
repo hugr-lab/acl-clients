@@ -22,6 +22,7 @@ with PKCE) and **a device code**. It also keeps and refreshes tokens, so nobody 
 | [`examples/python`](examples/python/connect.py) | ADBC Flight SQL driver (Python) | token or password |
 | [`examples/dotnet`](examples/dotnet/) | Apache.Arrow.Flight.Sql | token or password |
 | [`examples/java`](examples/java/) | Arrow's Flight SQL JDBC driver, plain JDBC | token or password |
+| [`examples/pipelines`](examples/pipelines/) | Spark 3.5 / 4, dbt, a Python job - with OpenLineage | token |
 
 In every example, the password path through ADBC (Go and Python) needs a node that includes
 duckdb-acl spec 089. arrow-go sends BasicAuth without base64 padding, and older nodes refused it.
@@ -44,6 +45,15 @@ Every example then reads `orders` and prints only the signed-in user's tenant:
 ```sh
 cd examples/python && ACL_TOKEN=$(../../dev/token.sh) ACL_INSECURE=1 python3 connect.py
 cd examples/go     && ACL_USER=analyst2 ACL_PASSWORD=analyst2-pass ACL_INSECURE=1 go run .
+```
+
+The pipeline recipes need lineage on the node and an OpenLineage backend - see
+[`examples/pipelines`](examples/pipelines/README.md):
+
+```sh
+dev/marquez.sh
+ACL_PIPELINES=1 ACL_OTEL=../acl-otel/build/release/extension/acl_otel/acl_otel.duckdb_extension dev/node.sh
+dev/pipelines-e2e.sh             # Spark 3.5 and 4, dbt, Python - and the joined graph checked in Marquez
 ```
 
 `ACL_INSECURE=1` (or `disableCertificateVerification=true` for JDBC) accepts the dev node's

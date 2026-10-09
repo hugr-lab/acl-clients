@@ -80,6 +80,10 @@ public final class AclDriver implements Driver {
 		out.add(property(AclConfig.LOGIN_TIMEOUT, "300", "Seconds to wait for a browser or device sign-in"));
 		out.add(property(AclConfig.REDIRECT_PORT, "0", "Loopback port for the browser redirect; 0 = any free port"));
 		out.add(property(AclConfig.DISCOVERY, "true", "Ask the door which issuer and client to use", "true", "false"));
+		out.add(property(AclConfig.LINEAGE_FROM_ENV, "true",
+		    "Send OPENLINEAGE_PARENT_ID / OPENLINEAGE_ROOT_PARENT_ID as the lineage parent headers when the "
+		        + "connection sets none",
+		    "true", "false"));
 		out.add(property(AclConfig.USE_ENCRYPTION, "true", "TLS to the door", "true", "false"));
 		out.add(property(AclConfig.DISABLE_CERT_VERIFICATION, "false",
 		    "Skip the door's certificate check (development only)", "true", "false"));
