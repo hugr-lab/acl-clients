@@ -41,7 +41,8 @@ final class MetadataSql {
 		Where like(String column, String pattern) {
 			if (pattern != null) {
 				conditions.add(pattern.isEmpty() ? column + " IS NULL"
-				                                 : column + " LIKE " + AclSql.literal(pattern) + " ESCAPE '\\'");
+				                                 : column + " LIKE " + AclSql.literal(AclSql.likePattern(pattern))
+				                                       + " ESCAPE '\\'");
 			}
 			return this;
 		}
@@ -57,14 +58,20 @@ final class MetadataSql {
 		}
 	}
 
+	/**
+	 * Catalogs and schemas from {@code information_schema.schemata}: its {@code schema_name} is a nested
+	 * schema's whole path ({@code raw.eu}) - the text {@code duckdb_tables()} / {@code duckdb_columns()} /
+	 * {@code duckdb_functions()} carry in theirs - where {@code duckdb_schemas()} names only the leaf
+	 * ({@code eu}) as duckdb does natively (duckdb-acl spec 115).
+	 */
 	static String catalogs() {
-		return "SELECT DISTINCT database_name FROM duckdb_schemas() ORDER BY database_name";
+		return "SELECT DISTINCT catalog_name FROM information_schema.schemata ORDER BY catalog_name";
 	}
 
 	static String schemas(String catalog, String schemaPattern) {
-		return "SELECT database_name, schema_name, parent_schema FROM duckdb_schemas()"
-		    + new Where().eq("database_name", catalog).like("schema_name", schemaPattern)
-		    + " ORDER BY database_name, schema_name";
+		return "SELECT catalog_name, schema_name FROM information_schema.schemata"
+		    + new Where().eq("catalog_name", catalog).like("schema_name", schemaPattern)
+		    + " ORDER BY catalog_name, schema_name";
 	}
 
 	/** null when the types asked for are none this node has. */
@@ -125,14 +132,17 @@ final class MetadataSql {
 
 	/**
 	 * A function's parameters always come with it, whatever the column pattern: they make its
-	 * SPECIFIC_NAME (the signature), and the pattern then drops those it does not name.
+	 * SPECIFIC_NAME (the signature), and the pattern then drops those it does not name. Its return value
+	 * too: the listing does not name it, JDBC tools call it {@code returnValue}.
 	 */
 	static String functionColumns(String catalog, String schemaPattern, String functionPattern,
 	    String columnPattern) {
 		Where where = new Where().eq("database_name", catalog).like("schema_name", schemaPattern).like("function_name",
 		    functionPattern);
 		if (columnPattern != null && !columnPattern.equals("%")) {
-			where.raw("(column_kind = 'param' OR column_name LIKE " + AclSql.literal(columnPattern) + " ESCAPE '\\')");
+			// the return value has no name in the listing: it is matched in Java, as returnValue
+			where.raw("(column_kind = 'param' OR column_kind = 'return' OR column_name LIKE "
+			          + AclSql.literal(AclSql.likePattern(columnPattern)) + " ESCAPE '\\')");
 		}
 		return "SELECT database_name, schema_name, function_name, function_type, column_kind, position, column_name,"
 		    + " data_type, is_nullable, comment FROM acl_function_columns()" + where
@@ -152,18 +162,22 @@ final class MetadataSql {
 
 	/**
 	 * The declared references (duckdb-acl spec 022) that are foreign keys: to a relation, by column
-	 * pairs. {@code from} is the referencing (foreign key) side, {@code to} the referenced one.
+	 * pairs. {@code from} is the referencing (foreign key) side, {@code to} the referenced one;
+	 * {@code key_object} is set when the referenced object declares a key (spec 048) - a subquery and
+	 * a join, no call.
 	 */
 	static String references(String fromCatalog, String fromSchema, String fromTable, String toCatalog,
 	    String toSchema, String toTable) {
-		Where where = new Where().raw("to_kind = 'relation'").raw("expression IS NULL").eq("vcat", fromCatalog);
+		Where where = new Where().raw("r.to_kind = 'relation'").raw("r.expression IS NULL").eq("r.vcat", fromCatalog);
 		if (toCatalog != null && !toCatalog.equals(fromCatalog)) {
-			where.eq("vcat", toCatalog);
+			where.eq("r.vcat", toCatalog);
 		}
-		objectPath(where, "from_object", fromSchema, fromTable);
-		objectPath(where, "to_object", toSchema, toTable);
-		return "SELECT vcat, name, from_object, to_object, from_column_list, to_column_list FROM acl_references()" + where
-		    + " ORDER BY vcat, name";
+		objectPath(where, "r.from_object", fromSchema, fromTable);
+		objectPath(where, "r.to_object", toSchema, toTable);
+		return "SELECT r.vcat, r.name, r.from_object, r.to_object, r.from_column_list, r.to_column_list,"
+		    + " k.object AS key_object FROM acl_references() r LEFT JOIN"
+		    + " (SELECT DISTINCT vcat, object FROM acl_keys() WHERE kind = 'relation') k"
+		    + " ON k.vcat = r.vcat AND k.object = r.to_object" + where + " ORDER BY r.vcat, r.name";
 	}
 
 	/**
@@ -172,10 +186,18 @@ final class MetadataSql {
 	 */
 	private static void objectPath(Where where, String column, String schema, String table) {
 		if (table == null) {
-			if (schema != null && schema.equals("main")) {
+			if (schema == null) {
+				return;
+			}
+			if (schema.isEmpty()) {
+				where.raw(column + " IS NULL"); // JDBC: "" is "without a schema" - every object has one
+			} else if (schema.equals("main")) {
 				where.raw(column + " NOT LIKE '%.%'");
-			} else if (schema != null && !schema.isEmpty()) {
-				where.raw(column + " LIKE " + AclSql.literal(AclSql.escapeLike(schema) + ".%") + " ESCAPE '\\'");
+			} else {
+				// directly in that schema, not in one nested under it (raw, not raw.eu)
+				String inside = AclSql.escapeLike(schema) + ".";
+				where.raw(column + " LIKE " + AclSql.literal(inside + "%") + " ESCAPE '\\'");
+				where.raw(column + " NOT LIKE " + AclSql.literal(inside + "%.%") + " ESCAPE '\\'");
 			}
 			return;
 		}

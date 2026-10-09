@@ -15,9 +15,10 @@
 			<library type="jar" path="/path/to/acl-jdbc-0.1.0-all.jar" custom="true"/>
 			<!-- a table function and a scalar are listed by getFunctions as well as getProcedures -->
 			<parameter name="split-procedures-and-functions" value="true"/>
-			<!-- the active catalog is the session's USE (duckdb-acl spec 114); quoted, so any name works -->
+			<!-- the active catalog is the session's USE (duckdb-acl spec 114); quoted, so any name works. A USE
+			     is sent as written in every acl.mode; DBeaver reads the active catalog with getCatalog()
+			     (no query-get-active-db: a query of its own would be prefixed in manage/native mode) -->
 			<parameter name="active-entity-type" value="catalog"/>
-			<parameter name="query-get-active-db" value="SELECT current_database()"/>
 			<parameter name="query-set-active-db" value="USE &quot;?&quot;"/>
 			<parameter name="supports-references" value="true"/>
 			<parameter name="supports-indexes" value="false"/>

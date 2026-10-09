@@ -27,6 +27,10 @@ final class RowsResultSet extends UnsupportedResultSet {
 			return new ColumnSpec(name, Types.INTEGER);
 		}
 
+		static ColumnSpec big(String name) {
+			return new ColumnSpec(name, Types.BIGINT);
+		}
+
 		static ColumnSpec small(String name) {
 			return new ColumnSpec(name, Types.SMALLINT);
 		}

@@ -100,34 +100,35 @@ final class AclDatabaseMetaData extends ForwardingDatabaseMetaData {
 
 	/** The rows of one metadata statement, by lower-case column name; nested values as plain Java. */
 	List<Map<String, Object>> query(String sql) throws SQLException {
-		List<Map<String, Object>> out = new ArrayList<>();
 		if (sql == null) {
-			return out;
+			return new ArrayList<>();
 		}
-		connection.noteStatement(sql);
-		try (Statement s = connection.arrow().createStatement(); ResultSet rs = s.executeQuery(sql)) {
-			ResultSetMetaData meta = rs.getMetaData();
-			int n = meta.getColumnCount();
-			String[] names = new String[n];
-			for (int i = 0; i < n; i++) {
-				names[i] = meta.getColumnLabel(i + 1).toLowerCase(Locale.ROOT);
-			}
-			while (rs.next()) {
-				Map<String, Object> row = new LinkedHashMap<>();
+		return connection.call(false, () -> {
+			List<Map<String, Object>> out = new ArrayList<>();
+			try (Statement s = connection.arrow().createStatement(); ResultSet rs = s.executeQuery(sql)) {
+				ResultSetMetaData meta = rs.getMetaData();
+				int n = meta.getColumnCount();
+				String[] names = new String[n];
 				for (int i = 0; i < n; i++) {
-					row.put(names[i], NestedValues.normalize(rs.getObject(i + 1), null));
+					names[i] = meta.getColumnLabel(i + 1).toLowerCase(Locale.ROOT);
 				}
-				out.add(row);
+				while (rs.next()) {
+					Map<String, Object> row = new LinkedHashMap<>();
+					for (int i = 0; i < n; i++) {
+						row.put(names[i], NestedValues.normalize(rs.getObject(i + 1), null));
+					}
+					out.add(row);
+				}
 			}
-		}
-		return out;
+			return out;
+		});
 	}
 
 	@Override
 	public ResultSet getCatalogs() throws SQLException {
 		List<Object[]> rows = new ArrayList<>();
 		for (Map<String, Object> r : query(MetadataSql.catalogs())) {
-			rows.add(new Object[] {r.get("database_name")});
+			rows.add(new Object[] {r.get("catalog_name")});
 		}
 		return new RowsResultSet(List.of(ColumnSpec.text("TABLE_CAT")), rows);
 	}
@@ -141,7 +142,7 @@ final class AclDatabaseMetaData extends ForwardingDatabaseMetaData {
 	public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
 		List<Object[]> rows = new ArrayList<>();
 		for (Map<String, Object> r : query(MetadataSql.schemas(catalog, schemaPattern))) {
-			rows.add(new Object[] {r.get("schema_name"), r.get("database_name")});
+			rows.add(new Object[] {r.get("schema_name"), r.get("catalog_name")});
 		}
 		return new RowsResultSet(List.of(ColumnSpec.text("TABLE_SCHEM"), ColumnSpec.text("TABLE_CATALOG")), rows);
 	}
@@ -420,6 +421,12 @@ final class AclDatabaseMetaData extends ForwardingDatabaseMetaData {
 	    ColumnSpec.small("KEY_SEQ"), ColumnSpec.small("UPDATE_RULE"), ColumnSpec.small("DELETE_RULE"),
 	    ColumnSpec.text("FK_NAME"), ColumnSpec.text("PK_NAME"), ColumnSpec.small("DEFERRABILITY"));
 
+	/** The referenced object's key as the door's GetPrimaryKeys names it, or null when it declares none. */
+	private static String pkName(Map<String, Object> reference) {
+		Object key = reference.get("key_object");
+		return key == null ? null : key + "_pk";
+	}
+
 	/** A reference as foreign key rows: one per column pair, KEY_SEQ from 1. */
 	private List<Object[]> keyRows(String sql) throws SQLException {
 		List<Object[]> rows = new ArrayList<>();
@@ -434,7 +441,7 @@ final class AclDatabaseMetaData extends ForwardingDatabaseMetaData {
 			for (int i = 0; i < from.size(); i++) {
 				rows.add(new Object[] {r.get("vcat"), pk[0], pk[1], text(to.get(i)), r.get("vcat"), fk[0], fk[1],
 				    text(from.get(i)), (short) (i + 1), (short) importedKeyNoAction, (short) importedKeyNoAction,
-				    r.get("name"), text(r.get("to_object")) + "_pk", (short) importedKeyNotDeferrable});
+				    r.get("name"), pkName(r), (short) importedKeyNotDeferrable});
 			}
 		}
 		return rows;
@@ -466,6 +473,118 @@ final class AclDatabaseMetaData extends ForwardingDatabaseMetaData {
 		    MetadataSql.references(foreignCatalog, foreignSchema, foreignTable, parentCatalog, parentSchema, parentTable));
 		rows.sort(keyOrder(4));
 		return new RowsResultSet(KEY_COLUMNS, rows);
+	}
+
+	// --- what the node has none of: empty, with JDBC 4.3's columns (Arrow's answers have none) ---
+
+	static final List<ColumnSpec> INDEX_INFO_COLUMNS = List.of(ColumnSpec.text("TABLE_CAT"),
+	    ColumnSpec.text("TABLE_SCHEM"), ColumnSpec.text("TABLE_NAME"), ColumnSpec.bool("NON_UNIQUE"),
+	    ColumnSpec.text("INDEX_QUALIFIER"), ColumnSpec.text("INDEX_NAME"), ColumnSpec.small("TYPE"),
+	    ColumnSpec.small("ORDINAL_POSITION"), ColumnSpec.text("COLUMN_NAME"), ColumnSpec.text("ASC_OR_DESC"),
+	    ColumnSpec.big("CARDINALITY"), ColumnSpec.big("PAGES"), ColumnSpec.text("FILTER_CONDITION"));
+
+	/** getBestRowIdentifier and getVersionColumns: the same eight columns. */
+	static final List<ColumnSpec> ROW_ID_COLUMNS = List.of(ColumnSpec.small("SCOPE"), ColumnSpec.text("COLUMN_NAME"),
+	    ColumnSpec.integer("DATA_TYPE"), ColumnSpec.text("TYPE_NAME"), ColumnSpec.integer("COLUMN_SIZE"),
+	    ColumnSpec.integer("BUFFER_LENGTH"), ColumnSpec.small("DECIMAL_DIGITS"), ColumnSpec.small("PSEUDO_COLUMN"));
+
+	static final List<ColumnSpec> UDT_COLUMNS = List.of(ColumnSpec.text("TYPE_CAT"), ColumnSpec.text("TYPE_SCHEM"),
+	    ColumnSpec.text("TYPE_NAME"), ColumnSpec.text("CLASS_NAME"), ColumnSpec.integer("DATA_TYPE"),
+	    ColumnSpec.text("REMARKS"), ColumnSpec.small("BASE_TYPE"));
+
+	static final List<ColumnSpec> TABLE_PRIVILEGE_COLUMNS = List.of(ColumnSpec.text("TABLE_CAT"),
+	    ColumnSpec.text("TABLE_SCHEM"), ColumnSpec.text("TABLE_NAME"), ColumnSpec.text("GRANTOR"),
+	    ColumnSpec.text("GRANTEE"), ColumnSpec.text("PRIVILEGE"), ColumnSpec.text("IS_GRANTABLE"));
+
+	static final List<ColumnSpec> COLUMN_PRIVILEGE_COLUMNS = List.of(ColumnSpec.text("TABLE_CAT"),
+	    ColumnSpec.text("TABLE_SCHEM"), ColumnSpec.text("TABLE_NAME"), ColumnSpec.text("COLUMN_NAME"),
+	    ColumnSpec.text("GRANTOR"), ColumnSpec.text("GRANTEE"), ColumnSpec.text("PRIVILEGE"),
+	    ColumnSpec.text("IS_GRANTABLE"));
+
+	static final List<ColumnSpec> PSEUDO_COLUMN_COLUMNS = List.of(ColumnSpec.text("TABLE_CAT"),
+	    ColumnSpec.text("TABLE_SCHEM"), ColumnSpec.text("TABLE_NAME"), ColumnSpec.text("COLUMN_NAME"),
+	    ColumnSpec.integer("DATA_TYPE"), ColumnSpec.integer("COLUMN_SIZE"), ColumnSpec.integer("DECIMAL_DIGITS"),
+	    ColumnSpec.integer("NUM_PREC_RADIX"), ColumnSpec.text("COLUMN_USAGE"), ColumnSpec.text("REMARKS"),
+	    ColumnSpec.integer("CHAR_OCTET_LENGTH"), ColumnSpec.text("IS_NULLABLE"));
+
+	static final List<ColumnSpec> SUPER_TYPE_COLUMNS = List.of(ColumnSpec.text("TYPE_CAT"),
+	    ColumnSpec.text("TYPE_SCHEM"), ColumnSpec.text("TYPE_NAME"), ColumnSpec.text("SUPERTYPE_CAT"),
+	    ColumnSpec.text("SUPERTYPE_SCHEM"), ColumnSpec.text("SUPERTYPE_NAME"));
+
+	static final List<ColumnSpec> SUPER_TABLE_COLUMNS = List.of(ColumnSpec.text("TABLE_CAT"),
+	    ColumnSpec.text("TABLE_SCHEM"), ColumnSpec.text("TABLE_NAME"), ColumnSpec.text("SUPERTABLE_NAME"));
+
+	static final List<ColumnSpec> ATTRIBUTE_COLUMNS = List.of(ColumnSpec.text("TYPE_CAT"), ColumnSpec.text("TYPE_SCHEM"),
+	    ColumnSpec.text("TYPE_NAME"), ColumnSpec.text("ATTR_NAME"), ColumnSpec.integer("DATA_TYPE"),
+	    ColumnSpec.text("ATTR_TYPE_NAME"), ColumnSpec.integer("ATTR_SIZE"), ColumnSpec.integer("DECIMAL_DIGITS"),
+	    ColumnSpec.integer("NUM_PREC_RADIX"), ColumnSpec.integer("NULLABLE"), ColumnSpec.text("REMARKS"),
+	    ColumnSpec.text("ATTR_DEF"), ColumnSpec.integer("SQL_DATA_TYPE"), ColumnSpec.integer("SQL_DATETIME_SUB"),
+	    ColumnSpec.integer("CHAR_OCTET_LENGTH"), ColumnSpec.integer("ORDINAL_POSITION"), ColumnSpec.text("IS_NULLABLE"),
+	    ColumnSpec.text("SCOPE_CATALOG"), ColumnSpec.text("SCOPE_SCHEMA"), ColumnSpec.text("SCOPE_TABLE"),
+	    ColumnSpec.small("SOURCE_DATA_TYPE"));
+
+	static final List<ColumnSpec> CLIENT_INFO_COLUMNS = List.of(ColumnSpec.text("NAME"), ColumnSpec.integer("MAX_LEN"),
+	    ColumnSpec.text("DEFAULT_VALUE"), ColumnSpec.text("DESCRIPTION"));
+
+	private static ResultSet none(List<ColumnSpec> columns) {
+		return new RowsResultSet(columns, List.of());
+	}
+
+	@Override
+	public ResultSet getIndexInfo(String catalog, String schema, String table, boolean unique, boolean approximate) {
+		return none(INDEX_INFO_COLUMNS);
+	}
+
+	@Override
+	public ResultSet getBestRowIdentifier(String catalog, String schema, String table, int scope, boolean nullable) {
+		return none(ROW_ID_COLUMNS);
+	}
+
+	@Override
+	public ResultSet getVersionColumns(String catalog, String schema, String table) {
+		return none(ROW_ID_COLUMNS);
+	}
+
+	@Override
+	public ResultSet getUDTs(String catalog, String schemaPattern, String typeNamePattern, int[] types) {
+		return none(UDT_COLUMNS);
+	}
+
+	@Override
+	public ResultSet getTablePrivileges(String catalog, String schemaPattern, String tableNamePattern) {
+		return none(TABLE_PRIVILEGE_COLUMNS);
+	}
+
+	@Override
+	public ResultSet getColumnPrivileges(String catalog, String schema, String table, String columnNamePattern) {
+		return none(COLUMN_PRIVILEGE_COLUMNS);
+	}
+
+	@Override
+	public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern,
+	    String columnNamePattern) {
+		return none(PSEUDO_COLUMN_COLUMNS);
+	}
+
+	@Override
+	public ResultSet getSuperTypes(String catalog, String schemaPattern, String typeNamePattern) {
+		return none(SUPER_TYPE_COLUMNS);
+	}
+
+	@Override
+	public ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) {
+		return none(SUPER_TABLE_COLUMNS);
+	}
+
+	@Override
+	public ResultSet getAttributes(String catalog, String schemaPattern, String typeNamePattern,
+	    String attributeNamePattern) {
+		return none(ATTRIBUTE_COLUMNS);
+	}
+
+	@Override
+	public ResultSet getClientInfoProperties() {
+		return none(CLIENT_INFO_COLUMNS);
 	}
 
 	@Override

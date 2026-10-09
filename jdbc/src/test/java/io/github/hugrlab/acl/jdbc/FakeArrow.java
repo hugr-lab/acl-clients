@@ -30,6 +30,8 @@ final class FakeArrow {
 	final List<String> prepared = new ArrayList<>();
 	final List<String> nativeSql = new ArrayList<>();
 	private final Function<String, Answer> script;
+	/** Texts the node refuses (an SQLException, like a refusal through Arrow). */
+	java.util.function.Predicate<String> refuses = sql -> false;
 
 	FakeArrow(Function<String, Answer> script) {
 		this.script = script;
@@ -58,6 +60,7 @@ final class FakeArrow {
 
 	private Object statement(String preparedSql, Class<?> type) {
 		ResultSet[] last = new ResultSet[1];
+		List<String> batch = new ArrayList<>();
 		return proxy(type, (p, m, a) -> switch (m.getName()) {
 			case "executeQuery" -> last[0] = resultSet(run(a == null ? preparedSql : (String) a[0]));
 			case "execute" -> {
@@ -69,8 +72,20 @@ final class FakeArrow {
 				yield 0;
 			}
 			case "addBatch" -> {
-				sent.add((String) a[0]);
+				batch.add(a == null ? preparedSql : (String) a[0]);
 				yield null;
+			}
+			case "clearBatch" -> {
+				batch.clear();
+				yield null;
+			}
+			case "executeBatch", "executeLargeBatch" -> {
+				List<String> texts = new ArrayList<>(batch);
+				batch.clear();
+				for (String text : texts) {
+					run(text);
+				}
+				yield m.getName().equals("executeBatch") ? (Object) new int[texts.size()] : new long[texts.size()];
 			}
 			case "getResultSet" -> last[0];
 			case "close" -> null;
@@ -78,8 +93,11 @@ final class FakeArrow {
 		});
 	}
 
-	private Answer run(String sql) {
+	private Answer run(String sql) throws java.sql.SQLException {
 		sent.add(sql);
+		if (refuses.test(sql)) {
+			throw new java.sql.SQLException("refused: " + sql);
+		}
 		Answer answer = script.apply(sql);
 		return answer == null ? Answer.empty() : answer;
 	}
