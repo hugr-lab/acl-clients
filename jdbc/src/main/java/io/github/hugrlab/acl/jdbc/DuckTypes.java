@@ -17,6 +17,9 @@ final class DuckTypes {
 	private DuckTypes() {
 	}
 
+	private static final java.util.Set<String> UNSIGNED =
+	    java.util.Set.of("UTINYINT", "USMALLINT", "UINTEGER", "UBIGINT", "UHUGEINT");
+
 	/** A field of a STRUCT: its name as declared and its type. */
 	record Field(String name, Type type) {
 	}
@@ -53,7 +56,7 @@ final class DuckTypes {
 		}
 
 		boolean isUnsigned() {
-			return base.startsWith("U") && !"UUID".equals(base) && !"UNION".equals(base);
+			return UNSIGNED.contains(base);
 		}
 	}
 
@@ -150,7 +153,8 @@ final class DuckTypes {
 			    scalar(text, "TIMESTAMP WITH TIME ZONE", Types.TIMESTAMP_WITH_TIMEZONE, 32, 6);
 			case "INTERVAL" -> scalar(text, "INTERVAL", Types.OTHER, null, null);
 			case "BLOB", "BYTEA", "BINARY", "VARBINARY", "GEOMETRY" -> scalar(text, name, Types.BLOB, null, null);
-			case "BIT", "BITSTRING" -> scalar(text, "BIT", Types.BIT, null, null);
+			// a bit string, not JDBC's single BIT (a boolean): read it with getString
+			case "BIT", "BITSTRING" -> scalar(text, "BIT", Types.OTHER, null, null);
 			case "UUID" -> scalar(text, "UUID", Types.OTHER, 36, null);
 			case "JSON" -> scalar(text, "JSON", Types.VARCHAR, null, null);
 			case "NULL" -> scalar(text, "NULL", Types.NULL, null, null);
@@ -168,6 +172,9 @@ final class DuckTypes {
 	 * table, adjusted to the objects Arrow's accessors build), or null when unknown.
 	 */
 	static String javaClass(Type type) {
+		if (isBits(type)) {
+			return String.class.getName(); // decoded from the wire's bytes (decodeBits)
+		}
 		if (type.isUnsigned()) {
 			return null; // Arrow's unsigned accessors: not ours to guess
 		}
@@ -187,6 +194,44 @@ final class DuckTypes {
 			case Types.BLOB -> byte[].class.getName();
 			default -> null;
 		};
+	}
+
+	/**
+	 * A BIGNUM or a BIT: both reach Arrow's driver as duckdb's own bytes (binary), which
+	 * {@link #decodeBits} turns into their text - the class {@code getObject} answers is String.
+	 */
+	static boolean isBits(Type type) {
+		return type != null && ("BIGNUM".equals(type.base()) || "BIT".equals(type.base()));
+	}
+
+	/**
+	 * duckdb's text of a BIGNUM / BIT value from its storage bytes: a BIGNUM is a 3-byte header (its top
+	 * bit set when positive; every byte inverted when negative) and a big-endian magnitude; a BIT is a
+	 * padding count, then the bits with that many leading padding bits.
+	 */
+	static String decodeBits(Type type, byte[] bytes) {
+		if ("BIGNUM".equals(type.base())) {
+			if (bytes.length < 4) {
+				return null;
+			}
+			boolean negative = (bytes[0] & 0x80) == 0;
+			byte[] magnitude = java.util.Arrays.copyOfRange(bytes, 3, bytes.length);
+			if (negative) {
+				for (int i = 0; i < magnitude.length; i++) {
+					magnitude[i] = (byte) ~magnitude[i];
+				}
+			}
+			java.math.BigInteger value = new java.math.BigInteger(1, magnitude);
+			return (negative ? value.negate() : value).toString();
+		}
+		if (bytes.length < 2) {
+			return "";
+		}
+		StringBuilder out = new StringBuilder();
+		for (int bit = bytes[0]; bit < (bytes.length - 1) * 8; bit++) {
+			out.append((bytes[1 + bit / 8] & (1 << (7 - bit % 8))) != 0 ? '1' : '0');
+		}
+		return out.toString();
 	}
 
 	/** The JDBC type name of a code, for a column whose own type text is unknown. */

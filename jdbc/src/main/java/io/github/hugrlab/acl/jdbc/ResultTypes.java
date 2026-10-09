@@ -24,16 +24,33 @@ final class ResultTypes {
 
 	/** One entry per column (null where unknown), or null when the schema cannot be reached at all. */
 	static String[] of(Object arrow, int columnCount) {
-		try {
-			// the flight's schema (set at execute), else the current batch's
-			String[] out = fromSchema(field(arrow, "schema"), columnCount);
-			if (out == null) {
+		// a result: the flight's schema (set at execute), else the current batch's; a prepared statement:
+		// the dataset schema the node answered the prepare with - each tried on its own
+		String[] out = attempt(arrow, columnCount, () -> field(arrow, "schema"));
+		if (out == null) {
+			out = attempt(arrow, columnCount, () -> {
+				Object prepared = field(arrow, "preparedStatement");
+				return prepared == null ? null : call(prepared, "getDataSetSchema");
+			});
+		}
+		if (out == null) {
+			out = attempt(arrow, columnCount, () -> {
 				Object root = field(arrow, "vectorSchemaRoot");
-				out = root == null ? null : fromSchema(call(root, "getSchema"), columnCount);
-			}
-			return out;
+				return root == null ? null : call(root, "getSchema");
+			});
+		}
+		return out;
+	}
+
+	private interface SchemaSource {
+		Object get() throws ReflectiveOperationException;
+	}
+
+	private static String[] attempt(Object arrow, int columnCount, SchemaSource source) {
+		try {
+			return fromSchema(source.get(), columnCount);
 		} catch (ReflectiveOperationException | RuntimeException e) {
-			LOG.log(Level.FINE, "no Arrow schema on " + arrow.getClass().getName(), e);
+			LOG.log(Level.FINE, "no Arrow schema there on " + arrow.getClass().getName(), e);
 			return null;
 		}
 	}

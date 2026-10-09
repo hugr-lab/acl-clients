@@ -52,6 +52,9 @@ final class AclResultSetMetaData extends ForwardingResultSetMetaData {
 	@Override
 	public String getColumnClassName(int column) throws SQLException {
 		DuckTypes.Type t = type(column);
+		if (DuckTypes.isBits(t)) {
+			return DuckTypes.javaClass(t); // AclResultSet decodes them; Arrow's would be its bytes
+		}
 		if (t == null || !t.isNested()) {
 			// what Arrow's getObject returns for a scalar - Arrow's metadata leaves it null
 			String arrow = delegate.getColumnClassName(column);

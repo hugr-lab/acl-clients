@@ -1,6 +1,7 @@
 package io.github.hugrlab.acl.jdbc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -89,5 +90,38 @@ class DuckTypesTest {
 		assertEquals(Types.OTHER, DuckTypes.parse("UUID").jdbcType());
 		assertEquals(Types.OTHER, DuckTypes.parse("SOMETHING_NEW").jdbcType());
 		assertTrue(DuckTypes.parse("UBIGINT").isUnsigned());
+	}
+
+	// review 2026-10-09: anything starting with U was unsigned - UNKNOWN (no type text) among them
+	@Test
+	void unsignedAreTheFive() {
+		for (String t : List.of("UTINYINT", "USMALLINT", "UINTEGER", "UBIGINT", "UHUGEINT")) {
+			assertTrue(DuckTypes.parse(t).isUnsigned(), t);
+		}
+		for (String t : List.of("UUID", "UNION(a INTEGER)", "USER_TYPE", "INTEGER")) {
+			assertFalse(DuckTypes.parse(t).isUnsigned(), t);
+		}
+		assertFalse(DuckTypes.parse(null).isUnsigned(), "UNKNOWN");
+		assertFalse(DuckTypes.parse("").isUnsigned());
+	}
+
+	// review 2026-10-09: BIGNUM / BIT reach Arrow as duckdb's bytes - read as their text
+	@Test
+	void bignumAndBitFromTheirBytes() {
+		DuckTypes.Type bignum = DuckTypes.parse("BIGNUM");
+		assertEquals("123", DuckTypes.decodeBits(bignum, new byte[] {(byte) 0x80, 0, 1, 0x7B}));
+		assertEquals("-123", DuckTypes.decodeBits(bignum, new byte[] {0x7F, (byte) 0xFF, (byte) 0xFE, (byte) 0x84}));
+		assertEquals("256", DuckTypes.decodeBits(bignum, new byte[] {(byte) 0x80, 0, 2, 1, 0}));
+		assertEquals(String.class.getName(), DuckTypes.javaClass(bignum));
+		// '101': 5 padding bits, then 101
+		assertEquals("101", DuckTypes.decodeBits(DuckTypes.parse("BIT"), new byte[] {5, (byte) 0xFD}));
+		assertEquals("0000000011", DuckTypes.decodeBits(DuckTypes.parse("BIT"), new byte[] {6, (byte) 0xFC, 3}));
+	}
+
+	// a duckdb BIT is a bit string, not JDBC's one-bit boolean
+	@Test
+	void bitIsOther() {
+		assertEquals(Types.OTHER, DuckTypes.parse("BIT").jdbcType());
+		assertEquals(Types.OTHER, DuckTypes.parse("BITSTRING").jdbcType());
 	}
 }
