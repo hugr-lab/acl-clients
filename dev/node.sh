@@ -9,7 +9,8 @@
 #       tables, a dbt schema, the quack door on :31900, lineage on - sent to Marquez (dev/marquez.sh)
 #       by acl-otel when ACL_OTEL names its built extension
 #   ACL_METADATA=1 dev/node.sh                     # + what a tool's tree shows (spec 006): nested types with a
-#       COMMENT, a view, table functions, a nested schema sales.raw.eu, a second catalog, a masked column
+#       COMMENT (a STRUCT in a LIST too), a view, table functions, a nested schema sales.raw.eu, a second
+#       catalog, a masked column
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ACL_REPO="${ACL_REPO:-$HERE/../../duckdb-acl}"
@@ -63,10 +64,11 @@ CREATE SCHEMA memory.raw_eu;
 CREATE TABLE customers (id INTEGER, name VARCHAR,
     address STRUCT(city VARCHAR, zip VARCHAR, geo STRUCT(lat DOUBLE, lon DOUBLE)),
     tags VARCHAR[], scores INTEGER[3], attrs MAP(VARCHAR, INTEGER), balance DECIMAL(18,3), mood mood,
-    ssn VARCHAR, seen TIMESTAMP WITH TIME ZONE);
+    ssn VARCHAR, seen TIMESTAMP WITH TIME ZONE, visits STRUCT(city VARCHAR, n INTEGER)[]);
 INSERT INTO customers VALUES
     (1, 'Ann', {'city': 'Berlin', 'zip': '10115', 'geo': {'lat': 52.5, 'lon': 13.4}}, ['a', 'b'], [1, 2, 3],
-     MAP {'x': 1}, 12.345, 'calm', '123-45-6789', TIMESTAMPTZ '2026-10-09 10:00:00+00');
+     MAP {'x': 1}, 12.345, 'calm', '123-45-6789', TIMESTAMPTZ '2026-10-09 10:00:00+00',
+     [{'city': 'Berlin', 'n': 2}, {'city': 'Paris', 'n': 1}]);
 CREATE TABLE memory.raw_eu.events (id INTEGER, kind VARCHAR);
 INSERT INTO memory.raw_eu.events VALUES (1, 'click');
 CREATE TABLE products (sku VARCHAR, price DOUBLE);
@@ -75,7 +77,7 @@ SET GLOBAL acl_allow_anonymous_admin = true;
 ACL ADMIN CREATE VIRTUAL TABLE sales.customers AS memory.main.customers PRIMARY KEY (id)
     COMMENT 'customers with nested types';
 ACL ADMIN GRANT TABLE sales.customers TO ROLE analyst WITH (select)
-    COLUMNS (id, name, address, tags, scores, attrs, balance, mood, ssn = '***', seen);
+    COLUMNS (id, name, address, tags, scores, attrs, balance, mood, ssn = '***', seen, visits);
 ACL ADMIN CREATE VIRTUAL VIEW sales.big_orders COMMENT 'orders over 50'
     AS SELECT id, amount FROM memory.main.orders WHERE amount > 50;
 ACL ADMIN CREATE VIRTUAL SCHEMA sales.raw.eu AS memory.raw_eu COMMENT 'raw zone, eu';

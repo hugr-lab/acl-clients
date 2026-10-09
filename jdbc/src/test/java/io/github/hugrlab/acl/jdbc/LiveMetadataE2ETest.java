@@ -129,8 +129,17 @@ class LiveMetadataE2ETest {
 			assertEquals("BASE TABLE", customers.get("TABLE_TYPE"));
 			assertEquals("customers with nested types", customers.get("REMARKS"));
 			assertEquals("VIEW", only(tables, "TABLE_NAME", "big_orders").get("TABLE_TYPE"));
-			rows("getTables(sales.raw.eu)", meta.getTables("sales", "raw.eu", "%", null));
-			rows("getTables(inventory)", meta.getTables("inventory", null, "%", null));
+			List<Map<String, Object>> eu = rows("getTables(sales.raw.eu)", meta.getTables("sales", "raw.eu", "%", null));
+			Map<String, Object> events = only(eu, "TABLE_NAME", "events");
+			assertEquals("raw.eu", events.get("TABLE_SCHEM"));
+			assertEquals("BASE TABLE", events.get("TABLE_TYPE"));
+			List<Map<String, Object>> inventory = rows("getTables(inventory)", meta.getTables("inventory", null, "%", null));
+			Map<String, Object> products = only(inventory, "TABLE_NAME", "products");
+			assertEquals("inventory", products.get("TABLE_CAT"));
+			assertEquals("the price list", products.get("REMARKS"));
+			// a nested schema by its path, and only that one
+			List<Map<String, Object>> rawEu = rows("getSchemas(sales, raw.eu)", meta.getSchemas("sales", "raw.eu"));
+			assertEquals(List.of("raw.eu"), rawEu.stream().map(r -> r.get("TABLE_SCHEM")).toList());
 		}
 	}
 
@@ -145,6 +154,8 @@ class LiveMetadataE2ETest {
 			assertEquals("VARCHAR[]", only(cols, "COLUMN_NAME", "tags").get("TYPE_NAME"));
 			assertEquals(Types.ARRAY, only(cols, "COLUMN_NAME", "tags").get("DATA_TYPE"));
 			assertEquals(Types.ARRAY, only(cols, "COLUMN_NAME", "scores").get("DATA_TYPE"));
+			assertEquals("INTEGER[3]", only(cols, "COLUMN_NAME", "scores").get("TYPE_NAME"));
+			assertEquals("STRUCT(city VARCHAR, n INTEGER)[]", only(cols, "COLUMN_NAME", "visits").get("TYPE_NAME"));
 			assertEquals(Types.OTHER, only(cols, "COLUMN_NAME", "attrs").get("DATA_TYPE"));
 			Map<String, Object> balance = only(cols, "COLUMN_NAME", "balance");
 			assertEquals(Types.DECIMAL, balance.get("DATA_TYPE"));
@@ -152,7 +163,7 @@ class LiveMetadataE2ETest {
 			assertEquals(3, balance.get("DECIMAL_DIGITS"));
 			assertEquals(Types.VARCHAR, only(cols, "COLUMN_NAME", "mood").get("DATA_TYPE"));
 			assertEquals(Types.TIMESTAMP_WITH_TIMEZONE, only(cols, "COLUMN_NAME", "seen").get("DATA_TYPE"));
-			assertEquals(10, cols.size());
+			assertEquals(11, cols.size());
 		}
 	}
 
@@ -171,6 +182,10 @@ class LiveMetadataE2ETest {
 			assertEquals("orders at or over a threshold", over.get("REMARKS"));
 			assertEquals((short) DatabaseMetaData.functionNoTable,
 			    only(functions, "FUNCTION_NAME", "shout").get("FUNCTION_TYPE"));
+			Map<String, Object> tenants = only(functions, "FUNCTION_NAME", "all_tenants");
+			assertEquals((short) DatabaseMetaData.functionReturnsTable, tenants.get("FUNCTION_TYPE"));
+			assertEquals("all_tenants()", tenants.get("SPECIFIC_NAME"));
+			assertEquals("every tenant", tenants.get("REMARKS"));
 			rows("getProcedures(sales.main)", meta.getProcedures("sales", "main", "%"));
 
 			List<Map<String, Object>> fc =
@@ -180,6 +195,16 @@ class LiveMetadataE2ETest {
 			assertEquals((short) DatabaseMetaData.functionColumnResult, fc.get(1).get("COLUMN_TYPE"));
 			assertTrue(fc.stream().allMatch(r -> "orders_over(INTEGER)".equals(r.get("SPECIFIC_NAME"))));
 			rows("getProcedureColumns(shout)", meta.getProcedureColumns("sales", "main", "shout", null));
+			// a scalar's return value, also when a column pattern is given
+			for (String pattern : new String[] {null, "returnValue"}) {
+				List<Map<String, Object>> ret = rows("getFunctionColumns(shout, " + pattern + ")",
+				    meta.getFunctionColumns("sales", "main", "shout", pattern));
+				Map<String, Object> value = only(ret, "COLUMN_NAME", AclDatabaseMetaData.RETURN_VALUE);
+				assertEquals((short) DatabaseMetaData.functionReturn, value.get("COLUMN_TYPE"));
+				assertEquals(0, value.get("ORDINAL_POSITION"));
+				assertEquals("shout(VARCHAR)", value.get("SPECIFIC_NAME"));
+				assertEquals("VARCHAR", value.get("TYPE_NAME"));
+			}
 		}
 	}
 
@@ -193,11 +218,27 @@ class LiveMetadataE2ETest {
 			assertTrue(rows("getPrimaryKeys(orders)", none).isEmpty());
 			List<Map<String, Object>> pk = rows("getPrimaryKeys(customers)", meta.getPrimaryKeys("sales", "main",
 			    "customers"));
-			assertEquals("id", only(pk, "COLUMN_NAME", "id").get("COLUMN_NAME"));
+			Map<String, Object> id = only(pk, "COLUMN_NAME", "id");
+			assertEquals((short) 1, id.get("KEY_SEQ"));
+			assertEquals("customers_pk", id.get("PK_NAME"));
+			assertEquals("main", id.get("TABLE_SCHEM"));
 			List<Map<String, Object>> imported = rows("getImportedKeys(orders)", meta.getImportedKeys("sales", "main",
 			    "orders"));
-			assertEquals("customers", only(imported, "FK_NAME", "order_customer").get("PKTABLE_NAME"));
-			rows("getExportedKeys(customers)", meta.getExportedKeys("sales", "main", "customers"));
+			Map<String, Object> fk = only(imported, "FK_NAME", "order_customer");
+			assertEquals("customers", fk.get("PKTABLE_NAME"));
+			assertEquals("orders", fk.get("FKTABLE_NAME"));
+			assertEquals((short) 1, fk.get("KEY_SEQ"));
+			assertEquals("customers_pk", fk.get("PK_NAME"));
+			List<Map<String, Object>> exported = rows("getExportedKeys(customers)", meta.getExportedKeys("sales", "main",
+			    "customers"));
+			assertEquals(1, exported.size(), exported.toString());
+			Map<String, Object> out = exported.get(0);
+			assertEquals("order_customer", out.get("FK_NAME"));
+			assertEquals("orders", out.get("FKTABLE_NAME"));
+			assertEquals("id", out.get("FKCOLUMN_NAME"));
+			assertEquals("customers", out.get("PKTABLE_NAME"));
+			assertEquals("id", out.get("PKCOLUMN_NAME"));
+			assertEquals(fk, out, "the same reference from either end");
 		}
 	}
 
@@ -228,6 +269,41 @@ class LiveMetadataE2ETest {
 				    .append(" = ").append(rs.getObject(i)).append('\n');
 			}
 		}
+		try (Connection conn = connect(); Statement s = conn.createStatement();
+		     ResultSet rs = s.executeQuery("SELECT visits FROM customers")) {
+			// a STRUCT inside a LIST is a Struct too
+			assertTrue(rs.next());
+			Array visits = assertInstanceOf(Array.class, rs.getObject(1));
+			Object[] items = (Object[]) visits.getArray();
+			assertEquals(2, items.length);
+			Struct berlin = assertInstanceOf(Struct.class, items[0]);
+			assertEquals(List.of("Berlin", 2), List.of(berlin.getAttributes()));
+			ResultSet itemRows = rs.getArray(1).getResultSet();
+			assertTrue(itemRows.next());
+			assertInstanceOf(Struct.class, itemRows.getObject("VALUE"));
+			assertInstanceOf(Struct.class, ((Object[]) rs.getObject(1, Array.class).getArray())[1]);
+		}
+		try (Connection conn = connect();
+		     java.sql.PreparedStatement p = conn.prepareStatement("SELECT address, balance, visits FROM customers")) {
+			// a prepared statement's metadata, before it runs: the dataset schema of the prepare
+			ResultSetMetaData meta = p.getMetaData();
+			assertEquals("STRUCT(city VARCHAR, zip VARCHAR, geo STRUCT(lat DOUBLE, lon DOUBLE))",
+			    meta.getColumnTypeName(1));
+			assertEquals(Types.STRUCT, meta.getColumnType(1));
+			assertEquals("DECIMAL(18,3)", meta.getColumnTypeName(2));
+			assertEquals("STRUCT(city VARCHAR, n INTEGER)[]", meta.getColumnTypeName(3));
+		}
+		try (Connection conn = connect(); Statement s = conn.createStatement();
+		     ResultSet rs = s.executeQuery("SELECT 123::BIGNUM AS b, -123::BIGNUM AS n, '101'::BIT AS t")) {
+			// duckdb's own bytes on the wire, read as their text
+			assertTrue(rs.next());
+			assertEquals("123", rs.getString(1));
+			assertEquals("-123", rs.getObject(2));
+			assertEquals(new java.math.BigDecimal(-123), rs.getBigDecimal(2));
+			assertEquals("101", rs.getString(3));
+			assertEquals(String.class.getName(), rs.getMetaData().getColumnClassName(1));
+			assertEquals(Types.OTHER, rs.getMetaData().getColumnType(3));
+		}
 		try (Connection conn = connect("nested", "json"); Statement s = conn.createStatement();
 		     ResultSet rs = s.executeQuery("SELECT address FROM customers")) {
 			assertTrue(rs.next());
@@ -255,6 +331,22 @@ class LiveMetadataE2ETest {
 		try (Connection conn = connect("catalog", "inventory")) {
 			assertEquals("inventory", conn.getCatalog());
 		}
+		try (Connection conn = connect("catalog", "sales", "schema", "raw.eu"); Statement s = conn.createStatement();
+		     ResultSet rs = s.executeQuery("SELECT kind FROM events")) {
+			assertEquals("sales", conn.getCatalog());
+			assertEquals("raw.eu", conn.getSchema());
+			assertTrue(rs.next());
+			assertEquals("click", rs.getString(1));
+		}
+		// review 2026-10-09: a USE as the connection's first statement was lost (a cookie-less call)
+		try (Connection conn = connect(); Statement s = conn.createStatement()) {
+			s.execute("USE \"inventory\"");
+			try (ResultSet rs = s.executeQuery("SELECT sku FROM products")) {
+				assertTrue(rs.next());
+				assertEquals("p-1", rs.getString(1));
+			}
+			assertEquals("inventory", conn.getCatalog());
+		}
 	}
 
 	@Test
@@ -264,18 +356,38 @@ class LiveMetadataE2ETest {
 			SQLException e = assertThrows(SQLException.class, () -> s.execute(management));
 			// the node read it as a management statement and judged the scope: the prefix went out
 			assertTrue(e.getMessage().contains("no ACL administration scope"), e.getMessage());
+			// a leading comment is dropped for the management grammar, which reads none
+			SQLException commented = assertThrows(SQLException.class, () -> s.execute("/* why */ " + management));
+			assertTrue(commented.getMessage().contains("no ACL administration scope"), commented.getMessage());
 			// metadata stays the virtual tree's in any mode
-			assertNotNull(rows("getTables(manage mode)", conn.getMetaData().getTables("sales", "main", "orders", null)));
+			Map<String, Object> orders = only(rows("getTables(manage mode)",
+			    conn.getMetaData().getTables("sales", "main", "orders", null)), "TABLE_NAME", "orders");
+			assertEquals("sales", orders.get("TABLE_CAT"));
+			assertEquals("BASE TABLE", orders.get("TABLE_TYPE"));
+			// the session's catalog is virtual in every mode: getCatalog unprefixed, a USE as written
+			assertEquals("sales", conn.getCatalog());
+			s.execute("USE \"inventory\"");
+			assertEquals("inventory", conn.getCatalog());
+			conn.setCatalog("sales");
+			assertEquals("sales", conn.getCatalog());
 		}
 		try (Connection conn = connect(); Statement s = conn.createStatement()) {
 			SQLException e = assertThrows(SQLException.class, () -> s.execute(management));
-			assertFalse(e.getMessage().contains("administration scope"), "data mode sends it as written: " + e.getMessage());
+			// data mode sends it as written: duckdb's parser, not the management grammar, refuses it
+			assertTrue(e.getMessage().contains("syntax error at or near \"VIRTUAL\""), e.getMessage());
+			assertFalse(e.getMessage().contains("administration scope"), e.getMessage());
 		}
 		try (Connection conn = connect("acl.mode", "native"); Statement s = conn.createStatement()) {
 			SQLException e = assertThrows(SQLException.class, () -> s.executeQuery("SELECT 1"));
 			// sent as ACL NATIVE: the node's refusal of native SQL to a principal without passthrough
 			assertTrue(e.getMessage().contains("ACL NATIVE SELECT 1") && e.getMessage().contains("administration scope"),
 			    e.getMessage());
+			// the comment stays in the text after the prefix (duckdb's parser reads it)
+			SQLException commented = assertThrows(SQLException.class, () -> s.executeQuery("/* c */ SELECT 1"));
+			assertTrue(commented.getMessage().contains("ACL NATIVE /* c */ SELECT 1"), commented.getMessage());
+			// a USE is the session's, as written: no passthrough needed
+			s.execute("USE \"inventory\"");
+			assertEquals("inventory", conn.getCatalog());
 		}
 	}
 }
