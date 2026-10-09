@@ -34,6 +34,9 @@ if [ -n "${ACL_PIPELINES:-}" ]; then
 	OTEL_EXT="${ACL_OTEL:-}"
 	if [ -n "$OTEL_EXT" ]; then
 		OTEL="LOAD '$OTEL_EXT'; SET GLOBAL acl_otel_lineage = '$MARQUEZ';"
+		if [ -n "${ACL_OTEL_ENDPOINT:-}" ]; then # another backend's path (OpenMetadata, DataHub)
+			OTEL="$OTEL SET GLOBAL acl_otel_lineage_endpoint = '$ACL_OTEL_ENDPOINT';"
+		fi
 	fi
 	PIPELINES="CREATE SCHEMA memory.dbt_home;
 CREATE TABLE spark_out(id INTEGER, total DOUBLE);
