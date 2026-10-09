@@ -81,6 +81,14 @@ self-signed certificate. Never use it against a real node.
 
 The driver asks the door which issuer and client to use, so a connection needs only host and port.
 
+[`examples/dbeaver/drivers.xml`](examples/dbeaver/drivers.xml) is the same driver as a DBeaver driver
+definition, with the Generic provider's settings that fit the node: functions listed as well as
+procedures, and the active catalog switched with `USE` (spec 006). The tree DBeaver shows is the
+principal's own: catalogs, nested schemas (`raw.eu`), tables and views with their comments, columns
+with duckdb's types (`STRUCT(...)`, `VARCHAR[]`), and table functions with their parameters and result
+columns. A second connection with `acl.mode=manage` runs management SQL (`ACL ...`) as typed, and
+`acl.mode=native` native SQL (`ACL NATIVE ...`) - the node decides by the principal's scope.
+
 ## License
 
 MIT. The driver jar bundles Apache Arrow's Flight SQL JDBC driver (Apache License 2.0) unchanged.

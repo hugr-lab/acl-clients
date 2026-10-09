@@ -5,13 +5,16 @@
 #
 #   dev/jdbc-e2e.sh            # the live tests only
 #   dev/jdbc-e2e.sh all        # every test
+#   ACL_E2E_METADATA=1 dev/jdbc-e2e.sh   # + the metadata e2e (spec 006): needs ACL_METADATA=1 dev/node.sh;
+#                                        #   its dump lands in jdbc/target/metadata-dump.txt
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 IMAGE="${MAVEN_IMAGE:-maven:3-eclipse-temurin-17}"
-FILTER="-Dtest=LiveDoorE2ETest"
+FILTER="-Dtest=LiveDoorE2ETest,LiveMetadataE2ETest"
 [ "${1:-}" = all ] && FILTER=""
 docker run --rm -v acl-m2:/root/.m2 -v "$HERE/jdbc":/src -w /src \
 	-e ACL_E2E_URL="jdbc:acl://localhost:32800?disableCertificateVerification=true" \
+	-e ACL_E2E_METADATA="${ACL_E2E_METADATA:-}" \
 	"$IMAGE" bash -c "
 		(command -v socat >/dev/null || (apt-get update -qq && apt-get install -y -qq socat >/dev/null))
 		socat TCP-LISTEN:18070,fork,reuseaddr TCP:host.docker.internal:18070 &

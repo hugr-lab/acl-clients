@@ -21,9 +21,13 @@ jdbc/                 Maven, Java 17: io.github.hugrlab.acl.jdbc
   Flows               authcode+PKCE (loopback), device (RFC 8628), password, refresh
   FlightDiscovery     the door's discover-auth handshake - the ONLY code using Arrow's shaded names
   Oidc, Http, Tokens, TokenCache, Interaction, DeviceCodeWindow
+  AclConnection       Arrow's connection wrapped (spec 006): USE for catalog/schema, acl.mode prefixes
+  AclDatabaseMetaData the listings as SQL on the principal's surfaces (MetadataSql), RowsResultSet answers
+  AclResultSet, DuckTypes, AclStruct   duckdb's types on results; Forwarding* generated (tools/)
 examples/{go,python,dotnet,java}
 examples/pipelines/   spark/ (3.5, 4), dbt/, python/ - with lineage (spec 004)
-dev/                  keycloak.sh, node.sh [ACL_PIPELINES=1], token.sh, jdbc-e2e.sh, marquez.sh, pipelines-e2e.sh
+examples/dbeaver/     drivers.xml - the driver as a DBeaver Generic driver (spec 006)
+dev/                  keycloak.sh, node.sh [ACL_PIPELINES=1] [ACL_METADATA=1], token.sh, jdbc-e2e.sh, marquez.sh, pipelines-e2e.sh
 specs/NNN-slug/spec.md
 ```
 

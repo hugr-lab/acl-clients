@@ -1,6 +1,6 @@
 # Spec 006: metadata for tools - the JDBC driver's DatabaseMetaData, types and modes
 
-- **Status**: accepted (by the owner 2026-10-09)
+- **Status**: implemented (accepted by the owner 2026-10-09)
 - **Date**: 2026-10-09
 - **Node side**: duckdb-acl spec 115 (SqlInfo, `ARROW:FLIGHT:SQL:TYPE_NAME`, XdbcTypeInfo, functions in
   every held catalog, `acl_function_columns`, `duckdb_schemas.parent_schema`), spec 114 (`USE`), spec 116
@@ -70,6 +70,12 @@ dump against a seeded node) and read in Arrow's source at v19.0.0:
   function call passes the function gate (spec 072), and an ordinary role must be able to read its own
   tree. Literals, not `?` (two round trips instead of four). JDBC filter rules as duckdb-java: null =
   no filter, `""` = IS NULL, null pattern = `%`.
+- **Lazy by construction** (owner, 2026-10-09): there can be very many schemas and objects, virtual
+  and physical. Every listing fetches only what was asked - the catalog / schema / name filters a tool
+  passes go into the WHERE the node runs (`=` or `LIKE ... ESCAPE '\'`), never "fetch all and filter
+  in Java"; `getSchemas(catalog, pattern)` returns only that catalog's schemas; `getTables` /
+  `getColumns` / `getFunctions` are scoped by the catalog + schema the tool passes; no method walks the
+  tree by itself, and nothing is cached beyond one call except `getCatalog` / `getSchema`.
 - **Mode** (owner, 2026-10-09): the metadata SQL is never prefixed - the tree is always the
   principal's virtual catalog, whatever `acl.mode`. The physical engine is shown to an admin *inside*
   the virtual tree, as nested schemas of the system catalog (`platform.attached.<alias>.<schema>.<table>`
@@ -131,3 +137,75 @@ the jar (`META-INF/`, shade plugin).
   e2e is the catch.
 - The metadata SQL is subject to the function gate - tested as an ordinary role.
 - `getSQLKeywords` includes our grammar words (cosmetic for JDBC's "non-SQL:2003" contract).
+
+## As built
+
+- **Wrappers, not subclasses.** Arrow's `ArrowDatabaseMetadata` has a package-private constructor, so
+  `AclDatabaseMetaData` cannot extend it: it wraps Arrow's instance and forwards what it does not
+  answer itself (the SqlInfo-backed values stay Arrow's). The same holds for the connection, the
+  statements and the result sets: `Forwarding*` bases (every `java.sql` method forwarded) and
+  `UnsupportedResultSet` (for `RowsResultSet`) are generated from the JDK's interfaces by
+  `jdbc/tools/GenForwarding.java`; the behaviour lives in `AclConnection`, `AclStatement`,
+  `AclPreparedStatement`, `AclCallableStatement`, `AclDatabaseMetaData`, `AclResultSet`,
+  `AclResultSetMetaData`. `unwrap` reaches Arrow's objects.
+- **The metadata SQL** is composed in `MetadataSql` (one static method per listing, unit-tested for
+  the filters it carries and for calling nothing but the listing table functions). The filters go into
+  the SQL as the owner required. One bounded exception: `getFunctionColumns` /
+  `getProcedureColumns` with a column pattern also fetch the asked functions' parameters
+  (`column_kind = 'param' OR column_name LIKE ...`), because they make SPECIFIC_NAME; the ones the
+  pattern does not name are dropped in Java. `acl_function_columns()` is filtered by WHERE rather than
+  by its arguments, so patterns work.
+- **Keys** come from `acl_keys()` / `acl_references()` as specified; the object is the path in its
+  catalog (`orders`, `raw.eu.events`), composed from (schema, table) in the WHERE (`main` = the root;
+  a null schema matches the name at any depth by `LIKE '%.<name>'`) and split back in Java. A
+  reference counts as a foreign key when it goes to a relation by column pairs (`to_kind = 'relation'
+  AND expression IS NULL`, pairs aligned in Java); `PK_NAME` = `<object>_pk` as the door's
+  GetPrimaryKeys names it, rules `importedKeyNoAction`, `importedKeyNotDeferrable`.
+- **Functions**: `getProcedures` answers the same rows as `getFunctions` (PROCEDURE_TYPE
+  `procedureReturnsResult`) with the same SPECIFIC_NAME `name(TYPE, ...)`, so a tool that reads only
+  procedures shows the functions and one that reads both can tell they are one object. A function's
+  return value is a column named `returnValue` (ORDINAL_POSITION 0). The engine's functions a principal
+  may call are listed too when no catalog is given (that is what `duckdb_functions()` answers); their
+  columns are not (`acl_function_columns()` covers virtual functions).
+- **`getTableTypes`** is static (`BASE TABLE`, `LOCAL TEMPORARY`, `VIEW`); `getTables` also accepts
+  `TABLE` for `BASE TABLE` and puts the types into the SQL (a branch of the UNION per kind).
+  `getTypeInfo` lists `duckdb_types()` of the system catalog, TYPE_NAME upper-cased, aliases included,
+  sorted by DATA_TYPE.
+- **`setSchema` with a nested schema** is `USE SCHEMA "raw.eu"` - the dotted path as ONE quoted name,
+  which is how the node reads it (`"raw"."eu"` is a syntax error there). A `USE SCHEMA` needs a
+  **schema grant** on the node: a schema the principal sees through its catalog grant only is refused
+  ("no schema the principal holds", duckdb-acl spec 114's `HeldSchema`), so the dev seed grants
+  `sales.raw.eu` to analyst.
+- **Before the first USE** a connection sends `SELECT 1` (only if nothing has gone out yet), so the
+  USE lands in the cookie session (duckdb-acl spec 050). The `catalog` / `schema` URL properties use
+  the same path at connect; a failure closes Arrow's connection and fails the connect.
+- **`acl.mode`**: leading whitespace and comments are dropped before the prefix (the node's prefix
+  scanner reads none); a text that already starts with `ACL` is sent as written; in `manage` mode a
+  `USE` is sent as written (the client's session statement, not a management one). A principal
+  without passthrough gets "the principal has no ACL administration scope" for `ACL NATIVE ...` (the
+  node's first check), not the passthrough sentence.
+- **Result types**: `getColumnType` for every column the node names comes from `DuckTypes`; the
+  class name of a scalar is Arrow's, and where Arrow leaves it null (it does) `DuckTypes.javaClass`
+  (null for unsigned types - Arrow's accessors decide those). A LIST from `getObject` is Arrow's own
+  `java.sql.Array`; STRUCT values are `AclStruct` at every depth; `getString` of a nested value is its
+  JSON. Arrow's `Text` values inside nested ones become Strings (matched by simple name, no shaded
+  link). The schema is read by reflection from Arrow's result set (`schema`, else
+  `vectorSchemaRoot.getSchema()`), names only.
+- **DBeaver**: `examples/dbeaver/drivers.xml` uses `USE "?"` (quoted, so a mixed-case or keyword
+  catalog works) instead of `USE ?`, `active-entity-type = catalog`, `query-get-active-db`,
+  `split-procedures-and-functions`, `supports-references`, and `supports-indexes = false` (no index
+  listing).
+- **Licence**: `jdbc/THIRD-PARTY.md` (duckdb-java's MIT text) ships as `META-INF/THIRD-PARTY.md` in
+  the thin and the `-all` jar (a pom resource); `DuckTypes`, `AclStruct`, `AclDatabaseMetaData` and
+  `MetadataSql` carry headers naming their source.
+- **Tests**: units `DuckTypesTest`, `NestedValuesTest` (`AclStruct`, JSON), `AclSqlTest` (prefixes,
+  USE, quoting), `MetadataSqlTest` (the filters in the SQL, no calls but the listings, JDBC filter
+  rules), `RowsResultSetTest` (empty shape), `AclConnectionTest` (every statement path prefixed, USE
+  and its cache, URL catalog/schema, metadata never prefixed and every empty listing with its JDBC
+  columns, Java type mapping) over a scripted fake of Arrow's connection, `AclConfigTest` (the four
+  keys consumed). Live: `LiveMetadataE2ETest` as analyst1 (an ordinary role) against
+  `ACL_METADATA=1 dev/node.sh`, wired into `dev/jdbc-e2e.sh` (`ACL_E2E_METADATA=1`); 84 tests green
+  on 2026-10-09 with the live ones.
+- **Seen on the node, not fixed here**: `duckdb_views().comment` is NULL for a view created with
+  `COMMENT` (so a view's REMARKS are empty); `USE SCHEMA` refuses a schema reachable only through the
+  catalog grant (above).
