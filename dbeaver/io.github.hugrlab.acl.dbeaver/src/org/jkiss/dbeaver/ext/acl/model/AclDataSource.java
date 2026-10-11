@@ -184,6 +184,45 @@ public class AclDataSource extends GenericDataSource {
 		                  r -> new AclResourceGroup(this, this, r));
 	}
 
+	@org.jkiss.dbeaver.model.meta.Association
+	public List<AclSession> getAccessSessions(DBRProgressMonitor monitor) throws DBException {
+		return accessRows(monitor, "sessions", PlatformSql.view("sessions"), r -> new AclSession(this, this, r));
+	}
+
+	@org.jkiss.dbeaver.model.meta.Association
+	public List<AclNodeLoad> getAccessNodeLoad(DBRProgressMonitor monitor) throws DBException {
+		return accessRows(monitor, "node_load", PlatformSql.view("node_load"), r -> new AclNodeLoad(this, this, r));
+	}
+
+	@org.jkiss.dbeaver.model.meta.Association
+	public List<AclNodeDoor> getAccessNodeDoors(DBRProgressMonitor monitor) throws DBException {
+		return accessRows(monitor, "node_doors", PlatformSql.view("node_doors"), r -> new AclNodeDoor(this, this, r));
+	}
+
+	@org.jkiss.dbeaver.model.meta.Association
+	public List<AclClusterItem> getAccessClusterItems(DBRProgressMonitor monitor) throws DBException {
+		return accessRows(monitor, "cluster_items", PlatformSql.view("cluster_items"), r -> new AclClusterItem(this, this, r));
+	}
+
+	@org.jkiss.dbeaver.model.meta.Association
+	public List<AclClusterItem> getAccessClusterEffective(DBRProgressMonitor monitor) throws DBException {
+		return accessRows(monitor, "cluster_effective", PlatformSql.view("cluster_effective"),
+		                  r -> new AclClusterItem(this, this, r));
+	}
+
+	@org.jkiss.dbeaver.model.meta.Association
+	public List<AclDriftEntry> getAccessDrift(DBRProgressMonitor monitor) throws DBException {
+		try {
+			return accessRows(monitor, "drift", PlatformSql.view("drift"), r -> new AclDriftEntry(this, this, r));
+		} catch (DBException e) {
+			// a standalone node has no profile to drift from (duckdb-acl spec 118.2 refuses the view there): nothing
+			if (String.valueOf(e.getMessage()).contains("this node is standalone")) {
+				return List.of();
+			}
+			throw e;
+		}
+	}
+
 	@Override
 	public org.jkiss.dbeaver.model.struct.DBSObject refreshObject(@NotNull DBRProgressMonitor monitor) throws DBException {
 		synchronized (this) {

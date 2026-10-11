@@ -149,6 +149,28 @@
 					<folder label="Resource groups" icon="#folder" visibleIf="object.shows('resource_groups')">
 						<items label="Group" path="resourceGroup" property="accessResourceGroups" icon="#info"/>
 					</folder>
+					<folder label="Node" icon="#folder" visibleIf="object.shows('sessions') || object.shows('node_load')">
+						<folder label="Sessions" icon="#folder" visibleIf="object.shows('sessions')">
+							<items label="Session" path="accessSession" property="accessSessions" icon="#info"/>
+						</folder>
+						<folder label="Load" icon="#folder" visibleIf="object.shows('node_load')">
+							<items label="Load" path="accessNodeLoad" property="accessNodeLoad" icon="#info"/>
+						</folder>
+						<folder label="Doors" icon="#folder" visibleIf="object.shows('node_doors')">
+							<items label="Door" path="accessNodeDoor" property="accessNodeDoors" icon="#info"/>
+						</folder>
+					</folder>
+					<folder label="Cluster" icon="#folder" visibleIf="object.shows('cluster_items') || object.shows('drift')">
+						<folder label="Profile" icon="#folder" visibleIf="object.shows('cluster_items')">
+							<items label="Item" path="accessClusterItem" property="accessClusterItems" icon="#info"/>
+						</folder>
+						<folder label="Applied here" icon="#folder" visibleIf="object.shows('cluster_effective')">
+							<items label="Item" path="accessClusterEffective" property="accessClusterEffective" icon="#info"/>
+						</folder>
+						<folder label="Drift" icon="#folder" visibleIf="object.shows('drift')">
+							<items label="Entry" path="accessDrift" property="accessDrift" icon="#info"/>
+						</folder>
+					</folder>
 				</folder>
 			</tree>
 			<drivers managable="true">

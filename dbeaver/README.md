@@ -43,7 +43,12 @@ Built against DBeaver CE 26.2.2 (Java 21).
   connection). Asked again, the same copy is reused. A console does not run your connection's bootstrap
   statements (they would be prefixed).
 
-Coming: the Access control branch (007.3).
+- For an administrator, an **Access control** folder beside the catalogs (read only): roles with their grants and
+  **effective rights** per catalog (what the role reads of each object and why), virtual catalogs with their objects
+  and the **check** (findings with the repair statement to copy), sources with their **exposures** (who reads what),
+  identity (issuers, clients, role mappings), function categories, resource groups, and - for the node's operators -
+  its sessions, load and doors and the cluster profile. Each part shows only what your scopes read; F5 on a node
+  reads it again.
 
 ## Develop
 

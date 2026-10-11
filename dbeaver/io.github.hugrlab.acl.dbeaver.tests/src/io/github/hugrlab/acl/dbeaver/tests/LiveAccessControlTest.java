@@ -65,7 +65,25 @@ public class LiveAccessControlTest {
 		assertTrue(tree, tree.contains("Exposures"));
 		assertTrue(tree, tree.contains("Issuers"));
 		assertTrue(tree, tree.contains("Function categories"));
-		// no node or cluster views for the policy bundle: those folders are not built in 007.3 at all
+		// no node or cluster views for the policy bundle: those folders are not shown
+		assertFalse(tree, tree.contains("  Node  ["));
+		assertFalse(tree, tree.contains("  Cluster  ["));
+	}
+
+	@Test
+	public void anOperatorSeesTheNodeAndTheCluster() throws Exception {
+		LiveTreeTest.assumeNode();
+		DBNNode access = child(root(LiveTreeTest.connect("ops1", "ops1-pass")), "Access control");
+		assertNotNull("ops1 (the cluster bundle) has the Access control branch", access);
+		StringBuilder out = new StringBuilder();
+		LiveTreeTest.dump(access, 0, 3, out);
+		String tree = out.toString();
+		assertTrue(tree, tree.contains("  Node  ["));
+		assertTrue(tree, tree.contains("    Sessions  ["));
+		assertTrue(tree, tree.contains("      ") && child(child(access, "Node"), "Sessions").getChildren(new VoidProgressMonitor()).length > 0);
+		assertTrue(tree, tree.contains("  Cluster  ["));
+		assertTrue(tree, tree.contains("    Drift  ["));
+		assertFalse("the cluster bundle reads no policy view", tree.contains("  Roles  ["));
 	}
 
 	@Test
