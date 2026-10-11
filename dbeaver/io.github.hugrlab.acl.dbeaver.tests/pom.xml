@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- acl-clients spec 007: UI tests - a real DBeaver (the target platform's release) with the plugin, driven by SWTBot.
+     A display is needed: locally they run as is; CI runs them under Xvfb or skips them (-DskipUITests). -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>io.github.hugrlab.acl</groupId>
+		<artifactId>acl-dbeaver-parent</artifactId>
+		<version>0.1.0-SNAPSHOT</version>
+	</parent>
+	<artifactId>io.github.hugrlab.acl.dbeaver.tests</artifactId>
+	<packaging>eclipse-test-plugin</packaging>
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.eclipse.tycho</groupId>
+				<artifactId>tycho-surefire-plugin</artifactId>
+				<version>${tycho.version}</version>
+				<configuration>
+					<skip>${skipUITests}</skip>
+					<useUIHarness>true</useUIHarness>
+					<useUIThread>false</useUIThread>
+					<product>org.jkiss.dbeaver.ui.app.standalone.product</product>
+					<application>org.jkiss.dbeaver.ui.app.standalone.standalone</application>
+					<argLine>${ui.test.vmargs} -Dproduct.config.disable=true</argLine>
+					<environmentVariables>
+						<ACL_E2E_URL>${env.ACL_E2E_URL}</ACL_E2E_URL>
+					</environmentVariables>
+					<appArgLine>-eclipse.keyring ${project.build.directory}/keyring -nosplash</appArgLine>
+					<dependencies>
+						<dependency>
+							<type>eclipse-feature</type>
+							<artifactId>org.jkiss.dbeaver.ce.feature</artifactId>
+							<version>0.0.0</version>
+						</dependency>
+					</dependencies>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+	<properties>
+		<skipUITests>false</skipUITests>
+		<ui.test.vmargs></ui.test.vmargs>
+	</properties>
+	<profiles>
+		<profile>
+			<id>macos-ui</id>
+			<activation><os><family>mac</family></os></activation>
+			<properties><ui.test.vmargs>-XstartOnFirstThread</ui.test.vmargs></properties>
+		</profile>
+	</profiles>
+</project>

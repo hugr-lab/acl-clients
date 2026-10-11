@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- spec 007: the driver as a bundle - DBeaver loads a bundled driver as a whole bundle jar (`bundle:/<id>`), so
+     spec 006's shaded -all jar (copied into lib/ by dbeaver/build.sh) is unpacked into this bundle's classes -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>io.github.hugrlab.acl</groupId>
+		<artifactId>acl-dbeaver-parent</artifactId>
+		<version>0.1.0-SNAPSHOT</version>
+	</parent>
+	<artifactId>io.github.hugrlab.acl.jdbc</artifactId>
+	<packaging>eclipse-plugin</packaging>
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-antrun-plugin</artifactId>
+				<version>3.1.0</version>
+				<executions>
+					<execution>
+						<id>unpack-driver</id>
+						<phase>process-classes</phase>
+						<goals><goal>run</goal></goals>
+						<configuration>
+							<target>
+								<!-- built without dbeaver/build.sh there is no driver to bundle: refuse, never ship it empty -->
+								<fail message="no driver jar in lib/ - build with dbeaver/build.sh">
+									<condition><resourcecount when="ne" count="1"><fileset dir="${project.basedir}/lib" includes="*.jar" erroronmissingdir="false"/></resourcecount></condition>
+								</fail>
+								<unzip dest="${project.build.outputDirectory}">
+									<fileset dir="${project.basedir}/lib" includes="*.jar"/>
+									<patternset>
+										<exclude name="META-INF/MANIFEST.MF"/>
+										<exclude name="META-INF/*.SF"/>
+										<exclude name="META-INF/*.RSA"/>
+										<exclude name="META-INF/*.DSA"/>
+										<exclude name="module-info.class"/>
+									</patternset>
+								</unzip>
+							</target>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+</project>

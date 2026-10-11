@@ -1,0 +1,9 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: duckdb-acl for DBeaver - unit tests
+Bundle-SymbolicName: io.github.hugrlab.acl.dbeaver.unit
+Bundle-Version: 0.1.0.qualifier
+Bundle-Vendor: hugr-lab
+Bundle-RequiredExecutionEnvironment: JavaSE-21
+Fragment-Host: io.github.hugrlab.acl.dbeaver
+Require-Bundle: org.junit

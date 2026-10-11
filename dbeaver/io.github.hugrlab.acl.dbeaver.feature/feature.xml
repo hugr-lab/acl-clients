@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feature id="io.github.hugrlab.acl.dbeaver.feature" label="duckdb-acl for DBeaver" version="0.1.0.qualifier"
+         provider-name="hugr-lab">
+	<description>A duckdb-acl node in DBeaver: the connection type with its driver, the node's tree, its consoles.</description>
+	<license url="https://github.com/hugr-lab/acl-clients/blob/main/LICENSE">MIT</license>
+	<requires>
+		<import plugin="org.jkiss.dbeaver.ext.generic"/>
+	</requires>
+	<plugin id="io.github.hugrlab.acl.dbeaver" version="0.0.0" unpack="false"/>
+	<plugin id="io.github.hugrlab.acl.jdbc" version="0.0.0" unpack="false"/>
+</feature>
