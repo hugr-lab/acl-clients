@@ -17,6 +17,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 /**
@@ -28,6 +30,7 @@ import java.util.regex.Pattern;
  * by {@code acl.mode}: the tree is always the principal's virtual catalog.
  */
 final class AclDatabaseMetaData extends ForwardingDatabaseMetaData {
+	private static final Logger LOG = Logger.getLogger(AclDatabaseMetaData.class.getName());
 	private final AclConnection connection;
 
 	AclDatabaseMetaData(AclConnection connection, DatabaseMetaData arrow) {
@@ -103,6 +106,7 @@ final class AclDatabaseMetaData extends ForwardingDatabaseMetaData {
 		if (sql == null) {
 			return new ArrayList<>();
 		}
+		long started = System.nanoTime();
 		return connection.call(false, () -> {
 			List<Map<String, Object>> out = new ArrayList<>();
 			try (Statement s = connection.arrow().createStatement(); ResultSet rs = s.executeQuery(sql)) {
@@ -119,6 +123,11 @@ final class AclDatabaseMetaData extends ForwardingDatabaseMetaData {
 					}
 					out.add(row);
 				}
+			}
+			if (LOG.isLoggable(Level.FINE)) {
+				// what a tool's tree costs, per listing: the node's time is most of it (FINE, off by default)
+				LOG.fine(String.format("metadata %d ms, %d rows: %s", (System.nanoTime() - started) / 1_000_000,
+				    out.size(), sql));
 			}
 			return out;
 		});
@@ -157,10 +166,10 @@ final class AclDatabaseMetaData extends ForwardingDatabaseMetaData {
 	    throws SQLException {
 		List<Object[]> rows = new ArrayList<>();
 		for (Map<String, Object> r : query(MetadataSql.tables(catalog, schemaPattern, tableNamePattern, types))) {
-			String type = truthy(r.get("is_view")) ? MetadataSql.TYPE_VIEW
-			              : truthy(r.get("temporary")) ? MetadataSql.TYPE_TEMPORARY
-			                                           : MetadataSql.TYPE_TABLE;
-			rows.add(new Object[] {r.get("database_name"), r.get("schema_name"), r.get("object_name"), type,
+			String type = text(r.get("table_type"));
+			type = MetadataSql.TYPE_VIEW.equals(type) || MetadataSql.TYPE_TEMPORARY.equals(type) ? type
+			                                                                                    : MetadataSql.TYPE_TABLE;
+			rows.add(new Object[] {r.get("table_catalog"), r.get("table_schema"), r.get("table_name"), type,
 			    r.get("comment"), null, null, null, null, null});
 		}
 		return new RowsResultSet(TABLE_COLUMNS, rows);
@@ -423,8 +432,7 @@ final class AclDatabaseMetaData extends ForwardingDatabaseMetaData {
 
 	/** The referenced object's key as the door's GetPrimaryKeys names it, or null when it declares none. */
 	private static String pkName(Map<String, Object> reference) {
-		Object key = reference.get("key_object");
-		return key == null ? null : key + "_pk";
+		return truthy(reference.get("to_has_key")) ? reference.get("to_object") + "_pk" : null;
 	}
 
 	/** A reference as foreign key rows: one per column pair, KEY_SEQ from 1. */

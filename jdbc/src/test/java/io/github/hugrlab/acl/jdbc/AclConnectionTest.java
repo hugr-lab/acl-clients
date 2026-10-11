@@ -432,11 +432,11 @@ class AclConnectionTest {
 	void pkNameOnlyForADeclaredKey() throws SQLException {
 		FakeArrow arrow = new FakeArrow(sql -> sql.contains("acl_references()")
 		    ? new Answer(List.of("vcat", "name", "from_object", "to_object", "from_column_list", "to_column_list",
-		        "key_object"),
+		        "to_has_key"),
 		        List.of(new Object[] {"sales", "order_customer", "orders", "customers", List.of("id"), List.of("id"),
-		                    "customers"},
+		                    true},
 		            new Object[] {"sales", "order_region", "orders", "regions", List.of("region"), List.of("code"),
-		                null}))
+		                false}))
 		    : null);
 		ResultSet keys =
 		    new AclConnection(arrow.connection(), Mode.DATA, false).getMetaData().getImportedKeys("sales", "main", "orders");

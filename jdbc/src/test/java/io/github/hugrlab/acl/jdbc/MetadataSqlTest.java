@@ -53,12 +53,10 @@ class MetadataSqlTest {
 		                 + " ORDER BY catalog_name, schema_name",
 		    MetadataSql.schemas("sales", "raw%"));
 		String tables = MetadataSql.tables("sales", "main", "cust%", null);
-		assertTrue(tables.contains("FROM duckdb_tables() WHERE database_name = 'sales' AND schema_name LIKE 'main'"
-		                           + " ESCAPE '\\' AND table_name LIKE 'cust%' ESCAPE '\\'"),
+		assertTrue(tables.contains("FROM information_schema.tables WHERE table_catalog = 'sales' AND table_schema"
+		                           + " LIKE 'main' ESCAPE '\\' AND table_name LIKE 'cust%' ESCAPE '\\'"),
 		    tables);
-		assertTrue(tables.contains("FROM duckdb_views() WHERE database_name = 'sales' AND schema_name LIKE 'main'"
-		                           + " ESCAPE '\\' AND view_name LIKE 'cust%' ESCAPE '\\'"),
-		    tables);
+		assertFalse(tables.contains("table_type IN"), "every type: no type filter");
 		String columns = MetadataSql.columns("sales", "raw.eu", "events", "k%");
 		assertTrue(columns.contains("WHERE database_name = 'sales' AND schema_name LIKE 'raw.eu' ESCAPE '\\'"
 		                            + " AND table_name LIKE 'events' ESCAPE '\\' AND column_name LIKE 'k%' ESCAPE '\\'"),
@@ -105,8 +103,8 @@ class MetadataSqlTest {
 		assertFalse(MetadataSql.primaryKeys("sales", null, null).contains("object "), "no filter on the object");
 		// the key's name comes from the referenced object's declared key, joined - not composed
 		String refs = MetadataSql.references(null, null, null, "sales", "main", "customers");
-		assertTrue(refs.contains("LEFT JOIN (SELECT DISTINCT vcat, object FROM acl_keys() WHERE kind = 'relation') k"
-		                         + " ON k.vcat = r.vcat AND k.object = r.to_object"), refs);
+		assertTrue(refs.contains("r.to_has_key FROM acl_references() r WHERE"), refs);
+		assertFalse(refs.contains("acl_keys()"), "no listing of every key (duckdb-acl spec 121)");
 	}
 
 	// duckdb-acl spec 115: duckdb_schemas() names a nested schema by its leaf (eu), as duckdb does;
@@ -134,11 +132,11 @@ class MetadataSqlTest {
 	@Test
 	void tableTypesChooseTheBranches() {
 		String views = MetadataSql.tables(null, null, null, new String[] {"VIEW"});
-		assertFalse(views.contains("duckdb_tables()"));
-		assertTrue(views.contains("duckdb_views()"));
+		assertTrue(views.contains("table_type IN ('VIEW')"), views);
 		String base = MetadataSql.tables(null, null, null, new String[] {"TABLE"});
-		assertTrue(base.contains("duckdb_tables() WHERE temporary = false"), base);
-		assertFalse(base.contains("duckdb_views()"));
+		assertTrue(base.contains("table_type IN ('BASE TABLE')"), base);
+		String two = MetadataSql.tables(null, null, null, new String[] {"TABLE", "LOCAL TEMPORARY"});
+		assertTrue(two.contains("table_type IN ('BASE TABLE', 'LOCAL TEMPORARY')"), two);
 		assertNull(MetadataSql.tables(null, null, null, new String[] {"SYNONYM"}));
 	}
 

@@ -76,42 +76,46 @@ final class MetadataSql {
 
 	/** null when the types asked for are none this node has. */
 	static String tables(String catalog, String schemaPattern, String namePattern, String[] types) {
-		boolean base = types == null;
-		boolean temporary = types == null;
-		boolean views = types == null;
-		if (types != null) {
+		List<String> wanted = new ArrayList<>();
+		if (types == null) {
+			wanted = List.of(TYPE_TABLE, TYPE_TEMPORARY, TYPE_VIEW);
+		} else {
 			for (String type : types) {
 				String t = type == null ? "" : type.trim().toUpperCase(Locale.ROOT);
 				switch (t) {
-					case "TABLE", TYPE_TABLE -> base = true;
-					case TYPE_TEMPORARY, "TEMPORARY", "GLOBAL TEMPORARY" -> temporary = true;
-					case TYPE_VIEW -> views = true;
+					case "TABLE", TYPE_TABLE -> addOnce(wanted, TYPE_TABLE);
+					case TYPE_TEMPORARY, "TEMPORARY", "GLOBAL TEMPORARY" -> addOnce(wanted, TYPE_TEMPORARY);
+					case TYPE_VIEW -> addOnce(wanted, TYPE_VIEW);
 					default -> {
 					}
 				}
 			}
 		}
-		List<String> parts = new ArrayList<>();
-		if (base || temporary) {
-			Where where = new Where().eq("database_name", catalog).like("schema_name", schemaPattern).like("table_name",
-			    namePattern);
-			if (base != temporary) {
-				where.raw(temporary ? "temporary = true" : "temporary = false");
-			}
-			parts.add("SELECT database_name, schema_name, table_name AS object_name, comment, temporary, false AS is_view"
-			          + " FROM duckdb_tables()" + where);
-		}
-		if (views) {
-			parts.add("SELECT database_name, schema_name, view_name AS object_name, comment, temporary, true AS is_view"
-			          + " FROM duckdb_views()"
-			          + new Where().eq("database_name", catalog).like("schema_name", schemaPattern).like("view_name",
-			              namePattern));
-		}
-		if (parts.isEmpty()) {
+		if (wanted.isEmpty()) {
 			return null;
 		}
+		// duckdb-acl spec 121: information_schema.tables - one listing, the cheapest the node has for a schema's
+		// objects (duckdb_tables UNION duckdb_views cost an order of magnitude more at scale); its TABLE_TYPE is
+		// JDBC's (BASE TABLE / LOCAL TEMPORARY / VIEW)
+		Where where = new Where().eq("table_catalog", catalog).like("table_schema", schemaPattern).like("table_name",
+		    namePattern);
+		if (wanted.size() < 3) {
+			List<String> quoted = new ArrayList<>();
+			for (String type : wanted) {
+				quoted.add("'" + type + "'");
+			}
+			where.raw("table_type IN (" + String.join(", ", quoted) + ")");
+		}
 		// JDBC's order: TABLE_TYPE (BASE TABLE, LOCAL TEMPORARY, VIEW), then catalog, schema, name
-		return String.join(" UNION ALL ", parts) + " ORDER BY is_view, temporary, database_name, schema_name, object_name";
+		return "SELECT table_catalog, table_schema, table_name, table_type, \"TABLE_COMMENT\" AS comment"
+		    + " FROM information_schema.tables" + where
+		    + " ORDER BY table_type, table_catalog, table_schema, table_name";
+	}
+
+	private static void addOnce(List<String> list, String value) {
+		if (!list.contains(value)) {
+			list.add(value);
+		}
 	}
 
 	static String columns(String catalog, String schemaPattern, String tablePattern, String columnPattern) {
@@ -163,7 +167,7 @@ final class MetadataSql {
 	/**
 	 * The declared references (duckdb-acl spec 022) that are foreign keys: to a relation, by column
 	 * pairs. {@code from} is the referencing (foreign key) side, {@code to} the referenced one;
-	 * {@code key_object} is set when the referenced object declares a key (spec 048) - a subquery and
+	 * {@code to_has_key} is true when the referenced object declares a key the role sees (spec 048) - the node's and
 	 * a join, no call.
 	 */
 	static String references(String fromCatalog, String fromSchema, String fromTable, String toCatalog,
@@ -174,10 +178,10 @@ final class MetadataSql {
 		}
 		objectPath(where, "r.from_object", fromSchema, fromTable);
 		objectPath(where, "r.to_object", toSchema, toTable);
+		// duckdb-acl spec 121: whether the far end declares a key the role sees is the listing's own column - a
+		// join on every key of the node cost more than the references themselves
 		return "SELECT r.vcat, r.name, r.from_object, r.to_object, r.from_column_list, r.to_column_list,"
-		    + " k.object AS key_object FROM acl_references() r LEFT JOIN"
-		    + " (SELECT DISTINCT vcat, object FROM acl_keys() WHERE kind = 'relation') k"
-		    + " ON k.vcat = r.vcat AND k.object = r.to_object" + where + " ORDER BY r.vcat, r.name";
+		    + " r.to_has_key FROM acl_references() r" + where + " ORDER BY r.vcat, r.name";
 	}
 
 	/**
