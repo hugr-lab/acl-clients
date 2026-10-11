@@ -138,8 +138,9 @@ final class AclConnection extends ForwardingConnection {
 		if (schema == null || schema.isEmpty()) {
 			return;
 		}
-		// a nested schema is its dotted path as ONE name: the node reads USE SCHEMA "raw.eu" as that path
-		run("USE SCHEMA " + AclSql.quoteIdentifier(schema));
+		// a nested schema by its parts (duckdb-acl spec 116 / 114's addendum): USE SCHEMA "raw"."eu" - the dotted path
+		// quoted whole is a one-part schema whose name holds a dot
+		run("USE SCHEMA " + AclSql.quotePath(schema));
 	}
 
 	private String[] current() throws SQLException {

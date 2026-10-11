@@ -10,6 +10,16 @@ import org.junit.jupiter.api.Test;
 
 class AclSqlTest {
 	@Test
+	void aSchemaPathIsQuotedPartByPart() {
+		// duckdb-acl spec 116: a nested schema's parts on their own; a quoted part with a dot stays one part
+		assertEquals("\"raw\".\"eu\"", AclSql.quotePath("raw.eu"));
+		assertEquals("\"main\"", AclSql.quotePath("main"));
+		assertEquals("\"a.b\".\"c\"", AclSql.quotePath("\"a.b\".c"));
+		assertEquals("\"say \"\"hi\"\"\"", AclSql.quotePath("say \"hi\"")); // one part: shown as it is (Display)
+		assertEquals("\"a..b\"", AclSql.quotePath("a..b")); // not a path: quoted whole
+	}
+
+	@Test
 	void modesPrefix() {
 		assertEquals("SELECT 1", AclSql.prefix(Mode.DATA, "SELECT 1"));
 		assertEquals("ACL CREATE VIRTUAL CATALOG c", AclSql.prefix(Mode.MANAGE, "CREATE VIRTUAL CATALOG c"));

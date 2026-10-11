@@ -83,7 +83,7 @@ class AclConnectionTest {
 		conn.setCatalog("inventory");
 		conn.setSchema("raw.eu");
 		// a first call earns the session cookie before the USE (duckdb-acl spec 050); never prefixed
-		assertEquals(List.of("SELECT 1", "USE \"inventory\"", "USE SCHEMA \"raw.eu\""), arrow.sent);
+		assertEquals(List.of("SELECT 1", "USE \"inventory\"", "USE SCHEMA \"raw\".\"eu\""), arrow.sent);
 		assertEquals("inventory", conn.getCatalog());
 		assertEquals("main", conn.getSchema());
 		assertEquals(1, arrow.sent.stream().filter(CURRENT::equals).count(), "read once, then kept");

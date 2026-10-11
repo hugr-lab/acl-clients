@@ -144,7 +144,7 @@ final class AclCallableStatement extends ForwardingCallableStatement<CallableSta
 		ResultSetMetaData arrow = delegate.getMetaData();
 		return arrow == null ? null
 		                     : new AclResultSetMetaData(arrow, ResultTypes.of(delegate, arrow.getColumnCount()),
-		                         connection.nestedJson());
+		                         connection.nestedJson(), arrow.getColumnCount());
 	}
 
 	@Override

@@ -30,7 +30,12 @@ final class AclResultSet extends ForwardingResultSet {
 	private AclResultSetMetaData meta() throws SQLException {
 		if (meta == null) {
 			ResultSetMetaData arrow = delegate.getMetaData();
-			meta = new AclResultSetMetaData(arrow, ResultTypes.of(delegate, arrow.getColumnCount()), nestedJson);
+			int columns = arrow.getColumnCount();
+			int fields = ResultTypes.fieldCount(delegate);
+			if (fields > 0 && fields < columns) {
+				columns = fields; // Arrow's driver repeats an empty result's columns - the schema is the truth
+			}
+			meta = new AclResultSetMetaData(arrow, ResultTypes.of(delegate, columns), nestedJson, columns);
 		}
 		return meta;
 	}
@@ -49,11 +54,40 @@ final class AclResultSet extends ForwardingResultSet {
 		return raw instanceof byte[] bytes ? DuckTypes.decodeBits(type, bytes) : raw.toString();
 	}
 
+	/** The labels of each ENUM column, for the stream they were read from (a new stream is looked up again). */
+	private final java.util.Map<Integer, ResultTypes.Dictionary> dictionaries = new java.util.HashMap<>();
+
+	/** An ENUM's label: Arrow's driver answers a dictionary-encoded value by its index. */
+	private Object enumValue(int column) throws SQLException {
+		Object raw = delegate.getObject(column);
+		if (raw == null) {
+			return null;
+		}
+		ResultTypes.Dictionary dictionary = dictionaries.get(column);
+		Object stream = ResultTypes.currentStream(delegate);
+		if (dictionary == null || dictionary.stream() != stream) {
+			dictionary = ResultTypes.dictionary(delegate, column);
+			if (dictionary == null) {
+				return raw.toString();
+			}
+			dictionaries.put(column, dictionary);
+		}
+		long index = ResultTypes.unsignedIndex(raw, dictionary.indexBits());
+		return index >= 0 && index < dictionary.labels().length ? dictionary.labels()[(int) index] : raw.toString();
+	}
+
+	private static boolean isEnum(DuckTypes.Type type) {
+		return type != null && "ENUM".equals(type.base());
+	}
+
 	@Override
 	public Object getObject(int column) throws SQLException {
 		DuckTypes.Type type = meta().type(column);
 		if (DuckTypes.isBits(type)) {
 			return bits(type, column);
+		}
+		if (isEnum(type)) {
+			return enumValue(column);
 		}
 		if (type == null || !type.isNested()) {
 			return delegate.getObject(column);
@@ -78,6 +112,10 @@ final class AclResultSet extends ForwardingResultSet {
 	@Override
 	public <T> T getObject(int column, Class<T> wanted) throws SQLException {
 		DuckTypes.Type type = meta().type(column);
+		if (isEnum(type) && (wanted == String.class || wanted == Object.class)) {
+			Object label = enumValue(column);
+			return wanted.cast(label == null ? null : label.toString());
+		}
 		if (DuckTypes.isBits(type) && wanted == String.class) {
 			return wanted.cast(bits(type, column));
 		}
@@ -118,6 +156,10 @@ final class AclResultSet extends ForwardingResultSet {
 		DuckTypes.Type type = meta().type(column);
 		if (DuckTypes.isBits(type)) {
 			return bits(type, column);
+		}
+		if (isEnum(type)) {
+			Object label = enumValue(column);
+			return label == null ? null : label.toString();
 		}
 		if (type == null || !type.isNested()) {
 			return delegate.getString(column);

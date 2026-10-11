@@ -16,14 +16,22 @@ import java.util.Map;
 final class AclResultSetMetaData extends ForwardingResultSetMetaData {
 	private final DuckTypes.Type[] types;
 	private final boolean nestedJson;
+	private final int columnCount;
 
-	AclResultSetMetaData(ResultSetMetaData arrow, String[] typeNames, boolean nestedJson) {
+	AclResultSetMetaData(ResultSetMetaData arrow, String[] typeNames, boolean nestedJson, int columnCount) {
 		super(arrow);
 		this.nestedJson = nestedJson;
+		this.columnCount = columnCount;
 		this.types = new DuckTypes.Type[typeNames == null ? 0 : typeNames.length];
 		for (int i = 0; i < types.length; i++) {
 			types[i] = typeNames[i] == null ? null : DuckTypes.parse(typeNames[i]);
 		}
+	}
+
+	/** The result's columns: the Arrow schema's count where Arrow's driver repeats an empty result's (ResultTypes). */
+	@Override
+	public int getColumnCount() {
+		return columnCount;
 	}
 
 	/** The column's duckdb type, or null when the node did not name it. */

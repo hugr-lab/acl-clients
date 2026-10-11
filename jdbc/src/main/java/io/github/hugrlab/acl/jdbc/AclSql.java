@@ -198,6 +198,58 @@ final class AclSql {
 		return i;
 	}
 
+	/**
+	 * A schema's path as the node lists it (duckdb-acl spec 116: parts joined by `.`, a part quoted only when it holds a
+	 * `.` or a `"`) as SQL: each part quoted on its own - `raw.eu` is `"raw"."eu"`, the nested schema; `"a.b"` stays
+	 * one part. A text that is not a well-formed path is quoted whole.
+	 */
+	static String quotePath(String path) {
+		if (path.indexOf('.') < 0) {
+			return quoteIdentifier(path); // one part, shown as it is (NamePath::Display) - a quote in it is its own
+		}
+		java.util.List<String> parts = new java.util.ArrayList<>();
+		StringBuilder part = new StringBuilder();
+		boolean quoted = false;
+		boolean wasQuoted = false;
+		for (int i = 0; i < path.length(); i++) {
+			char c = path.charAt(i);
+			if (quoted) {
+				if (c == '"' && i + 1 < path.length() && path.charAt(i + 1) == '"') {
+					part.append('"');
+					i++;
+				} else if (c == '"') {
+					quoted = false;
+				} else {
+					part.append(c);
+				}
+			} else if (c == '"' && part.length() == 0 && !wasQuoted) {
+				quoted = true;
+				wasQuoted = true;
+			} else if (c == '.') {
+				if (part.length() == 0) {
+					return quoteIdentifier(path);
+				}
+				parts.add(part.toString());
+				part.setLength(0);
+				wasQuoted = false;
+			} else {
+				part.append(c);
+			}
+		}
+		if (quoted || part.length() == 0) {
+			return quoteIdentifier(path);
+		}
+		parts.add(part.toString());
+		StringBuilder out = new StringBuilder();
+		for (String p : parts) {
+			if (out.length() > 0) {
+				out.append('.');
+			}
+			out.append(quoteIdentifier(p));
+		}
+		return out.toString();
+	}
+
 	/** duckdb's quoted identifier: double quotes, a quote inside doubled. */
 	static String quoteIdentifier(String name) {
 		return '"' + name.replace("\"", "\"\"") + '"';
