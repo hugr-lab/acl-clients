@@ -112,9 +112,18 @@ class AclConnectionTest {
 		    new org.apache.arrow.driver.jdbc.utils.ArrowFlightConnectionConfigImpl(config.delegateProperties("t"))
 		        .getHeaderAttributes().get("x-acl-view-as"));
 		FakeArrow arrow = node(new AtomicReference<>("sales"));
+		arrow.refuses = sql -> sql.contains("range(0)"); // the node in the mode: a table function's rows are refused
+		arrow.refusal = "acl: a view-as session reads metadata only";
 		new AclConnection(arrow.connection(), config);
-		assertEquals(List.of("SELECT 1"), arrow.sent, "one call at connect - nothing set by statement");
+		assertEquals(List.of("SELECT 1", "SELECT * FROM range(0)"), arrow.sent,
+		             "one call at connect and the proof - nothing set by statement");
 		assertFalse(arrow.closed);
+
+		// a node that ignores the header (older than the driver) answers the probe: the connect fails
+		FakeArrow older = node(new AtomicReference<>("sales"));
+		SQLException ignored = assertThrows(SQLException.class, () -> new AclConnection(older.connection(), config));
+		assertTrue(ignored.getMessage().contains("did not take the view-as mode"), ignored.getMessage());
+		assertTrue(older.closed);
 
 		FakeArrow refusing = node(new AtomicReference<>("sales"));
 		refusing.refuses = sql -> true; // the node refuses the declared mode on the first call

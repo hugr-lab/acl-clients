@@ -281,7 +281,9 @@ a property it does not know as a call header) - and the door puts the call's ses
 SESSION VIEW AS`, or refuses the call. So a session the door seats afresh (the old one went idle or was killed, the
 node restarted, a front sent the connection to another node, the cookie was not kept) is in the mode again: a
 connection never goes on as the viewer. The connect makes one call (`SELECT 1`) and a refusal closes Arrow's
-connection and fails the connect. Only with `acl.mode=data` and without `catalog` / `schema` (USE is refused in the
+connection and fails the connect; then it **proves the mode**: `SELECT * FROM range(0)` must be refused with "metadata
+only" - a node that does not know the header (older than the driver) ignores it, answers, and the connect fails
+rather than hand out the viewer's own session under the role's name. Only with `acl.mode=data` and without `catalog` / `schema` (USE is refused in the
 mode); a blank role is refused, a role name is used as written. The first build ran `SET SESSION VIEW AS` once at
 connect - the review found the node's re-seat and a lost cookie left it. Tests:
 `AclConnectionTest.viewAsIsDeclaredOnEveryCallAndARefusalFailsTheConnect`,
