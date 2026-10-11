@@ -75,7 +75,7 @@ The connection is Arrow's, wrapped where the door needs it said differently:
   connection. A `USE` needs a session of the client's own, and a schema needs a schema grant.
 - **`DatabaseMetaData`**: Arrow's answers where the node now sends them (identifier quote, keywords,
   search escape, terms, catalog-at-start, transactions - duckdb-acl spec 115); the listings run as SQL
-  on the principal's own surfaces - `duckdb_tables()` / `duckdb_views()`,
+  on the principal's own surfaces - `information_schema.tables`,
   `duckdb_columns()`, `duckdb_functions()`, `acl_function_columns()`, `duckdb_types()`, `acl_keys()`,
   `acl_references()`, catalogs and schemas from `information_schema.schemata` (a nested schema by its
   path, `raw.eu`) - so they describe exactly what the principal can read, and an empty answer

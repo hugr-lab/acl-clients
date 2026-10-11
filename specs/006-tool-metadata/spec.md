@@ -58,7 +58,7 @@ dump against a seeded node) and read in Arrow's source at v19.0.0:
   | Method | Source (principal surfaces) |
   |---|---|
   | `getCatalogs` / `getSchemas` | `information_schema.schemata` (nested schemas by their path, see As built) |
-  | `getTables` | `duckdb_tables()` + `duckdb_views()` - REMARKS from `comment` |
+  | `getTables` | `information_schema.tables` (duckdb-acl spec 121; was `duckdb_tables()` + `duckdb_views()`) - REMARKS from `TABLE_COMMENT` |
   | `getColumns` | `duckdb_columns()` - TYPE_NAME = `data_type`, DATA_TYPE / COLUMN_SIZE / DECIMAL_DIGITS from `DuckTypes`, REMARKS, COLUMN_DEF, NULLABLE |
   | `getFunctions` / `getProcedures` | `duckdb_functions()` - CAT = catalog, SCHEM = schema path, TYPE by `function_type` (table → `functionReturnsTable`), SPECIFIC_NAME = name + signature, the JDBC column order (duckdb-java's is wrong there) |
   | `getFunctionColumns` / `getProcedureColumns` | `acl_function_columns(cat, schema, fn)` - `param` → In, `column` → Result, `return` → Return |
@@ -169,7 +169,7 @@ the jar (`META-INF/`, shade plugin).
   reference counts as a foreign key when it goes to a relation by column pairs (`to_kind = 'relation'
   AND expression IS NULL`, pairs aligned in Java); `PK_NAME` = `<object>_pk` as the door's
   GetPrimaryKeys names it - in a key listing only when the referenced object declares a key (a
-  `LEFT JOIN` of `acl_keys()` in the same statement, a subquery and no call), else NULL; rules
+  node's `to_has_key` column of `acl_references()` since duckdb-acl spec 121 - it was a `LEFT JOIN` of every key), else NULL; rules
   `importedKeyNoAction`, `importedKeyNotDeferrable`. The listings the node has nothing for
   (`getIndexInfo`, `getBestRowIdentifier`, `getVersionColumns`, `getUDTs`, `getTablePrivileges`,
   `getColumnPrivileges`, `getPseudoColumns`, `getSuperTypes`, `getSuperTables`, `getAttributes`,
@@ -288,3 +288,11 @@ mode); a blank role is refused, a role name is used as written. The first build 
 connect - the review found the node's re-seat and a lost cookie left it. Tests:
 `AclConnectionTest.viewAsIsDeclaredOnEveryCallAndARefusalFailsTheConnect`,
 `LiveMetadataE2ETest.viewAsIsTheRolesCatalogOrNoConnection`.
+## Addendum 2026-10-11: a tool's tree within budget (duckdb-acl spec 121)
+- `getTables` reads `information_schema.tables` (its `TABLE_TYPE` is JDBC's: BASE TABLE / LOCAL TEMPORARY / VIEW; a
+  type filter is `table_type IN (…)`): at 200 sources x 150 tables a schema's tables cost 0.05 s where `duckdb_tables`
+  ∪ `duckdb_views` cost 0.77 s.
+- The foreign-key listings read `acl_references()`'s `to_has_key` (the far end declares a key the role sees) instead
+  of joining every key of the node (0.53 s more per call). Needs a node with spec 121 (the column).
+- Each metadata listing and its time is logged at FINE (`io.github.hugrlab.acl.jdbc.AclDatabaseMetaData`) - what a
+  tool's tree asks per expansion.

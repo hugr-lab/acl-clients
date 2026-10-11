@@ -18,3 +18,4 @@ dev/.work/
 dbeaver/.dbeaver/
 dbeaver/io.github.hugrlab.acl.jdbc/lib/*.jar
 dbeaver/**/target/
+dbeaver/io.github.hugrlab.acl.dbeaver.tests/screenshots/
