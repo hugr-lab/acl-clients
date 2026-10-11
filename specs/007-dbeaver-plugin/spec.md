@@ -31,9 +31,8 @@ Generic provider by hand. What that cannot give:
   The driver jar (spec 006's `-all`) is inside the plugin (`drivers/`), so installing the plugin is the whole
   setup.
 - Built with Maven + Tycho on the owner's machine (a local JDK 21 since 2026-10-11 - `brew install openjdk@21
-  maven`, `JAVA_HOME=/opt/homebrew/opt/openjdk@21`; DBeaver 26 is Java 21) and in Docker in CI
-  (`maven:3-eclipse-temurin-21`), against DBeaver CE's p2 repository (`https://dbeaver.io/update/ce/latest/`)
-  and the Eclipse release it is built on.
+  maven`; DBeaver 26 is Java 21) and on a Linux runner in CI, against one DBeaver release's own bundles (see As
+  built - DBeaver's p2 site keeps only `latest`).
 - Like DBeaver's own DuckDB plugin (`org.jkiss.dbeaver.ext.duckdb`): a data source with `parent="generic"`, our
   driver (`io.github.hugrlab.acl.jdbc.AclDriver`, `jdbc:acl://{host}:{port}`, the properties of spec 006's
   drivers.xml), a Generic meta model and a dialect of our own. Everything the tree shows comes from the
@@ -112,8 +111,9 @@ Editors (a form → the `ACL …` statement previewed → executed), running a c
   DBeaver - a CI hour for nothing the p2 site does not give.
 
 ## Risks
-- DBeaver publishes only `latest` on its p2 site: the build follows DBeaver's releases, it cannot pin one;
-  the install check catches a break, the fix is forward.
+- The plugin is built against one DBeaver release's internals (`loadSchemas`, the Generic constructors); a DBeaver
+  that changes them breaks it at run time, not at install (no version range on Generic yet) - the next release's
+  build and install check is where it shows.
 - DBeaver's Generic and navigator APIs are not a public contract; the DuckDB plugin in DBeaver's own tree is
   the reference we follow.
 - UI tests are slower and flakier than units; they cover the paths above, the rest is units and live queries.
@@ -149,3 +149,39 @@ A PR each, three review passes, the build and install check green.
   (else DBeaver prompts). `install-check.sh`: the p2 repository into a copy of that DBeaver by the p2 director, the
   user's keyring untouched. CI: build + UI tests under Xvfb + install check; the release attaches the zipped p2
   repository (versions from the tag, `tycho-versions`).
+
+#### 007.1 review (three passes)
+- **Names**: DBeaver quotes a schema's name whole, so every SQL it generated for an object of a nested schema named
+  a one-part schema `"raw.eu"` (refused by the node as "no access") - `AclTable` / `AclView` / `AclProcedure` /
+  `AclSchema` (as a `DBPQualifiedObject`) build their SQL name part by part (`AclNames`): `sales.raw.eu.events`.
+  `AclCatalog.getSchema` finds a schema by its path at any depth (foreign keys, search, the editor look schemas up by
+  name), a nested schema's parent object is its parent schema (the navigator walks parents), `getChild` finds a
+  child schema; the bare last part is shown only under a parent.
+- **JEXL**: the model moved to `org.jkiss.dbeaver.ext.acl.model` (the bundle id stays ours) - with model classes
+  outside DBeaver's packages every `visibleIf` of its editors over our objects is silently false.
+- **The meta model by its id** (`meta-model` driver parameter), not the driver class - that took a Generic data
+  source configured by hand with spec 006's drivers.xml too.
+- **Keywords**: only the grammar's words DBeaver does not have (re-adding AS, VIEW, MAP retypes them), and never a
+  reason to quote (`mustBeQuoted`: `main`, `platform` are names first); `$$ … $$` strings (`SQLDollarQuoteRule`, as
+  DBeaver's DuckDB dialect).
+- **Sign-in**: the driver is `anonymous` - a browser sign-in is not asked for a password on every connect; the
+  README says what "Save password" stores.
+- **Build**: `lib/` is made by build.sh and an empty one fails the driver bundle (a fresh clone failed CI and would
+  have shipped nothing); the downloaded DBeaver is checked against the release's sha256; SWTBot pinned (4.3.0); the
+  qualifier is the build's time (Maven 3.10's default stamp gave every snapshot one version, p2 never updated it);
+  the plugin's release is a job of its own after the driver's (its setup-java overwrote Central's settings, and its
+  failure stopped Central), `persist-credentials: false`; a pre-release tag `v0.2.0-rc1` is OSGi `0.2.0.rc1` and a
+  final `v0.2.0` is `0.2.0.v<time>` (a qualifier sorts above none, so the final must carry one above the rc's for p2
+  to offer it as an update); CI installs GTK beside Xvfb (DBeaver does not start without it) and keys its Maven
+  cache on the plugin's poms; the DBeaver archive is extracted into a temp directory first; one `dbeaver.version`
+  for both scripts. Proven on a clean Linux runner image in Docker (build, UI tests under Xvfb, install check,
+  the release path for a tag).
+- **Tests**: unit tests in their own headless module (`-DskipUITests` used to skip the only one); the live tests
+  share one connection, each class waits for the workbench, the dump reaches a nested table's columns, the nesting
+  is checked line by line, and DBeaver's own name for `sales.raw.eu.events` is read through its execution context.
+- **Left**: the admin's `platform` tree (the dev realm has no admin user - 007.3 needs one); catalog / schema
+  comments (JDBC's listings carry none); the default catalog after connect with several catalogs (Generic takes the
+  schema as the active object without `query-get-active-db`; such a query would be prefixed in a console's mode);
+  refreshing a schema does not re-read its nested ones (refresh the catalog); signing the p2 repository; the
+  driver's ENUM values arrive as their dictionary index (`mood` = 0, spec 006 - a driver fix of its own); the node's
+  `duckdb_schemas()` with a filter matching nothing answers 20 columns (duckdb-acl, its own fix).

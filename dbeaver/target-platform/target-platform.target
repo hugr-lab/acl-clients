@@ -7,7 +7,7 @@
 	<locations>
 		<location path="${env_var:DBEAVER_HOME}" type="Directory"/>
 		<location includeAllPlatforms="false" includeConfigurePhase="false" includeMode="planner" includeSource="false" type="InstallableUnit">
-			<repository location="https://download.eclipse.org/technology/swtbot/releases/latest/"/>
+			<repository location="https://download.eclipse.org/technology/swtbot/releases/4.3.0/"/>
 			<unit id="org.eclipse.swtbot.eclipse.finder" version="0.0.0"/>
 			<unit id="org.eclipse.swtbot.swt.finder" version="0.0.0"/>
 			<unit id="org.eclipse.swtbot.junit4_x" version="0.0.0"/>

@@ -38,24 +38,7 @@ jobs:
           jar="jdbc/target/acl-jdbc-${GITHUB_REF_NAME#v}-all.jar"
           sha256sum "$jar" | sed 's|jdbc/target/||' > "$jar.sha256"
           gh release create "$GITHUB_REF_NAME" "$jar" "$jar.sha256" --title "acl-jdbc ${GITHUB_REF_NAME}" \
-            --notes "The duckdb-acl JDBC driver. For DBeaver: add \`$(basename "$jar")\` in Driver Manager, class \`io.github.hugrlab.acl.jdbc.AclDriver\`, URL template \`jdbc:acl://{host}:{port}\` - see the README."
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
-      - name: The DBeaver plugin (spec 007) - its version from the tag
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          (cd dbeaver && mvn -B -q org.eclipse.tycho:tycho-versions-plugin:5.0.4:set-version -DnewVersion="${GITHUB_REF_NAME#v}")
-          dbeaver/build.sh clean verify -DskipUITests=true
-          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb > /dev/null
-          xvfb-run -a dbeaver/install-check.sh
-          zip="dbeaver/io.github.hugrlab.acl.dbeaver.site/target/acl-dbeaver-${GITHUB_REF_NAME#v}.zip"
-          mv dbeaver/io.github.hugrlab.acl.dbeaver.site/target/io.github.hugrlab.acl.dbeaver.site-*.zip "$zip"
-          sha256sum "$zip" | sed 's|.*/||' > "$zip.sha256"
-          gh release upload "$GITHUB_REF_NAME" "$zip" "$zip.sha256"
+            --notes "The duckdb-acl JDBC driver, and (\`acl-dbeaver-*.zip\`, added by the next job) the DBeaver plugin with the driver inside: Help → Install New Software → Add → Archive. Without the plugin, add \`$(basename "$jar")\` in DBeaver's Driver Manager (class \`io.github.hugrlab.acl.jdbc.AclDriver\`, URL \`jdbc:acl://{host}:{port}\`) - see the README."
       - name: Maven Central
         env:
           CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
@@ -70,3 +53,47 @@ jobs:
           fi
           echo "$GPG_KEY" | gpg --batch --import
           mvn -B -P central -DskipTests deploy
+
+  # spec 007: the DBeaver plugin - its own job (Java 21, no Maven Central settings to overwrite), after the release
+  # exists; a failure here leaves the driver's release and Central as they are
+  dbeaver:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: |
+            dbeaver/**/pom.xml
+            dbeaver/target-platform/*.target
+      - name: Versions from the tag (OSGi - v0.2.0-rc1 is 0.2.0.rc1, v0.2.0 is 0.2.0.v<time>)
+        # an OSGi qualifier sorts above none, so a final release carries one above every rc's ('v' > 'rc'):
+        # p2 offers 0.2.0 as the update of 0.2.0-rc1
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          case "$v" in
+            *-*) osgi="${v%%-*}.${v#*-}" ;;
+            *) osgi="$v.v$(date -u +%Y%m%d%H%M)" ;;
+          esac
+          (cd jdbc && mvn -B -q versions:set -DnewVersion="$v" -DgenerateBackupPoms=false)
+          (cd dbeaver && mvn -B -q org.eclipse.tycho:tycho-versions-plugin:5.0.4:set-version -DnewVersion="$osgi")
+      - name: Build, unit tests, install check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgtk-3-0t64 > /dev/null
+          xvfb-run -a dbeaver/build.sh clean verify -DskipUITests=true
+          xvfb-run -a dbeaver/install-check.sh
+      - name: The zipped p2 repository onto the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          zip="dbeaver/io.github.hugrlab.acl.dbeaver.site/target/acl-dbeaver-${GITHUB_REF_NAME#v}.zip"
+          mv dbeaver/io.github.hugrlab.acl.dbeaver.site/target/io.github.hugrlab.acl.dbeaver.site-*.zip "$zip"
+          sha256sum "$zip" | sed 's|.*/||' > "$zip.sha256"
+          gh release upload "$GITHUB_REF_NAME" "$zip" "$zip.sha256" -R "$GITHUB_REPOSITORY"

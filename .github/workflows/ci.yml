@@ -55,16 +55,20 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
+          # its own key: the jdbc job's (same poms otherwise) would win and the Tycho/p2 downloads never be cached
+          cache-dependency-path: |
+            dbeaver/**/pom.xml
+            dbeaver/target-platform/*.target
       - name: The DBeaver release the plugin is built against
         uses: actions/cache@v4
         with:
           path: dbeaver/.dbeaver
-          key: dbeaver-${{ hashFiles('dbeaver/build.sh') }}
+          key: dbeaver-${{ hashFiles('dbeaver/dbeaver.version') }}
       - name: Build, unit and UI tests (Xvfb; the live tests skip without a node)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb > /dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgtk-3-0t64 > /dev/null
           xvfb-run -a dbeaver/build.sh clean verify
       - name: Install check (p2 director into a copy of that DBeaver)
         run: xvfb-run -a dbeaver/install-check.sh

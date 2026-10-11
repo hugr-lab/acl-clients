@@ -11,5 +11,5 @@ Require-Bundle: org.jkiss.dbeaver.model,
  org.jkiss.dbeaver.ext.generic,
  io.github.hugrlab.acl.jdbc
 Import-Package: org.jkiss.code
-Export-Package: io.github.hugrlab.acl.dbeaver.model
+Export-Package: org.jkiss.dbeaver.ext.acl.model
 Automatic-Module-Name: io.github.hugrlab.acl.dbeaver

@@ -7,7 +7,7 @@
 		<dataSourceType id="duckdb_acl" label="duckdb-acl" description="duckdb-acl node"
 		                dataSourceInformation="A duckdb-acl node: its Flight SQL door, OAuth sign-in"/>
 		<datasource
-		        class="io.github.hugrlab.acl.dbeaver.model.AclDataSourceProvider"
+		        class="org.jkiss.dbeaver.ext.acl.model.AclDataSourceProvider"
 		        description="duckdb-acl node (Flight SQL door)"
 		        id="duckdb_acl"
 		        dataSourceType="duckdb_acl"
@@ -72,6 +72,7 @@
 				        webURL="https://github.com/hugr-lab/acl-clients"
 				        description="duckdb-acl node: Flight SQL door, OAuth sign-in"
 				        supportedConfigurationTypes="MANUAL,URL"
+				        anonymous="true"
 				        categories="sql,analytic">
 					<file type="jar" path="bundle:/io.github.hugrlab.acl.jdbc"/>
 					<!-- spec 006's drivers.xml: functions listed by getFunctions and getProcedures; the active
@@ -81,6 +82,9 @@
 					<parameter name="query-set-active-db" value="USE &quot;?&quot;"/>
 					<parameter name="supports-references" value="true"/>
 					<parameter name="supports-indexes" value="false"/>
+					<!-- the meta model by its id: by the driver class it would also take a Generic data source
+					     configured by hand with spec 006's drivers.xml, whose tree has no nested schemas -->
+					<parameter name="meta-model" value="duckdb_acl_jdbc"/>
 				</driver>
 			</drivers>
 		</datasource>
@@ -88,15 +92,14 @@
 
 	<extension point="org.jkiss.dbeaver.generic.meta">
 		<meta id="duckdb_acl_jdbc"
-		      class="io.github.hugrlab.acl.dbeaver.model.AclMetaModel"
-		      driverClass="io.github.hugrlab.acl.jdbc.AclDriver"
+		      class="org.jkiss.dbeaver.ext.acl.model.AclMetaModel"
 		      dialect="duckdb_acl"/>
 	</extension>
 
 	<extension point="org.jkiss.dbeaver.sqlDialect">
 		<dialect id="duckdb_acl"
 		         parent="generic"
-		         class="io.github.hugrlab.acl.dbeaver.model.AclSQLDialect"
+		         class="org.jkiss.dbeaver.ext.acl.model.AclSQLDialect"
 		         label="duckdb-acl"
 		         description="duckdb SQL and the ACL management grammar"/>
 	</extension>

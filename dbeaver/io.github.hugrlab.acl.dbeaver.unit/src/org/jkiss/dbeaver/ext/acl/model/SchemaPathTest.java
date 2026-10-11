@@ -1,11 +1,10 @@
-package io.github.hugrlab.acl.dbeaver.tests;
+package org.jkiss.dbeaver.ext.acl.model;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
 import java.util.List;
 
-import io.github.hugrlab.acl.dbeaver.model.SchemaPath;
 import org.junit.Test;
 
 /** Schema paths as the node lists them (duckdb-acl spec 116). */
@@ -25,6 +24,12 @@ public class SchemaPathTest {
 		assertEquals("\"a.b\"", SchemaPath.parent("\"a.b\".c"));
 		assertEquals("c", SchemaPath.leaf("\"a.b\".c"));
 		assertEquals(List.of("say \"hi\"", "x"), SchemaPath.parts("\"say \"\"hi\"\"\".x"));
+	}
+
+	@Test
+	public void joinIsTheInverse() {
+		assertEquals("raw.eu", SchemaPath.join(List.of("raw", "eu")));
+		assertEquals("\"a.b\".c", SchemaPath.join(List.of("a.b", "c")));
 	}
 
 	@Test

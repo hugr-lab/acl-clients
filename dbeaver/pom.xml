@@ -12,12 +12,17 @@
 	<properties>
 		<tycho.version>5.0.4</tycho.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<!-- the bundles' qualifier is the build's time: Maven 3.10's default outputTimestamp (1980) gave every
+		     snapshot one version, and p2 does not update an installed IU to the same version -->
+		<maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss'Z'</maven.build.timestamp.format>
+		<project.build.outputTimestamp>${maven.build.timestamp}</project.build.outputTimestamp>
 	</properties>
 
 	<modules>
 		<module>target-platform</module>
 		<module>io.github.hugrlab.acl.jdbc</module>
 		<module>io.github.hugrlab.acl.dbeaver</module>
+		<module>io.github.hugrlab.acl.dbeaver.unit</module>
 		<module>io.github.hugrlab.acl.dbeaver.tests</module>
 		<module>io.github.hugrlab.acl.dbeaver.feature</module>
 		<module>io.github.hugrlab.acl.dbeaver.site</module>

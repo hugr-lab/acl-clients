@@ -5,12 +5,17 @@ download, nothing to merge into DBeaver's config.
 
 ## Install
 
-1. Download `acl-dbeaver-<version>.zip` from the [releases](https://github.com/hugr-lab/acl-clients/releases).
-2. DBeaver → **Help → Install New Software… → Add… → Archive…** → the zip → select **duckdb-acl** → Next, accept,
-   restart DBeaver.
-3. **New Database Connection → duckdb-acl**: host, port (the node's Flight SQL door, 32800 by default), and either a
-   user and password (the door's password sign-in) or none (the browser sign-in) - the driver's properties are
-   spec 006's (`jdbc/README.md`).
+1. Download `acl-dbeaver-<version>.zip` from the [releases](https://github.com/hugr-lab/acl-clients/releases)
+   (its `.sha256` beside it).
+2. DBeaver → **Help → Install New Software… → Add… → Archive…** → the zip → select **duckdb-acl** → Next, accept.
+   The plugin is not signed yet: DBeaver asks to trust unsigned content - accept, then restart DBeaver.
+3. **New Database Connection → duckdb-acl**: host and port of the node's Flight SQL door (the template says 32800,
+   `dev/node.sh`'s port - your node's is its operator's choice).
+   - **Sign-in**: leave user and password empty for the browser sign-in (the IdP's own page; nothing is stored by
+     DBeaver), or enter them for the door's password sign-in. With "Save password" on, DBeaver keeps that password
+     in its own credentials store - prefer the browser sign-in, or turn on DBeaver's secure storage.
+   - **TLS**: a node with a certificate your machine does not trust needs it in the system trust store; the driver's
+     TLS options are on the Driver properties tab (`disableCertificateVerification` is for a dev node only).
 
 Built against DBeaver CE 26.2.2 (Java 21).
 
@@ -41,5 +46,8 @@ Notes:
   that keeps only `latest`.
 - DBeaver loads a bundled driver as a whole bundle jar (`bundle:/<id>`): `io.github.hugrlab.acl.jdbc` is the
   driver's shaded jar unpacked into a bundle.
-- The navigator tree is ours (`plugin.xml`), without `visibleIf`: DBeaver evaluates those with JEXL limited to its own
-  packages, so a condition on a class of this plugin is silently false.
+- The navigator tree is ours (`plugin.xml`), without `visibleIf`, and the model's classes live in
+  `org.jkiss.dbeaver.ext.acl.model`: DBeaver evaluates `visibleIf` with JEXL limited to its own packages, so a
+  condition over a class elsewhere is silently false (its editors' tabs too).
+- A nested schema's name is its path (`raw.eu`, what the driver's listings filter by); the SQL DBeaver writes quotes
+  each part (`sales.raw.eu.events` - `sales."raw.eu"` would be a one-part schema to the node).

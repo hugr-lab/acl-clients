@@ -24,6 +24,10 @@
 						<goals><goal>run</goal></goals>
 						<configuration>
 							<target>
+								<!-- built without dbeaver/build.sh there is no driver to bundle: refuse, never ship it empty -->
+								<fail message="no driver jar in lib/ - build with dbeaver/build.sh">
+									<condition><resourcecount when="ne" count="1"><fileset dir="${project.basedir}/lib" includes="*.jar" erroronmissingdir="false"/></resourcecount></condition>
+								</fail>
 								<unzip dest="${project.build.outputDirectory}">
 									<fileset dir="${project.basedir}/lib" includes="*.jar"/>
 									<patternset>

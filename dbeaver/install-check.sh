@@ -3,7 +3,7 @@
 # headless (p2 director) - a manifest or dependency error fails here, not on a user's machine. Run after build.sh.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
-DBEAVER_VERSION="${DBEAVER_VERSION:-26.2.2}"
+DBEAVER_VERSION="${DBEAVER_VERSION:-$(cat "$HERE/dbeaver.version")}"
 CACHE="$HERE/.dbeaver/$DBEAVER_VERSION"
 SITE="$HERE/io.github.hugrlab.acl.dbeaver.site/target/repository"
 [ -d "$SITE" ] || { echo "no p2 repository at $SITE - run dbeaver/build.sh first" >&2; exit 1; }

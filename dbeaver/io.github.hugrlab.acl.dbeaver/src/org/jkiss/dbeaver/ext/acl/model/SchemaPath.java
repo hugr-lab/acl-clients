@@ -1,4 +1,4 @@
-package io.github.hugrlab.acl.dbeaver.model;
+package org.jkiss.dbeaver.ext.acl.model;
 
 import java.util.ArrayList;
 import java.util.List;

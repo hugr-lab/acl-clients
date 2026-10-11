@@ -4,10 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import org.eclipse.swtbot.eclipse.finder.SWTWorkbenchBot;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swtbot.swt.finder.finders.UIThreadRunnable;
-import org.eclipse.swtbot.swt.finder.waits.DefaultCondition;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.swtbot.swt.finder.widgets.SWTBotShell;
 import org.eclipse.swtbot.swt.finder.junit.SWTBotJunit4ClassRunner;
@@ -31,19 +29,7 @@ public class PluginLoadedTest {
 
 	@Test
 	public void theWorkbenchIsUp() {
-		SWTWorkbenchBot workbench = new SWTWorkbenchBot();
-		// the workbench comes up after the tests start (useUIThread=false): wait for its window
-		workbench.waitUntil(new DefaultCondition() {
-			@Override
-			public boolean test() {
-				return PlatformUI.isWorkbenchRunning() && PlatformUI.getWorkbench().getWorkbenchWindowCount() > 0;
-			}
-
-			@Override
-			public String getFailureMessage() {
-				return "no workbench window";
-			}
-		}, 60_000);
+		Workbench.waitUp();
 		Shell window = UIThreadRunnable.syncExec(() -> PlatformUI.getWorkbench().getWorkbenchWindows()[0].getShell());
 		// no activate(): macOS keeps a background process from taking the focus (the tests drive widgets by events)
 		assertTrue(new SWTBotShell(window).isVisible());
