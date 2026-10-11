@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A role mapping (platform.role_mappings). Generated shape: one property per column (spec 007.3). */
+/** A role mapping (platform.role_mappings). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclRoleMapping extends AclPlatformObject {
 	public AclRoleMapping(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
@@ -19,7 +19,7 @@ public class AclRoleMapping extends AclPlatformObject {
 	@Override
 	@Property(viewable = true, order = 1)
 	public String getName() {
-		return super.getName();
+		return text("external_value") + " → " + text("role") + " (" + text("scope_kind") + " " + text("scope_name") + ")";
 	}
 
 	@Property(viewable = true, order = 2, name = "Role")

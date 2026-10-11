@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A role's exposure to a physical object (platform.exposures, spec 120.2). Generated shape: one property per column (spec 007.3). */
+/** A role's exposure to a physical object (platform.exposures, spec 120.2). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclExposure extends AclPlatformObject {
 	public AclExposure(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
@@ -19,7 +19,8 @@ public class AclExposure extends AclPlatformObject {
 	@Override
 	@Property(viewable = true, order = 1)
 	public String getName() {
-		return super.getName();
+		String object = text("object");
+		return (object == null ? "(catalog grant)" : object) + " (" + text("catalog") + ") - " + text("role");
 	}
 
 	@Property(viewable = true, order = 2, name = "Source")

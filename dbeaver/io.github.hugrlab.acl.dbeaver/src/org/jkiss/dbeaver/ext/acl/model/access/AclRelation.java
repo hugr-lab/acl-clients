@@ -9,7 +9,7 @@ import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A virtual table or view (platform.relations). Generated shape: one property per column (spec 007.3). */
+/** A virtual table or view (platform.relations). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclRelation extends AclPlatformObject {
 	public AclRelation(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
@@ -64,5 +64,25 @@ public class AclRelation extends AclPlatformObject {
 	@Association
 	public List<AclKeyColumn> getKeyColumns(DBRProgressMonitor monitor) throws DBException {
 		return children(monitor, "KeyColumns", PlatformSql.view("keys", "catalog", text("catalog"), "object", getName()), r -> new AclKeyColumn(dataSource, this, r));
+	}
+
+	@Property(viewable = true, order = 50, name = "View sql")
+	public String getViewSql() {
+		return text("view_sql");
+	}
+
+	@Property(viewable = true, order = 51, name = "Rls checked")
+	public String getRlsChecked() {
+		return text("rls_checked");
+	}
+
+	@Property(viewable = true, order = 52, name = "Alias types")
+	public String getAliasTypes() {
+		return text("alias_types");
+	}
+
+	@Property(viewable = true, order = 53, name = "Enum types")
+	public String getEnumTypes() {
+		return text("enum_types");
 	}
 }

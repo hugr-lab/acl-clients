@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A live session of the node (platform.sessions - never a handle). Generated shape: one property per column (spec 007.3). */
+/** A live session of the node (platform.sessions - never a handle). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclSession extends AclPlatformObject {
 	public AclSession(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
@@ -65,5 +65,15 @@ public class AclSession extends AclPlatformObject {
 	@Property(viewable = true, order = 10, name = "Charged group")
 	public String getChargedGroup() {
 		return text("charged_group");
+	}
+
+	@Property(viewable = true, order = 50, name = "Audit level source")
+	public String getAuditLevelSource() {
+		return text("audit_level_source");
+	}
+
+	@Property(viewable = true, order = 51, name = "Profile source")
+	public String getProfileSource() {
+		return text("profile_source");
 	}
 }

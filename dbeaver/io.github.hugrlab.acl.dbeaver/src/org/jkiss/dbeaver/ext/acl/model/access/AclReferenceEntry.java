@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A declared reference (platform.references). Generated shape: one property per column (spec 007.3). */
+/** A declared reference (platform.references). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclReferenceEntry extends AclPlatformObject {
 	public AclReferenceEntry(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
@@ -55,5 +55,10 @@ public class AclReferenceEntry extends AclPlatformObject {
 	@Property(viewable = true, order = 8, name = "Comment")
 	public String getComment() {
 		return text("comment");
+	}
+
+	@Property(viewable = true, order = 50, name = "Expression")
+	public String getExpression() {
+		return text("expression");
 	}
 }

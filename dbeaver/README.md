@@ -47,8 +47,8 @@ Built against DBeaver CE 26.2.2 (Java 21).
   **effective rights** per catalog (what the role reads of each object and why), virtual catalogs with their objects
   and the **check** (findings with the repair statement to copy), sources with their **exposures** (who reads what),
   identity (issuers, clients, role mappings), function categories, resource groups, and - for the node's operators -
-  its sessions, load and doors and the cluster profile. Each part shows only what your scopes read; F5 on a node
-  reads it again.
+  its sessions, load and doors and the cluster profile. Each part shows only what your scopes read; a part is read
+  when you open it and kept - refresh the connection (F5 on it) to read the branch again.
 
 ## Develop
 

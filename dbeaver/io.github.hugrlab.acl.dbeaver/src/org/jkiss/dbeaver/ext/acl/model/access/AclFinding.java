@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A finding of the catalog check (platform.check_catalog, spec 039). Generated shape: one property per column (spec 007.3). */
+/** A finding of the catalog check (platform.check_catalog, spec 039). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclFinding extends AclPlatformObject {
 	public AclFinding(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
@@ -19,7 +19,8 @@ public class AclFinding extends AclPlatformObject {
 	@Override
 	@Property(viewable = true, order = 1)
 	public String getName() {
-		return super.getName();
+		return text("problem") + ": " + (text("object") == null ? "" : text("object"))
+		    + (text("role") == null ? "" : " (" + text("role") + ")");
 	}
 
 	@Property(viewable = true, order = 2, name = "Kind")

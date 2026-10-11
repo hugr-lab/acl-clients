@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A claim a role carries (platform.role_claims). Generated shape: one property per column (spec 007.3). */
+/** A claim a role carries (platform.role_claims). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclRoleClaim extends AclPlatformObject {
 	public AclRoleClaim(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);

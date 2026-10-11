@@ -36,5 +36,41 @@ public class PlatformSqlTest {
 		assertEquals("path=realm_access.roles, op=contains", PlatformValues.text(struct));
 		assertNull(PlatformValues.text(null));
 		assertEquals("", PlatformValues.text(Map.of()));
+		// what the driver answers for a STRUCT: a java.sql.Struct whose fields it names (getMap)
+		assertEquals("select, manage", PlatformValues.text(new NamedStruct(caps)));
+		// a grant's capabilities as the node means them (spec 012)
+		assertEquals("unstated: every data capability", PlatformValues.caps(null, "unstated: every data capability"));
+		Map<String, Object> nothing = new LinkedHashMap<>();
+		nothing.put("select", false);
+		assertEquals("none", PlatformValues.caps(new NamedStruct(nothing), "x"));
+		assertEquals("select, manage", PlatformValues.caps(new NamedStruct(caps), "x"));
+	}
+
+	/** The driver's struct, as far as the plugin reads it: positional attributes and its fields by name. */
+	public static final class NamedStruct implements java.sql.Struct {
+		private final Map<String, Object> fields;
+
+		NamedStruct(Map<String, Object> fields) {
+			this.fields = fields;
+		}
+
+		public Map<String, Object> getMap() {
+			return fields;
+		}
+
+		@Override
+		public String getSQLTypeName() {
+			return "STRUCT";
+		}
+
+		@Override
+		public Object[] getAttributes() {
+			return fields.values().toArray();
+		}
+
+		@Override
+		public Object[] getAttributes(Map<String, Class<?>> map) {
+			return getAttributes();
+		}
 	}
 }

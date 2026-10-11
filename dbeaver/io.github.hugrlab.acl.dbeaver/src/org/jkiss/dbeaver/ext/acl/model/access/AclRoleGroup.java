@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A resource group a role is in (platform.role_resource_groups). Generated shape: one property per column (spec 007.3). */
+/** A resource group a role is in (platform.role_resource_groups). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclRoleGroup extends AclPlatformObject {
 	public AclRoleGroup(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);

@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A quack door and its seats (platform.node_doors, spec 079). Generated shape: one property per column (spec 007.3). */
+/** A quack door and its seats (platform.node_doors, spec 079). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclNodeDoor extends AclPlatformObject {
 	public AclNodeDoor(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);

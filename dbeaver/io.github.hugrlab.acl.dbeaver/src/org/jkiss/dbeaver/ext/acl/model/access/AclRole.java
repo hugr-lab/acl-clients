@@ -9,7 +9,7 @@ import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A role (platform.roles). Generated shape: one property per column (spec 007.3). */
+/** A role (platform.roles). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclRole extends AclPlatformObject {
 	public AclRole(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
@@ -64,5 +64,11 @@ public class AclRole extends AclPlatformObject {
 	@Association
 	public List<AclEffectiveCatalog> getEffectiveCatalogs(DBRProgressMonitor monitor) throws DBException {
 		return children(monitor, "EffectiveCatalogs", PlatformSql.view("grants", "role", getName()), r -> new AclEffectiveCatalog(dataSource, this, r));
+	}
+
+	@Association
+	public List<AclPlatformGrant> getPlatformGrants(DBRProgressMonitor monitor) throws DBException {
+		return children(monitor, "PlatformGrants", PlatformSql.view("platform_grants", "role", getName()),
+		                r -> new AclPlatformGrant(dataSource, this, r));
 	}
 }

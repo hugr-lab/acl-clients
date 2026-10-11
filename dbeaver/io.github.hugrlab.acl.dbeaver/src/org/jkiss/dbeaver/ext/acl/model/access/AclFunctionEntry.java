@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A virtual function (platform.functions). Generated shape: one property per column (spec 007.3). */
+/** A virtual function (platform.functions). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclFunctionEntry extends AclPlatformObject {
 	public AclFunctionEntry(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
@@ -50,5 +50,10 @@ public class AclFunctionEntry extends AclPlatformObject {
 	@Property(viewable = true, order = 7, name = "Created by")
 	public String getCreatedBy() {
 		return text("created_by");
+	}
+
+	@Property(viewable = true, order = 50, name = "Template")
+	public String getTemplate() {
+		return text("template");
 	}
 }

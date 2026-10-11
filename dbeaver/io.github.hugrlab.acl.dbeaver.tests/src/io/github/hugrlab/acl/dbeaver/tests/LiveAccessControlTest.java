@@ -57,6 +57,13 @@ public class LiveAccessControlTest {
 		Object object = ((org.jkiss.dbeaver.model.navigator.DBNDatabaseNode) rights).getObject();
 		String masks = ((org.jkiss.dbeaver.ext.acl.model.access.AclEffectiveRight) object).getMasks();
 		assertTrue(masks, masks != null && masks.contains("ssn"));
+		// a grant's capabilities by name (the node's STRUCT - spec 120.2's caps), the exposure row named so it stands alone
+		DBNNode salesGrant = child(child(analyst, "Catalog grants"), "sales");
+		String caps = ((org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant)
+		    ((org.jkiss.dbeaver.model.navigator.DBNDatabaseNode) salesGrant).getObject()).getCaps();
+		assertTrue(caps, caps.equals("select"));
+		DBNNode exposures = child(child(child(access, "Sources"), "memory"), "Exposures");
+		assertNotNull(tree, child(exposures, "customers (sales) - analyst"));
 		// a catalog's objects and its check; a source and who reads it
 		assertTrue(tree, tree.contains("Virtual catalogs"));
 		assertTrue(tree, tree.contains("    sales  [Catalog]"));
@@ -80,7 +87,11 @@ public class LiveAccessControlTest {
 		String tree = out.toString();
 		assertTrue(tree, tree.contains("  Node  ["));
 		assertTrue(tree, tree.contains("    Sessions  ["));
-		assertTrue(tree, tree.contains("      ") && child(child(access, "Node"), "Sessions").getChildren(new VoidProgressMonitor()).length > 0);
+		assertTrue("a session (ops1's own at least)",
+		           child(child(access, "Node"), "Sessions").getChildren(new VoidProgressMonitor()).length > 0);
+		assertNotNull("the load report, named", child(child(access, "Node"), "Load").getChildren(new VoidProgressMonitor())[0]);
+		assertTrue(child(child(access, "Node"), "Load").getChildren(new VoidProgressMonitor())[0].getNodeDisplayName()
+		    .startsWith("node"));
 		assertTrue(tree, tree.contains("  Cluster  ["));
 		assertTrue(tree, tree.contains("    Drift  ["));
 		assertFalse("the cluster bundle reads no policy view", tree.contains("  Roles  ["));

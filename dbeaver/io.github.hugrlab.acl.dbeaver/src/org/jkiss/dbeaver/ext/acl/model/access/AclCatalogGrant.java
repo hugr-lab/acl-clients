@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A role's catalog grant (platform.grants). Generated shape: one property per column (spec 007.3). */
+/** A role's catalog grant (platform.grants). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclCatalogGrant extends AclPlatformObject {
 	public AclCatalogGrant(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
@@ -29,7 +29,7 @@ public class AclCatalogGrant extends AclPlatformObject {
 
 	@Property(viewable = true, order = 3, name = "Caps")
 	public String getCaps() {
-		return text("caps");
+		return PlatformValues.caps(row.get("caps"), "unstated: select, insert, update, delete, merge");
 	}
 
 	@Property(viewable = true, order = 4, name = "Rls")
@@ -40,5 +40,10 @@ public class AclCatalogGrant extends AclPlatformObject {
 	@Property(viewable = true, order = 5, name = "Columns")
 	public String getColumns() {
 		return text("columns");
+	}
+
+	@Property(viewable = true, order = 50, name = "Rls checked")
+	public String getRlsChecked() {
+		return text("rls_checked");
 	}
 }

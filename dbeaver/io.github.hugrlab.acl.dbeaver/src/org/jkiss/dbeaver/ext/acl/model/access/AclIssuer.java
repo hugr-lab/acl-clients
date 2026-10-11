@@ -9,7 +9,7 @@ import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** An issuer (platform.issuers). Generated shape: one property per column (spec 007.3). */
+/** An issuer (platform.issuers). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclIssuer extends AclPlatformObject {
 	public AclIssuer(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);

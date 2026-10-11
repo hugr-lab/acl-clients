@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A column of an object's declared key (platform.keys). Generated shape: one property per column (spec 007.3). */
+/** A column of an object's declared key (platform.keys). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclKeyColumn extends AclPlatformObject {
 	public AclKeyColumn(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);

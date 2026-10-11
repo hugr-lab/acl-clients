@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** The node's load report (platform.node_load, spec 079). Generated shape: one property per column (spec 007.3). */
+/** The node's load report (platform.node_load, spec 079). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclNodeLoad extends AclPlatformObject {
 	public AclNodeLoad(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
@@ -19,7 +19,7 @@ public class AclNodeLoad extends AclPlatformObject {
 	@Override
 	@Property(viewable = true, order = 1)
 	public String getName() {
-		return super.getName();
+		return text("group") == null ? "node" : "node (" + text("group") + ")";
 	}
 
 	@Property(viewable = true, order = 2, name = "Draining")
@@ -70,5 +70,15 @@ public class AclNodeLoad extends AclPlatformObject {
 	@Property(viewable = true, order = 11, name = "Config applied")
 	public String getConfigApplied() {
 		return text("config_applied");
+	}
+
+	@Property(viewable = true, order = 50, name = "Observe")
+	public String getObserve() {
+		return text("observe");
+	}
+
+	@Property(viewable = true, order = 51, name = "Group known")
+	public String getGroupKnown() {
+		return text("group_known");
 	}
 }

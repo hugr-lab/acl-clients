@@ -9,7 +9,7 @@ import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A catalog a role holds a grant on - its effective rights there (platform.effective_rights). Generated shape: one property per column (spec 007.3). */
+/** A catalog a role holds a grant on - its effective rights there (platform.effective_rights). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclEffectiveCatalog extends AclPlatformObject {
 	public AclEffectiveCatalog(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);

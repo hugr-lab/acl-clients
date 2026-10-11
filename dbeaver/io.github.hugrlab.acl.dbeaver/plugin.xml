@@ -81,10 +81,13 @@
 							<folder label="Administration" icon="#folder" visibleIf="object.dataSource.shows('admins')">
 								<items label="Scope" path="adminScope" property="adminScopes" icon="#info"/>
 							</folder>
+							<folder label="Platform grants" icon="#folder" visibleIf="object.dataSource.shows('platform_grants')">
+								<items label="Grant" path="platformGrant" property="platformGrants" icon="#info"/>
+							</folder>
 							<folder label="Resource groups" icon="#folder" visibleIf="object.dataSource.shows('role_resource_groups')">
 								<items label="Group" path="roleGroup" property="resourceGroups" icon="#info"/>
 							</folder>
-							<folder label="Effective rights" icon="#folder" visibleIf="object.dataSource.calls('effective_rights')">
+							<folder label="Effective rights" icon="#folder" visibleIf="object.dataSource.calls('effective_rights') &amp;&amp; object.dataSource.shows('grants')">
 								<items label="Catalog" path="effectiveCatalog" property="effectiveCatalogs" icon="#database">
 									<items label="Right" path="effectiveRight" property="rights" icon="#table"/>
 								</items>

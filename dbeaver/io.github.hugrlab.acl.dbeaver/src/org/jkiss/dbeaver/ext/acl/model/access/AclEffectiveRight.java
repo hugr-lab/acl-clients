@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** What a role reads of one object, and why (platform.effective_rights, spec 120.2). Generated shape: one property per column (spec 007.3). */
+/** What a role reads of one object, and why (platform.effective_rights, spec 120.2). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclEffectiveRight extends AclPlatformObject {
 	public AclEffectiveRight(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);

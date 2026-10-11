@@ -122,38 +122,22 @@ public class AclDataSource extends GenericDataSource {
 		return accessRows(monitor, "catalogs", PlatformSql.view("catalogs"), r -> new AclVirtualCatalog(this, this, r));
 	}
 
-	/** The physical databases the policy builds over: the first part of every relation's and schema's physical name. */
+	/**
+	 * The node's attached sources, as it lists them to an administrator (duckdb-acl spec 118.3: `platform.attached.<alias>`
+	 * - never the policy store or a secrets service) - never derived here.
+	 */
 	@org.jkiss.dbeaver.model.meta.Association
-	public synchronized List<AclSource> getAccessSources(DBRProgressMonitor monitor) throws DBException {
-		List<?> cached = access.get("sources");
-		if (cached == null) {
-			java.util.Set<String> names = new java.util.TreeSet<>();
-			for (java.util.Map<String, Object> r : platformRows(monitor, PlatformSql.view("relations"))) {
-				addSource(names, r.get("phys"));
-			}
-			for (java.util.Map<String, Object> r : platformRows(monitor, PlatformSql.view("schemas"))) {
-				addSource(names, r.get("phys_path"));
-			}
-			List<AclSource> made = new java.util.ArrayList<>();
-			for (String name : names) {
-				made.add(new AclSource(this, this, java.util.Map.of("source", name)));
-			}
-			cached = made;
-			access.put("sources", cached);
-		}
-		@SuppressWarnings("unchecked")
-		List<AclSource> sources = (List<AclSource>) cached;
-		return sources;
-	}
-
-	private static void addSource(java.util.Set<String> names, Object phys) {
-		if (phys == null || phys.toString().isEmpty()) {
-			return;
-		}
-		List<String> parts = SchemaPath.parts(phys.toString());
-		if (parts != null && !parts.isEmpty()) {
-			names.add(parts.get(0));
-		}
+	public List<AclSource> getAccessSources(DBRProgressMonitor monitor) throws DBException {
+		List<AclSource> sources = accessRows(monitor, "sources",
+		    "SELECT schema_name AS source FROM information_schema.schemata WHERE catalog_name = 'platform'"
+		        + " AND schema_name LIKE 'attached.%' ORDER BY schema_name",
+		    r -> {
+			    // `attached.<alias>` (its schemas are `attached.<alias>.<schema>`): the alias, a part of the key
+			    List<String> parts = SchemaPath.parts(String.valueOf(r.get("source")));
+			    return parts != null && parts.size() == 2 ? new AclSource(this, this, java.util.Map.of("source", parts.get(1)))
+			                                                : null;
+		    });
+		return sources.stream().filter(java.util.Objects::nonNull).toList();
 	}
 
 	@org.jkiss.dbeaver.model.meta.Association

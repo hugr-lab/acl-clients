@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A function in a category (platform.function_category_members). Generated shape: one property per column (spec 007.3). */
+/** A function in a category (platform.function_category_members). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclCategoryMember extends AclPlatformObject {
 	public AclCategoryMember(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
@@ -19,7 +19,7 @@ public class AclCategoryMember extends AclPlatformObject {
 	@Override
 	@Property(viewable = true, order = 1)
 	public String getName() {
-		return super.getName();
+		return text("database") + "." + text("schema") + "." + text("name") + " [" + text("kind") + "]";
 	}
 
 	@Property(viewable = true, order = 2, name = "Database")

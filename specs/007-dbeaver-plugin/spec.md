@@ -71,8 +71,8 @@ A folder beside the catalogs, shown when `console_info()` answers (absent, it is
 - **Sources** (the `attached` tree) → per physical object **Exposures** (`platform.exposures`).
 - **Identity** (issuers → clients → mappings), **Function categories**, **Resource groups**, **Node** (sessions,
   load), **Cluster** (items, drift) - each only when `console_info().my_views` holds its views.
-Every node of the branch is one `platform` view or read function with a WHERE for what is expanded; nothing is
-cached beyond the view DBeaver keeps, Refresh re-reads.
+Every node of the branch is one `platform` view or read function with a WHERE for what is expanded; a part is read
+when it is opened and kept until the connection is refreshed (DBeaver refreshes a folder through its data source).
 
 ### Not in the MVP (design/079 phases 3-4)
 Editors (a form → the `ACL …` statement previewed → executed), running a check's repair, node operations
@@ -263,8 +263,8 @@ A PR each, three review passes, the build and install check green.
     deciding level, caps, MAIN, RLS, columns, masks, writable, refusal);
   - **Virtual catalogs** → relations (declared columns, keys), schemas, functions, references, **Check**
     (`platform.check_catalog`: each finding with its repair statement, to copy);
-  - **Sources** - the first part of every relation's and schema's physical name → **Exposures**
-    (`platform.exposures`: who reads what of it, and why);
+  - **Sources** - the node's own list (`platform.attached.<alias>`, spec 118.3 - never the policy store or a secrets
+    service) → **Exposures** (`platform.exposures`: who reads what of it, and why);
   - **Identity** → issuers → clients; role mappings; **Function categories** → members; function grants; resource
     groups;
   - **Node** → sessions, load, doors; **Cluster** → profile, applied here, drift (a standalone node has no drift - an
@@ -272,7 +272,10 @@ A PR each, three review passes, the build and install check green.
 - **One statement per node**, read when it is expanded and kept until it is refreshed: `PlatformSql` composes
   `SELECT * FROM platform."<view>" WHERE "<column>" = '<value>'` / `SELECT * FROM platform."<function>"('<arg>', …)`
   (literals, quotes doubled) - never the policy store's own tables; the values as the properties panel shows them
-  (`PlatformValues`: a capabilities STRUCT as the names it holds, a list joined). Each node's columns are its
+  (`PlatformValues`: a STRUCT by its field names - the driver's struct carries them -, a capabilities STRUCT as the
+  names it holds, `unstated: …` for NULL - every data capability, or the catalog grant's for a schema / object grant -
+  and `none` for nothing held, a list joined). A row is named so it stands alone (`orders (sales) - analyst`,
+  `(every role)`, `(catalog grant)`, `node`). Each node's columns are its
   properties (DBeaver's properties panel; the object editor's tabs were not checked).
 - **Found**: the node's Flight door announced an empty schema for a prepared platform read function (taken for a
   command) - Arrow's JDBC driver handed no result set; fixed in duckdb-acl (spec 117 addendum, PR #210). And a driver
@@ -283,4 +286,9 @@ A PR each, three review passes, the build and install check green.
   with grants and effective rights (analyst's customers with its `ssn` mask), catalogs with objects and Check, the
   `memory` source with its exposures, identity, categories, and no Node / Cluster; ops1 sees Node (its sessions) and
   Cluster and no Roles; analyst1 has no branch.
-- **Not here** (the MVP's line, spec "Not in the MVP"): editors, running a repair, node operations, profile edits.
+- **Review** (three passes): a capabilities STRUCT shown as `true, false, …` (the driver's `java.sql.Struct` - its
+  names now read), unstated vs none, blank and duplicate names, the README's refresh claim, sources derived on the
+  client (now the node's list), folders gated on a function whose children read other views, columns left out, a
+  role's platform point grants missing (a folder now) - fixed or stated above.
+- **Not here** (the MVP's line, spec "Not in the MVP"): editors, running a repair, node operations, profile edits; a
+  refresh of one part alone.

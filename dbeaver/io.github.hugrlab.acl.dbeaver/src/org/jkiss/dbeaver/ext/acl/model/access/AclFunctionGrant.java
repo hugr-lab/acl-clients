@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A function grant or deny (platform.function_grants). Generated shape: one property per column (spec 007.3). */
+/** A function grant or deny (platform.function_grants). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclFunctionGrant extends AclPlatformObject {
 	public AclFunctionGrant(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
@@ -19,7 +19,9 @@ public class AclFunctionGrant extends AclPlatformObject {
 	@Override
 	@Property(viewable = true, order = 1)
 	public String getName() {
-		return super.getName();
+		String role = text("role");
+		String what = text("category") != null ? "category " + text("category") : text("name");
+		return (role == null || role.isEmpty() ? "(every role)" : role) + " - " + (what == null ? "" : what);
 	}
 
 	@Property(viewable = true, order = 2, name = "Category")

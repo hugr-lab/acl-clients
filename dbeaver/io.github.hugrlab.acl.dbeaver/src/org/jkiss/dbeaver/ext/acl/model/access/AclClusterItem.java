@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A cluster profile item (platform.cluster_items / cluster_effective, spec 093). Generated shape: one property per column (spec 007.3). */
+/** A cluster profile item (platform.cluster_items / cluster_effective, spec 093). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclClusterItem extends AclPlatformObject {
 	public AclClusterItem(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);

@@ -9,7 +9,7 @@ import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A function category (platform.function_categories, spec 072). Generated shape: one property per column (spec 007.3). */
+/** A function category (platform.function_categories, spec 072). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclFunctionCategory extends AclPlatformObject {
 	public AclFunctionCategory(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);

@@ -9,7 +9,7 @@ import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A virtual catalog (platform.catalogs). Generated shape: one property per column (spec 007.3). */
+/** A virtual catalog (platform.catalogs). One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclVirtualCatalog extends AclPlatformObject {
 	public AclVirtualCatalog(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
