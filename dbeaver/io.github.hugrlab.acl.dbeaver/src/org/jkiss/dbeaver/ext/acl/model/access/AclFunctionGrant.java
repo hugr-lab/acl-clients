@@ -1,0 +1,56 @@
+package org.jkiss.dbeaver.ext.acl.model.access;
+
+import java.util.Map;
+import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
+import org.jkiss.dbeaver.model.meta.Property;
+import org.jkiss.dbeaver.model.struct.DBSObject;
+
+/** A function grant or deny (platform.function_grants). One property per column of its view, the parent's key aside (spec 007.3). */
+public class AclFunctionGrant extends AclPlatformObject {
+	public AclFunctionGrant(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
+		super(dataSource, parent, row);
+	}
+
+	@Override
+	protected String nameKey() {
+		return "role";
+	}
+
+	@Override
+	@Property(viewable = true, order = 1)
+	public String getName() {
+		String role = text("role");
+		String what = text("category") != null ? "category " + text("category") : text("name");
+		return (role == null || role.isEmpty() ? "(every role)" : role) + " - " + (what == null ? "" : what);
+	}
+
+	@Property(viewable = true, order = 2, name = "Category")
+	public String getCategory() {
+		return text("category");
+	}
+
+	@Property(viewable = true, order = 3, name = "Database")
+	public String getDatabase() {
+		return text("database");
+	}
+
+	@Property(viewable = true, order = 4, name = "Schema")
+	public String getSchema() {
+		return text("schema");
+	}
+
+	@Property(viewable = true, order = 5, name = "Function")
+	public String getFunction() {
+		return text("name");
+	}
+
+	@Property(viewable = true, order = 6, name = "Kind")
+	public String getKind() {
+		return text("kind");
+	}
+
+	@Property(viewable = true, order = 7, name = "Allowed")
+	public String getAllowed() {
+		return text("allowed");
+	}
+}

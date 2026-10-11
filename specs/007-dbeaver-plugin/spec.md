@@ -71,8 +71,8 @@ A folder beside the catalogs, shown when `console_info()` answers (absent, it is
 - **Sources** (the `attached` tree) → per physical object **Exposures** (`platform.exposures`).
 - **Identity** (issuers → clients → mappings), **Function categories**, **Resource groups**, **Node** (sessions,
   load), **Cluster** (items, drift) - each only when `console_info().my_views` holds its views.
-Every node of the branch is one `platform` view or read function with a WHERE for what is expanded; nothing is
-cached beyond the view DBeaver keeps, Refresh re-reads.
+Every node of the branch is one `platform` view or read function with a WHERE for what is expanded; a part is read
+when it is opened and kept until the connection is refreshed (DBeaver refreshes a folder through its data source).
 
 ### Not in the MVP (design/079 phases 3-4)
 Editors (a form → the `ACL …` statement previewed → executed), running a check's repair, node operations
@@ -252,3 +252,43 @@ A PR each, three review passes, the build and install check green.
   copy alike; the node answers a table's `information_schema.columns` in ~215 ms and `acl_references()` in ~270 ms
   warm (pyarrow, same node), so a whole-tree walk is the node's listing cost per node - the duckdb-acl follow-up (a
   per-node metadata cache), not the plugin's.
+
+### 007.3 (2026-10-11)
+- **The branch**: a folder `Access control` beside the catalogs, `visibleIf="object.accessControl"` (the connection's
+  console_info answered - our model's `org.jkiss.dbeaver.ext.acl.model` classes, which DBeaver's JEXL may call), each
+  sub-folder where the principal reads its platform view (`shows('<view>')`) or calls its read function
+  (`calls('<function>')`):
+  - **Roles** → claims, catalog / schema / object grants, administration, resource groups, **Effective rights** →
+    per catalog the role holds a grant on → what it reads of each object and why (`platform.effective_rights`: the
+    deciding level, caps, MAIN, RLS, columns, masks, writable, refusal);
+  - **Virtual catalogs** → relations (declared columns, keys), schemas, functions, references, **Check**
+    (`platform.check_catalog`: each finding with its repair statement, to copy);
+  - **Sources** - the node's own list (`platform.attached.<alias>`, spec 118.3 - never the policy store or a secrets
+    service) → **Exposures** (`platform.exposures`: who reads what of it, and why);
+  - **Identity** → issuers → clients; role mappings; **Function categories** → members; function grants; resource
+    groups;
+  - **Node** → sessions, load, doors; **Cluster** → profile, applied here, drift (a standalone node has no drift - an
+    empty folder, not the node's refusal).
+- **One statement per node**, read when it is expanded and kept until it is refreshed: `PlatformSql` composes
+  `SELECT * FROM platform."<view>" WHERE "<column>" = '<value>'` / `SELECT * FROM platform."<function>"('<arg>', …)`
+  (literals, quotes doubled) - never the policy store's own tables; the values as the properties panel shows them
+  (`PlatformValues`: a STRUCT by its field names - the driver's struct carries them -, a capabilities STRUCT as the
+  names it holds, `unstated: …` for NULL - every data capability, or the catalog grant's for a schema / object grant -
+  and `none` for nothing held, a list joined). A row is named so it stands alone (`orders (sales) - analyst`,
+  `(every role)`, `(catalog grant)`, `node`). Each node's columns are its
+  properties (DBeaver's properties panel; the object editor's tabs were not checked).
+- **Found**: the node's Flight door announced an empty schema for a prepared platform read function (taken for a
+  command) - Arrow's JDBC driver handed no result set; fixed in duckdb-acl (spec 117 addendum, PR #210). And a driver
+  connected to a node that ignores `x-acl-view-as` (older) would be the viewer's own: `acl.viewAs` now proves the mode
+  at connect (spec 006).
+- **Dev realm**: `ops1` (`operator` → the node's cluster bundle) beside `steward1` (policy) and `analyst1`.
+- **Tests**: unit `PlatformSqlTest` (statements, value rendering); live `LiveAccessControlTest` - steward1 sees roles
+  with grants and effective rights (analyst's customers with its `ssn` mask), catalogs with objects and Check, the
+  `memory` source with its exposures, identity, categories, and no Node / Cluster; ops1 sees Node (its sessions) and
+  Cluster and no Roles; analyst1 has no branch.
+- **Review** (three passes): a capabilities STRUCT shown as `true, false, …` (the driver's `java.sql.Struct` - its
+  names now read), unstated vs none, blank and duplicate names, the README's refresh claim, sources derived on the
+  client (now the node's list), folders gated on a function whose children read other views, columns left out, a
+  role's platform point grants missing (a folder now) - fixed or stated above.
+- **Not here** (the MVP's line, spec "Not in the MVP"): editors, running a repair, node operations, profile edits; a
+  refresh of one part alone.
