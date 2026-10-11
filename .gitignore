@@ -14,3 +14,7 @@ __pycache__/
 .env
 .DS_Store
 dev/.work/
+# DBeaver plugin (spec 007): the downloaded DBeaver releases, the bundled driver jar, Tycho output
+dbeaver/.dbeaver/
+dbeaver/io.github.hugrlab.acl.dbeaver/drivers/acl/*.jar
+dbeaver/**/target/

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?pde version="3.8"?>
+<!-- The bundles and features of one DBeaver release (its Eclipse directory, DBEAVER_HOME): the plugin builds and
+     is tested against exactly what users run - DBeaver's p2 site keeps only `latest`. SWTBot and JUnit for the UI
+     tests come from Eclipse's own repositories. -->
+<target name="dbeaver" sequenceNumber="2">
+	<locations>
+		<location path="${env_var:DBEAVER_HOME}" type="Directory"/>
+		<location includeAllPlatforms="false" includeConfigurePhase="false" includeMode="planner" includeSource="false" type="InstallableUnit">
+			<repository location="https://download.eclipse.org/technology/swtbot/releases/latest/"/>
+			<unit id="org.eclipse.swtbot.eclipse.finder" version="0.0.0"/>
+			<unit id="org.eclipse.swtbot.swt.finder" version="0.0.0"/>
+			<unit id="org.eclipse.swtbot.junit4_x" version="0.0.0"/>
+		</location>
+		<location includeAllPlatforms="false" includeConfigurePhase="false" includeMode="planner" includeSource="false" type="InstallableUnit">
+			<repository location="https://download.eclipse.org/releases/2026-09/"/>
+			<unit id="org.junit" version="0.0.0"/>
+			<unit id="org.hamcrest" version="0.0.0"/>
+		</location>
+	</locations>
+</target>

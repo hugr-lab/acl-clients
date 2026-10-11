@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.2"?>
+<!-- acl-clients spec 007: duckdb-acl as a DBeaver connection type - the Generic provider with our driver
+     (bundled), a meta model and a dialect of our own, as DBeaver's own DuckDB plugin is made -->
+<plugin>
+	<extension point="org.jkiss.dbeaver.dataSourceProvider">
+		<dataSourceType id="duckdb_acl" label="duckdb-acl" description="duckdb-acl node"
+		                dataSourceInformation="A duckdb-acl node: its Flight SQL door, OAuth sign-in"/>
+		<datasource
+		        class="io.github.hugrlab.acl.dbeaver.model.AclDataSourceProvider"
+		        description="duckdb-acl node (Flight SQL door)"
+		        id="duckdb_acl"
+		        dataSourceType="duckdb_acl"
+		        parent="generic"
+		        inheritProviderProperties="true"
+		        label="duckdb-acl"
+		        dialect="duckdb_acl">
+			<drivers managable="true">
+				<driver
+				        id="duckdb_acl_jdbc"
+				        label="duckdb-acl"
+				        class="io.github.hugrlab.acl.jdbc.AclDriver"
+				        sampleURL="jdbc:acl://{host}:{port}"
+				        defaultHost="localhost"
+				        defaultPort="32800"
+				        webURL="https://github.com/hugr-lab/acl-clients"
+				        description="duckdb-acl node: Flight SQL door, OAuth sign-in"
+				        supportedConfigurationTypes="MANUAL,URL"
+				        categories="sql,analytic">
+					<file type="jar" path="drivers/acl" bundle="io.github.hugrlab.acl.dbeaver"/>
+					<!-- spec 006's drivers.xml: functions listed by getFunctions and getProcedures; the active
+					     catalog is the session's USE (duckdb-acl spec 114) -->
+					<parameter name="split-procedures-and-functions" value="true"/>
+					<parameter name="active-entity-type" value="catalog"/>
+					<parameter name="query-set-active-db" value="USE &quot;?&quot;"/>
+					<parameter name="supports-references" value="true"/>
+					<parameter name="supports-indexes" value="false"/>
+				</driver>
+			</drivers>
+		</datasource>
+	</extension>
+
+	<extension point="org.jkiss.dbeaver.generic.meta">
+		<meta id="duckdb_acl_jdbc"
+		      class="io.github.hugrlab.acl.dbeaver.model.AclMetaModel"
+		      driverClass="io.github.hugrlab.acl.jdbc.AclDriver"
+		      dialect="duckdb_acl"/>
+	</extension>
+
+	<extension point="org.jkiss.dbeaver.sqlDialect">
+		<dialect id="duckdb_acl"
+		         parent="generic"
+		         class="io.github.hugrlab.acl.dbeaver.model.AclSQLDialect"
+		         label="duckdb-acl"
+		         description="duckdb SQL and the ACL management grammar"/>
+	</extension>
+</plugin>

@@ -33,7 +33,8 @@ specs/NNN-slug/spec.md
 
 ## Commands
 
-There is no local JDK, Maven or .NET on the owner's machine; everything builds in Docker:
+A local JDK 21 and Maven exist since 2026-10-11 (Homebrew; `JAVA_HOME=/opt/homebrew/opt/openjdk@21` - Maven's own
+default is a newer JDK); no .NET. CI and the examples build in Docker:
 
 ```sh
 dev/keycloak.sh && dev/node.sh &                   # the dev node (needs a built ../duckdb-acl)

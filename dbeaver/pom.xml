@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- acl-clients spec 007: the DBeaver plugin - a Tycho build against a DBeaver release's own bundles
+     (target-platform/, DBEAVER_HOME = the release's Eclipse directory; dbeaver/build.sh fetches it) -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>io.github.hugrlab.acl</groupId>
+	<artifactId>acl-dbeaver-parent</artifactId>
+	<version>0.1.0-SNAPSHOT</version>
+	<packaging>pom</packaging>
+
+	<properties>
+		<tycho.version>5.0.4</tycho.version>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	</properties>
+
+	<modules>
+		<module>target-platform</module>
+		<module>io.github.hugrlab.acl.dbeaver</module>
+		<module>io.github.hugrlab.acl.dbeaver.tests</module>
+		<module>io.github.hugrlab.acl.dbeaver.feature</module>
+		<module>io.github.hugrlab.acl.dbeaver.site</module>
+	</modules>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.eclipse.tycho</groupId>
+				<artifactId>tycho-maven-plugin</artifactId>
+				<version>${tycho.version}</version>
+				<extensions>true</extensions>
+			</plugin>
+			<plugin>
+				<groupId>org.eclipse.tycho</groupId>
+				<artifactId>target-platform-configuration</artifactId>
+				<version>${tycho.version}</version>
+				<configuration>
+					<target>
+						<artifact>
+							<groupId>io.github.hugrlab.acl</groupId>
+							<artifactId>target-platform</artifactId>
+							<version>0.1.0-SNAPSHOT</version>
+						</artifact>
+					</target>
+					<environments>
+						<environment><os>${dbeaver.os}</os><ws>${dbeaver.ws}</ws><arch>${dbeaver.arch}</arch></environment>
+					</environments>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+	<profiles>
+		<profile>
+			<id>macos</id>
+			<activation><os><family>mac</family></os></activation>
+			<properties><dbeaver.os>macosx</dbeaver.os><dbeaver.ws>cocoa</dbeaver.ws><dbeaver.arch>aarch64</dbeaver.arch></properties>
+		</profile>
+		<profile>
+			<id>linux</id>
+			<activation><os><family>unix</family><name>linux</name></os></activation>
+			<properties><dbeaver.os>linux</dbeaver.os><dbeaver.ws>gtk</dbeaver.ws><dbeaver.arch>x86_64</dbeaver.arch></properties>
+		</profile>
+	</profiles>
+</project>
