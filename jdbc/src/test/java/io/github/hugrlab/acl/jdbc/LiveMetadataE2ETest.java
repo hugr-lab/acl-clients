@@ -243,6 +243,31 @@ class LiveMetadataE2ETest {
 	}
 
 	@Test
+	void anEmptyResultHasItsColumnsOnce() throws SQLException {
+		// Arrow's driver (19.0.0) reports an empty result's columns twice; the node sends them once
+		try (Connection conn = connect(); Statement s = conn.createStatement()) {
+			try (ResultSet rs = s.executeQuery("SELECT 1 AS x WHERE false")) {
+				assertEquals(1, rs.getMetaData().getColumnCount());
+				assertFalse(rs.next());
+			}
+			try (ResultSet rs = s.executeQuery("SELECT * FROM duckdb_schemas() WHERE database_name = 'nope'")) {
+				assertEquals(10, rs.getMetaData().getColumnCount());
+			}
+		}
+	}
+
+	@Test
+	void anEnumIsItsLabel() throws SQLException {
+		// a dictionary-encoded column: Arrow's driver answers the index, the label is the dictionary's
+		try (Connection conn = connect(); Statement s = conn.createStatement();
+		     ResultSet rs = s.executeQuery("SELECT mood FROM customers")) {
+			assertTrue(rs.next());
+			assertEquals("calm", rs.getString(1));
+			assertEquals("calm", rs.getObject(1));
+		}
+	}
+
+	@Test
 	void resultTypesAndStructs() throws SQLException {
 		try (Connection conn = connect(); Statement s = conn.createStatement();
 		     ResultSet rs = s.executeQuery("SELECT id, address, tags, attrs, balance, ssn FROM customers")) {
@@ -373,9 +398,9 @@ class LiveMetadataE2ETest {
 		}
 		try (Connection conn = connect(); Statement s = conn.createStatement()) {
 			SQLException e = assertThrows(SQLException.class, () -> s.execute(management));
-			// data mode sends it as written: duckdb's parser, not the management grammar, refuses it
-			assertTrue(e.getMessage().contains("syntax error at or near \"VIRTUAL\""), e.getMessage());
-			assertFalse(e.getMessage().contains("administration scope"), e.getMessage());
+			// data mode sends it as written; under a principal the node reads its management grammar without the
+			// `ACL` marker (duckdb-acl spec 117) - and refuses an ordinary role by scope
+			assertTrue(e.getMessage().contains("no ACL administration scope"), e.getMessage());
 		}
 		try (Connection conn = connect("acl.mode", "native"); Statement s = conn.createStatement()) {
 			SQLException e = assertThrows(SQLException.class, () -> s.executeQuery("SELECT 1"));

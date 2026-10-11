@@ -254,3 +254,20 @@ the jar (`META-INF/`, shade plugin).
 - **Seen on the node, not fixed here**: `duckdb_views().comment` is NULL for a view created with
   `COMMENT` (so a view's REMARKS are empty); `USE SCHEMA` refuses a schema reachable only through the
   catalog grant (above).
+
+## Addendum 2026-10-11: empty results, ENUM labels, a nested schema's USE (found by spec 007.1's reviews)
+- **An empty result's columns were reported twice** by Arrow's driver (19.0.0 - a statement answering no rows:
+  `SELECT 1 AS x WHERE false` had 2 columns). The node sends one field per column (checked with pyarrow at the
+  door); the result set's column count is now the Arrow schema's (`ResultTypes.fieldCount`), read by the same
+  reflection as the type names.
+- **An ENUM came back as its dictionary index** (`mood` = 0): Arrow's driver answers a dictionary-encoded column's
+  index. `getString` / `getObject` of an ENUM column now look the label up in the stream's dictionary
+  (`ResultTypes.dictionaryValue`: the field's dictionary id, the current stream's `DictionaryProvider`); unreachable,
+  Arrow's answer stands. An ENUM nested in a STRUCT / LIST is not decoded yet.
+- **`setSchema` of a nested schema** sent the path quoted whole (`USE SCHEMA "raw.eu"`) - since duckdb-acl spec 116
+  that names a one-part schema `raw.eu`, and the node refused it; now each part is quoted
+  (`USE SCHEMA "raw"."eu"`, `AclSql.quotePath`), with the node's spec 114 addendum (a USE takes a schema path).
+- `LiveMetadataE2ETest.modes`: data mode's management statement is now refused by scope - the node reads its
+  grammar without the `ACL` marker under a principal (duckdb-acl spec 117).
+- Tests: `AclSqlTest` (`quotePath`), `AclConnectionTest`, `LiveMetadataE2ETest` (an empty result's columns once,
+  an ENUM's label).

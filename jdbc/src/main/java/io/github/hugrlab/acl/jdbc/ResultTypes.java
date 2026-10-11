@@ -42,6 +42,62 @@ final class ResultTypes {
 		return out;
 	}
 
+	/**
+	 * The number of fields of the result's Arrow schema, or -1 when it cannot be read. Arrow's driver (19.0.0) reports
+	 * an EMPTY result's columns twice (it adds the schema's fields once per pass over a stream with no batch) - the
+	 * schema itself is right (the node sends one field per column).
+	 */
+	static int fieldCount(Object arrow) {
+		try {
+			Object schema = field(arrow, "schema");
+			Object fields = schema == null ? null : call(schema, "getFields");
+			return fields instanceof List<?> list ? list.size() : -1;
+		} catch (ReflectiveOperationException | RuntimeException e) {
+			LOG.log(Level.FINE, "no Arrow schema on " + arrow.getClass().getName(), e);
+			return -1;
+		}
+	}
+
+	/**
+	 * A dictionary-encoded column's value for its index (an ENUM - Arrow's driver answers the index, not the label):
+	 * the dictionary of the stream being read, looked up by the field's dictionary id. Null when the column is not
+	 * dictionary-encoded or the dictionary cannot be reached (the caller keeps Arrow's answer).
+	 */
+	static Object dictionaryValue(Object arrow, int column, int index) {
+		try {
+			Object schema = field(arrow, "schema");
+			Object fields = schema == null ? null : call(schema, "getFields");
+			if (!(fields instanceof List<?> list) || column < 1 || column > list.size()) {
+				return null;
+			}
+			Object encoding = call(list.get(column - 1), "getDictionary");
+			if (encoding == null) {
+				return null;
+			}
+			long id = ((Number) call(encoding, "getId")).longValue();
+			Object pair = field(arrow, "currentEndpointData");
+			Object stream = pair == null ? null : call(pair, "getStream");
+			Object provider = stream == null ? null : call(stream, "getDictionaryProvider");
+			if (provider == null) {
+				return null;
+			}
+			java.lang.reflect.Method lookup = provider.getClass().getMethod("lookup", long.class);
+			lookup.setAccessible(true);
+			Object dictionary = lookup.invoke(provider, id);
+			Object vector = dictionary == null ? null : call(dictionary, "getVector");
+			if (vector == null) {
+				return null;
+			}
+			java.lang.reflect.Method get = vector.getClass().getMethod("getObject", int.class);
+			get.setAccessible(true);
+			Object value = get.invoke(vector, index);
+			return value == null ? null : value.toString();
+		} catch (ReflectiveOperationException | RuntimeException e) {
+			LOG.log(Level.FINE, "no dictionary for column " + column + " on " + arrow.getClass().getName(), e);
+			return null;
+		}
+	}
+
 	private interface SchemaSource {
 		Object get() throws ReflectiveOperationException;
 	}

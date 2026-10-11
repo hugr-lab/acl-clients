@@ -30,7 +30,12 @@ final class AclResultSet extends ForwardingResultSet {
 	private AclResultSetMetaData meta() throws SQLException {
 		if (meta == null) {
 			ResultSetMetaData arrow = delegate.getMetaData();
-			meta = new AclResultSetMetaData(arrow, ResultTypes.of(delegate, arrow.getColumnCount()), nestedJson);
+			int columns = arrow.getColumnCount();
+			int fields = ResultTypes.fieldCount(delegate);
+			if (fields > 0 && fields < columns) {
+				columns = fields; // Arrow's driver repeats an empty result's columns - the schema is the truth
+			}
+			meta = new AclResultSetMetaData(arrow, ResultTypes.of(delegate, columns), nestedJson, columns);
 		}
 		return meta;
 	}
@@ -49,11 +54,30 @@ final class AclResultSet extends ForwardingResultSet {
 		return raw instanceof byte[] bytes ? DuckTypes.decodeBits(type, bytes) : raw.toString();
 	}
 
+	/** An ENUM's label: Arrow's driver answers a dictionary-encoded value by its index. */
+	private Object enumValue(int column) throws SQLException {
+		Object raw = delegate.getObject(column);
+		if (raw == null) {
+			return null;
+		}
+		Integer index = raw instanceof Number n ? Integer.valueOf(n.intValue())
+		                : raw.toString().matches("\\d+") ? Integer.valueOf(raw.toString()) : null;
+		Object label = index == null ? null : ResultTypes.dictionaryValue(delegate, column, index);
+		return label != null ? label : raw.toString();
+	}
+
+	private static boolean isEnum(DuckTypes.Type type) {
+		return type != null && "ENUM".equals(type.base());
+	}
+
 	@Override
 	public Object getObject(int column) throws SQLException {
 		DuckTypes.Type type = meta().type(column);
 		if (DuckTypes.isBits(type)) {
 			return bits(type, column);
+		}
+		if (isEnum(type)) {
+			return enumValue(column);
 		}
 		if (type == null || !type.isNested()) {
 			return delegate.getObject(column);
@@ -118,6 +142,10 @@ final class AclResultSet extends ForwardingResultSet {
 		DuckTypes.Type type = meta().type(column);
 		if (DuckTypes.isBits(type)) {
 			return bits(type, column);
+		}
+		if (isEnum(type)) {
+			Object label = enumValue(column);
+			return label == null ? null : label.toString();
 		}
 		if (type == null || !type.isNested()) {
 			return delegate.getString(column);
