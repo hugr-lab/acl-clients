@@ -198,13 +198,15 @@ final class AclSql {
 		return i;
 	}
 
-	/** duckdb's quoted identifier: double quotes, a quote inside doubled. */
 	/**
 	 * A schema's path as the node lists it (duckdb-acl spec 116: parts joined by `.`, a part quoted only when it holds a
 	 * `.` or a `"`) as SQL: each part quoted on its own - `raw.eu` is `"raw"."eu"`, the nested schema; `"a.b"` stays
 	 * one part. A text that is not a well-formed path is quoted whole.
 	 */
 	static String quotePath(String path) {
+		if (path.indexOf('.') < 0) {
+			return quoteIdentifier(path); // one part, shown as it is (NamePath::Display) - a quote in it is its own
+		}
 		java.util.List<String> parts = new java.util.ArrayList<>();
 		StringBuilder part = new StringBuilder();
 		boolean quoted = false;
@@ -248,6 +250,7 @@ final class AclSql {
 		return out.toString();
 	}
 
+	/** duckdb's quoted identifier: double quotes, a quote inside doubled. */
 	static String quoteIdentifier(String name) {
 		return '"' + name.replace("\"", "\"\"") + '"';
 	}

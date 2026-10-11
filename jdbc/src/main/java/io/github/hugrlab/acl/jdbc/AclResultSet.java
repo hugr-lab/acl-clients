@@ -54,16 +54,26 @@ final class AclResultSet extends ForwardingResultSet {
 		return raw instanceof byte[] bytes ? DuckTypes.decodeBits(type, bytes) : raw.toString();
 	}
 
+	/** The labels of each ENUM column, for the stream they were read from (a new stream is looked up again). */
+	private final java.util.Map<Integer, ResultTypes.Dictionary> dictionaries = new java.util.HashMap<>();
+
 	/** An ENUM's label: Arrow's driver answers a dictionary-encoded value by its index. */
 	private Object enumValue(int column) throws SQLException {
 		Object raw = delegate.getObject(column);
 		if (raw == null) {
 			return null;
 		}
-		Integer index = raw instanceof Number n ? Integer.valueOf(n.intValue())
-		                : raw.toString().matches("\\d+") ? Integer.valueOf(raw.toString()) : null;
-		Object label = index == null ? null : ResultTypes.dictionaryValue(delegate, column, index);
-		return label != null ? label : raw.toString();
+		ResultTypes.Dictionary dictionary = dictionaries.get(column);
+		Object stream = ResultTypes.currentStream(delegate);
+		if (dictionary == null || dictionary.stream() != stream) {
+			dictionary = ResultTypes.dictionary(delegate, column);
+			if (dictionary == null) {
+				return raw.toString();
+			}
+			dictionaries.put(column, dictionary);
+		}
+		long index = ResultTypes.unsignedIndex(raw, dictionary.indexBits());
+		return index >= 0 && index < dictionary.labels().length ? dictionary.labels()[(int) index] : raw.toString();
 	}
 
 	private static boolean isEnum(DuckTypes.Type type) {
@@ -102,6 +112,10 @@ final class AclResultSet extends ForwardingResultSet {
 	@Override
 	public <T> T getObject(int column, Class<T> wanted) throws SQLException {
 		DuckTypes.Type type = meta().type(column);
+		if (isEnum(type) && (wanted == String.class || wanted == Object.class)) {
+			Object label = enumValue(column);
+			return wanted.cast(label == null ? null : label.toString());
+		}
 		if (DuckTypes.isBits(type) && wanted == String.class) {
 			return wanted.cast(bits(type, column));
 		}

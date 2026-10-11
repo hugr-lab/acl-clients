@@ -261,8 +261,10 @@ the jar (`META-INF/`, shade plugin).
   door); the result set's column count is now the Arrow schema's (`ResultTypes.fieldCount`), read by the same
   reflection as the type names.
 - **An ENUM came back as its dictionary index** (`mood` = 0): Arrow's driver answers a dictionary-encoded column's
-  index. `getString` / `getObject` of an ENUM column now look the label up in the stream's dictionary
-  (`ResultTypes.dictionaryValue`: the field's dictionary id, the current stream's `DictionaryProvider`); unreachable,
+  index. `getString` / `getObject` / `getObject(c, String.class)` of an ENUM column now read the label from the
+  stream's dictionary (`ResultTypes.dictionary`: the field's dictionary id, the current stream's `DictionaryProvider`,
+  decoded once per stream and column); the index is read unsigned at the width the encoding declares - an ENUM of
+  129-255 labels has an 8-bit index, and Arrow widens 128 with its sign (`18446744073709551488`). Unreachable,
   Arrow's answer stands. An ENUM nested in a STRUCT / LIST is not decoded yet.
 - **`setSchema` of a nested schema** sent the path quoted whole (`USE SCHEMA "raw.eu"`) - since duckdb-acl spec 116
   that names a one-part schema `raw.eu`, and the node refused it; now each part is quoted

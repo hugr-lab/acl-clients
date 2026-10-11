@@ -264,6 +264,21 @@ class LiveMetadataE2ETest {
 			assertTrue(rs.next());
 			assertEquals("calm", rs.getString(1));
 			assertEquals("calm", rs.getObject(1));
+			assertEquals("calm", rs.getObject(1, String.class));
+		}
+		// an ENUM of 200 labels has an 8-bit index on the wire: 128 and past it are labels too; NULL stays NULL
+		StringBuilder labels = new StringBuilder();
+		for (int i = 0; i < 200; i++) {
+			labels.append(i == 0 ? "" : ",").append("'v").append(i).append("'");
+		}
+		try (Connection conn = connect(); Statement s = conn.createStatement();
+		     ResultSet rs = s.executeQuery("SELECT CAST(CASE WHEN i = 130 THEN NULL ELSE 'v' || i END AS ENUM(" + labels
+		         + ")) AS e FROM range(126, 131) t(i)")) {
+			for (int i = 126; i < 131; i++) {
+				assertTrue(rs.next());
+				assertEquals(i == 130 ? null : "v" + i, rs.getString(1));
+				assertEquals(i == 130, rs.wasNull());
+			}
 		}
 	}
 

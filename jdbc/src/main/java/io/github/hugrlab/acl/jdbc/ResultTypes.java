@@ -58,12 +58,16 @@ final class ResultTypes {
 		}
 	}
 
+	/** A dictionary-encoded column's labels for the stream being read, and its index width (spec 006 addendum). */
+	record Dictionary(Object stream, String[] labels, int indexBits) {
+	}
+
 	/**
-	 * A dictionary-encoded column's value for its index (an ENUM - Arrow's driver answers the index, not the label):
-	 * the dictionary of the stream being read, looked up by the field's dictionary id. Null when the column is not
-	 * dictionary-encoded or the dictionary cannot be reached (the caller keeps Arrow's answer).
+	 * The labels of a dictionary-encoded column (an ENUM - Arrow's driver answers the index, not the label) in the stream
+	 * being read: looked up once per stream (`currentEndpointData`) by the field's dictionary id, decoded to strings.
+	 * Null when the column is not dictionary-encoded or the dictionary cannot be reached (the caller keeps Arrow's).
 	 */
-	static Object dictionaryValue(Object arrow, int column, int index) {
+	static Dictionary dictionary(Object arrow, int column) {
 		try {
 			Object schema = field(arrow, "schema");
 			Object fields = schema == null ? null : call(schema, "getFields");
@@ -75,6 +79,8 @@ final class ResultTypes {
 				return null;
 			}
 			long id = ((Number) call(encoding, "getId")).longValue();
+			Object indexType = call(encoding, "getIndexType");
+			int bits = indexType == null ? 32 : ((Number) call(indexType, "getBitWidth")).intValue();
 			Object pair = field(arrow, "currentEndpointData");
 			Object stream = pair == null ? null : call(pair, "getStream");
 			Object provider = stream == null ? null : call(stream, "getDictionaryProvider");
@@ -88,14 +94,46 @@ final class ResultTypes {
 			if (vector == null) {
 				return null;
 			}
+			int count = ((Number) call(vector, "getValueCount")).intValue();
 			java.lang.reflect.Method get = vector.getClass().getMethod("getObject", int.class);
 			get.setAccessible(true);
-			Object value = get.invoke(vector, index);
-			return value == null ? null : value.toString();
+			String[] labels = new String[count];
+			for (int i = 0; i < count; i++) {
+				Object value = get.invoke(vector, i);
+				labels[i] = value == null ? null : value.toString();
+			}
+			return new Dictionary(pair, labels, bits);
 		} catch (ReflectiveOperationException | RuntimeException e) {
-			LOG.log(Level.FINE, "no dictionary for column " + column + " on " + arrow.getClass().getName(), e);
+			LOG.log(Level.FINE, "no dictionary for a column of " + arrow.getClass().getName(), e);
 			return null;
 		}
+	}
+
+	/** The stream a result is reading now - a dictionary is the stream's, so a new one is looked up again. */
+	static Object currentStream(Object arrow) {
+		try {
+			return field(arrow, "currentEndpointData");
+		} catch (ReflectiveOperationException | RuntimeException e) {
+			return null;
+		}
+	}
+
+	/**
+	 * A dictionary index as Arrow's driver answers it (a number, or its text) read unsigned at the index's width:
+	 * Arrow widens an 8-bit index with its sign (128 arrives as -128, or as 18446744073709551488). -1 when it is none.
+	 */
+	static long unsignedIndex(Object raw, int bits) {
+		long value;
+		if (raw instanceof Number n) {
+			value = n.longValue();
+		} else {
+			try {
+				value = Long.parseUnsignedLong(raw.toString());
+			} catch (NumberFormatException e) {
+				return -1;
+			}
+		}
+		return bits >= 64 ? value : value & ((1L << bits) - 1);
 	}
 
 	private interface SchemaSource {

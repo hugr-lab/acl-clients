@@ -64,6 +64,17 @@ class ResultTypesTest {
 
 	// review 2026-10-09: a prepared statement's metadata never had duckdb's types
 	@Test
+	void anEnumIndexIsUnsignedAtItsWidth() {
+		// Arrow's driver widens an 8-bit dictionary index with its sign: 128 arrives as -128 or as its 64-bit text
+		assertEquals(128, ResultTypes.unsignedIndex((byte) -128, 8));
+		assertEquals(128, ResultTypes.unsignedIndex("18446744073709551488", 8));
+		assertEquals(255, ResultTypes.unsignedIndex(-1, 8));
+		assertEquals(32768, ResultTypes.unsignedIndex((short) -32768, 16));
+		assertEquals(5, ResultTypes.unsignedIndex("5", 32));
+		assertEquals(-1, ResultTypes.unsignedIndex("calm", 8));
+	}
+
+	@Test
 	void aPreparedStatementsDatasetSchema() {
 		assertArrayEquals(new String[] {"STRUCT(a INTEGER)", "INTEGER"}, ResultTypes.of(new FakePrepared(), 2));
 		assertNull(ResultTypes.of(new FakePrepared(), 3), "a schema of another width is not this result's");
