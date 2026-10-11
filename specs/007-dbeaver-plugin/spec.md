@@ -273,7 +273,7 @@ A PR each, three review passes, the build and install check green.
   `SELECT * FROM platform."<view>" WHERE "<column>" = '<value>'` / `SELECT * FROM platform."<function>"('<arg>', …)`
   (literals, quotes doubled) - never the policy store's own tables; the values as the properties panel shows them
   (`PlatformValues`: a capabilities STRUCT as the names it holds, a list joined). Each node's columns are its
-  properties (the object's editor shows them and its folders as tabs - DBeaver's own).
+  properties (DBeaver's properties panel; the object editor's tabs were not checked).
 - **Found**: the node's Flight door announced an empty schema for a prepared platform read function (taken for a
   command) - Arrow's JDBC driver handed no result set; fixed in duckdb-acl (spec 117 addendum, PR #210). And a driver
   connected to a node that ignores `x-acl-view-as` (older) would be the viewer's own: `acl.viewAs` now proves the mode
