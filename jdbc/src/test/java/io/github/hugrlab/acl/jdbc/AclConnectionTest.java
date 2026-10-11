@@ -102,21 +102,25 @@ class AclConnectionTest {
 	}
 
 	@Test
-	void viewAsIsSetAtConnectAndARefusalFailsTheConnect() throws SQLException {
+	void viewAsIsDeclaredOnEveryCallAndARefusalFailsTheConnect() throws SQLException {
+		AclConfig config = config("acl.viewAs", "o'brien é");
+		assertEquals("o%27brien%20%C3%A9", config.delegateProperties("t").getProperty("x-acl-view-as"),
+		    "every call's header, percent-encoded");
 		FakeArrow arrow = node(new AtomicReference<>("sales"));
-		new AclConnection(arrow.connection(), config("catalog", "inventory", "acl.viewAs", "o'brien"));
-		// after the USE (refused inside the mode), unprefixed, the role a literal
-		assertEquals(List.of("SELECT 1", "USE \"inventory\"", "SET SESSION VIEW AS ROLE 'o''brien'"), arrow.sent);
+		new AclConnection(arrow.connection(), config);
+		assertEquals(List.of("SELECT 1"), arrow.sent, "one call at connect - nothing set by statement");
 		assertFalse(arrow.closed);
 
 		FakeArrow refusing = node(new AtomicReference<>("sales"));
-		refusing.refuses = sql -> sql.startsWith("SET SESSION VIEW AS");
-		assertThrows(SQLException.class,
-		    () -> new AclConnection(refusing.connection(), config("acl.viewAs", "steward")));
+		refusing.refuses = sql -> true; // the node refuses the declared mode on the first call
+		assertThrows(SQLException.class, () -> new AclConnection(refusing.connection(), config("acl.viewAs", "steward")));
 		assertTrue(refusing.closed, "a refused view-as closes the connection: it is never handed out as the viewer");
 
 		SQLException mode = assertThrows(SQLException.class, () -> config("acl.viewAs", "r", "acl.mode", "manage"));
 		assertTrue(mode.getMessage().contains("acl.mode=data"), mode.getMessage());
+		assertThrows(SQLException.class, () -> config("acl.viewAs", "r", "catalog", "sales"), "no catalog in the mode");
+		assertThrows(SQLException.class, () -> config("acl.viewAs", "  "), "a blank role names nothing");
+		assertEquals(" r", config("acl.viewAs", " r").viewAs, "a role name as written");
 	}
 
 	@Test

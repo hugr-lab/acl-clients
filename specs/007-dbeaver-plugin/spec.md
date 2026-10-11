@@ -57,11 +57,10 @@ changed), named and coloured so it is never taken for the original:
 - **Native console** - `acl.mode=native`; shown only when `platform.console_info()` says the user holds
   `passthrough`; the node refuses anyway without it.
 - **View as role…** - the roles from `platform.roles` (the policy bundle's view; the action is shown only to
-  `policy` / `passthrough`, the node judges again), then a connection whose every physical connection runs
-  `SET SESSION VIEW AS ROLE '<r>'` as its bootstrap query - DBeaver's metadata connection included - read-only,
-  "as <r>" in its name. Its tree is the role's (the same code as any tree); a data preview is refused by the
-  node (`a view-as session reads metadata only`) and the plugin says so instead of showing a failure dialog
-  where it can. Requires the driver to keep the Flight session cookie (it does, spec 006).
+  `policy` / `passthrough`, the node judges again), then a connection that declares the mode on every call (the
+  driver's `acl.viewAs` - see As built 007.2; the first build used a bootstrap query, which DBeaver only logs when it
+  fails) - DBeaver's metadata connection included - read-only, "as <r>" in its name. Its tree is the role's (the same
+  code as any tree); a data preview is refused by the node (`a view-as session reads metadata only`).
 
 ### 3. The Access control branch, read only (007.3)
 A folder beside the catalogs, shown when `console_info()` answers (absent, it is not there):
@@ -204,23 +203,26 @@ A PR each, three review passes, the build and install check green.
 - **The copy** (`ConsoleCopy` - pure, unit-tested; `AclConsoles.open`): `new DataSourceDescriptor(original, registry)`
   (a deep copy - nothing mutable shared) with a new id, a name `<original> · manage | · native | · as <role>`,
   **temporary** (`isDetached()`: never persisted, nor its secrets), `acl.mode` `manage` / `native` / `data`. Asked
-  again, the temporary copy of that name is reused. Native is DBeaver's built-in *Production* type (red, confirms
-  execution) **in auto-commit** (the type alone is manual-commit, and a native statement would wait for a commit),
+  again, the temporary copy of the same connection, kind and role (provider properties `acl.console.*` - never sent
+  to the driver) is reused. A console runs **in auto-commit** (DBeaver's Production type alone is manual-commit, and
+  a management or native statement would wait for a commit); native is that built-in *Production* type (red,
+  confirms execution),
   view-as *Test* and read-only; the user's own colour is cleared where a type is set (it would hide the marker); the
   manage console keeps the original's type. Manage and native drop the user's bootstrap statements (each would be
   prefixed: `ACL SET …` refused, `ACL NATIVE SET …` run physically).
 - **View-as fails closed.** The first build appended `SET SESSION VIEW AS ROLE` to the copy's bootstrap queries -
-  and DBeaver only logs a failed bootstrap query, so a refused SET (a role holding administration, a role dropped
-  meanwhile, a user's own init query failing first) left a `· as r` connection that was the viewer's own session
-  (the review's first finding). Now it is the driver's `acl.viewAs` (spec 006 addendum): set once the connection
-  holds its session, and a refusal closes the connection and fails the connect; every physical connection DBeaver
-  opens (the metadata one, a reconnect) is a new driver connection that sets it again. The node refuses a Flight
-  connection whose session ended in the mode (idle, killed, a swap) instead of re-seating it as the viewer
-  (duckdb-acl 120.3 addendum) - the next call says "connect again". The action connects the copy at once (a progress
-  service): refused, the copy is removed and the node's message shown. A role named with `${...}` is refused by the
-  plugin - DBeaver substitutes variables in a connection's properties.
+  DBeaver only logs a failed bootstrap query, so a refused SET left a `· as r` connection that was the viewer's own
+  session; then a driver-side SET at connect - and the node re-seated a cookie whose session died (idle, killed,
+  restart, another node, a lost cookie) as the viewer. Now the driver's `acl.viewAs` (spec 006 addendum)
+  **declares the mode on every call** (`x-acl-view-as`): the door puts each call's session in the mode, judged like
+  the SET, or refuses the call - a re-seated session is in the mode again (duckdb-acl 120.3 addendum). The connect
+  makes one call, a refusal fails it. When the viewer loses the right (or the role comes to hold administration) the
+  node refuses the session's statements, never runs them as the viewer. The action connects the copy at once (a
+  progress service): refused, the copy is removed and the error shown. A role named with `${...}` is refused by the
+  plugin - DBeaver substitutes variables in a connection's properties. The view-as copy drops the user's `catalog` /
+  `schema` and default catalog / schema (the driver refuses them with `acl.viewAs`, the mode refuses a USE).
 - **View as role…** reads `SELECT role FROM platform.roles ORDER BY role` on the original connection, then an
-  `ElementListSelectionDialog`; cancelling the read is silent. The copy stays in the navigator (its tree is the
+  `ElementListSelectionDialog`; cancelling the read (or the connect) ends the action silently (`monitor.isCanceled()`). The copy stays in the navigator (its tree is the
   point). A console opens an SQL editor (`SQLEditorHandlerOpenEditor.openSQLConsole`) on its copy.
 - **Not done**: "the plugin says so instead of a failure dialog" for a data preview under view-as - the node's
   refusal text (`a view-as session reads metadata only`) is what DBeaver shows, which says it. A console's own tree

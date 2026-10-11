@@ -13,17 +13,25 @@ import org.jkiss.dbeaver.runtime.DBWorkbench;
 /**
  * A console's connection: a copy of the user's (its URL, sign-in, settings) with what {@link ConsoleCopy} changes, kept
  * for the session only (temporary - never saved, gone at restart) beside the user's in the navigator. Asked again, the
- * copy already there is reused.
+ * copy of the same connection, kind and role is reused.
  */
 public final class AclConsoles {
+	static final String OF = "acl.console.of";
+	static final String KIND = "acl.console.kind";
+	static final String ROLE = "acl.console.role";
+
 	private AclConsoles() {
 	}
 
 	public static DataSourceDescriptor open(DataSourceDescriptor original, ConsoleCopy spec) throws DBException {
 		DBPDataSourceRegistry registry = original.getRegistry();
+		String role = spec.viewAs() == null ? "" : spec.viewAs();
 		for (DBPDataSourceContainer each : registry.getDataSources()) {
+			// the copy of THIS connection, for this kind and role (provider properties - never sent to the driver)
+			DBPConnectionConfiguration other = each.getConnectionConfiguration();
 			if (each instanceof DataSourceDescriptor existing && existing.isTemporary()
-			    && spec.name().equals(existing.getName())) {
+			    && original.getId().equals(other.getProviderProperty(OF)) && spec.mode().equals(
+			        other.getProviderProperty(KIND)) && role.equals(other.getProviderProperty(ROLE))) {
 				return existing;
 			}
 		}
@@ -35,9 +43,17 @@ public final class AclConsoles {
 			copy.setConnectionReadOnly(true);
 		}
 		DBPConnectionConfiguration configuration = copy.getConnectionConfiguration();
+		configuration.setProviderProperty(OF, original.getId());
+		configuration.setProviderProperty(KIND, spec.mode());
+		configuration.setProviderProperty(ROLE, role);
 		configuration.setProperty("acl.mode", spec.mode());
 		if (spec.viewAs() != null) {
 			configuration.setProperty("acl.viewAs", spec.viewAs());
+			// the role's catalog: the driver takes no catalog / schema with it, and the mode refuses a USE
+			configuration.removeProperty("catalog");
+			configuration.removeProperty("schema");
+			configuration.getBootstrap().setDefaultCatalogName(null);
+			configuration.getBootstrap().setDefaultSchemaName(null);
 		} else {
 			configuration.removeProperty("acl.viewAs");
 		}

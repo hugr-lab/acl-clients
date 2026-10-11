@@ -87,7 +87,10 @@ public class AclConsoleHandler extends AbstractHandler {
 				try {
 					copy.connect(monitor, true, true);
 				} catch (Exception e) {
-					throw new InvocationTargetException(e);
+					throw cancelledOr(monitor, e);
+				}
+				if (monitor.isCanceled()) {
+					throw new InterruptedException();
 				}
 			});
 		} catch (Exception e) {
@@ -107,10 +110,22 @@ public class AclConsoleHandler extends AbstractHandler {
 					roles.add(rs.getString(1));
 				}
 			} catch (Exception e) {
-				throw new InvocationTargetException(e);
+				throw cancelledOr(monitor, e);
+			}
+			if (monitor.isCanceled()) {
+				throw new InterruptedException();
 			}
 		});
 		return roles;
+	}
+
+	/** A cancel (the monitor's, which cancels the statement) is no failure: the action just ends. */
+	private static InvocationTargetException cancelledOr(org.jkiss.dbeaver.model.runtime.DBRProgressMonitor monitor,
+	                                                     Exception e) throws InterruptedException {
+		if (monitor.isCanceled() || e instanceof InterruptedException) {
+			throw new InterruptedException();
+		}
+		return new InvocationTargetException(e);
 	}
 
 	private static String chooseRole(Shell shell, List<String> roles) {

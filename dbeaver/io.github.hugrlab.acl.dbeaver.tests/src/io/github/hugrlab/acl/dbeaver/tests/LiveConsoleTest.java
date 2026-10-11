@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -92,6 +93,13 @@ public class LiveConsoleTest {
 		bot.viewById(NAVIGATOR).bot().tree().getTreeItem(stewardName).select().contextMenu("duckdb-acl")
 		    .menu("Management console").click();
 		DataSourceDescriptor manage = waitFor(bot, stewardName + " · manage");
+		// what the copy is (AclConsoles.open): manage mode, auto-commit, no bootstrap statements of the user's, the
+		// type's colour; asked again, the same copy
+		assertEquals("manage", manage.getConnectionConfiguration().getProperty("acl.mode"));
+		assertTrue(manage.isDefaultAutoCommit());
+		assertTrue(manage.getConnectionConfiguration().getBootstrap().getInitQueries().isEmpty());
+		assertSame(manage, AclConsoles.open((DataSourceDescriptor) steward(),
+		    ConsoleCopy.of(ConsoleKind.MANAGE, stewardName, null)));
 		SWTWorkbenchBot workbench = bot;
 		bot.waitUntil(new DefaultCondition() {
 			@Override
@@ -137,10 +145,38 @@ public class LiveConsoleTest {
 		again.text().setText("steward");
 		again.table().select("steward");
 		again.button("OK").click();
+		// the error dialog names the action (the node's text is its cause - aRefusedViewAsDoesNotConnect reads it)
+		String said = textsOf(bot.shell("duckdb-acl"));
+		assertTrue("the error dialog: " + said, said.contains("view_as connection"));
 		bot.shell("duckdb-acl").close();
 		for (DBPDataSourceContainer each : steward().getRegistry().getDataSources()) {
 			assertFalse("a refused view-as left a connection", each.getName().equals(stewardName + " · as steward"));
 		}
+	}
+
+	/** Every text a dialog shows (labels, texts, links), joined. */
+	private static String textsOf(org.eclipse.swtbot.swt.finder.widgets.SWTBotShell shell) {
+		return UIThreadRunnable.syncExec(() -> {
+			StringBuilder out = new StringBuilder();
+			java.util.ArrayDeque<org.eclipse.swt.widgets.Control> todo = new java.util.ArrayDeque<>();
+			todo.add(shell.widget);
+			while (!todo.isEmpty()) {
+				org.eclipse.swt.widgets.Control c = todo.poll();
+				if (c instanceof org.eclipse.swt.widgets.Label l) {
+					out.append(l.getText()).append(" | ");
+				} else if (c instanceof org.eclipse.swt.widgets.Text t) {
+					out.append(t.getText()).append(" | ");
+				} else if (c instanceof org.eclipse.swt.custom.StyledText t) {
+					out.append(t.getText()).append(" | ");
+				} else if (c instanceof org.eclipse.swt.widgets.Link l) {
+					out.append(l.getText()).append(" | ");
+				}
+				if (c instanceof org.eclipse.swt.widgets.Composite composite) {
+					todo.addAll(java.util.List.of(composite.getChildren()));
+				}
+			}
+			return out.toString();
+		});
 	}
 
 	/** The temporary connection an action added, by its name. */
@@ -248,7 +284,12 @@ public class LiveConsoleTest {
 	}
 
 	private static void close(DataSourceDescriptor copy) throws Exception {
-		// a console's editor may still be connecting it: wait, or the connection completes after removal and leaks
+		// a console's editor connects it on a job of its own: let that job start and end (up to 3 s idle, 30 s in
+		// all), or the connection completes after the removal and leaks
+		for (int i = 0, idle = 0; i < 300 && idle < 30; i++) {
+			idle = copy.isConnecting() || copy.isConnected() ? 30 : idle + 1;
+			Thread.sleep(100);
+		}
 		for (int i = 0; i < 300 && copy.isConnecting(); i++) {
 			Thread.sleep(100);
 		}

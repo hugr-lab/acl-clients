@@ -275,9 +275,14 @@ the jar (`META-INF/`, shade plugin).
   an ENUM's label).
 
 ## Addendum 2026-10-11: `acl.viewAs` (for spec 007.2)
-A connection property: the role an administrator's connection views the catalog as (duckdb-acl spec 120.3).
-`AclConnection` runs `SET SESSION VIEW AS ROLE '<r>'` (a literal, quotes doubled) after `catalog` / `schema` (a USE is
-refused inside the mode), unprefixed, once the cookie is earned; a refusal closes Arrow's connection and fails the
-connect - a client never holds a connection that is the viewer's own under a view-as label. Only with
-`acl.mode=data` (refused at parse otherwise). Tests: `AclConnectionTest.viewAsIsSetAtConnectAndARefusalFailsTheConnect`,
+A connection property: the role an administrator's connection views the catalog as (duckdb-acl spec 120.3 and its
+addendum). The driver **declares it on every call** - `x-acl-view-as: <role>` (percent-encoded; Arrow's driver sends
+a property it does not know as a call header) - and the door puts the call's session in the mode, judged like `SET
+SESSION VIEW AS`, or refuses the call. So a session the door seats afresh (the old one went idle or was killed, the
+node restarted, a front sent the connection to another node, the cookie was not kept) is in the mode again: a
+connection never goes on as the viewer. The connect makes one call (`SELECT 1`) and a refusal closes Arrow's
+connection and fails the connect. Only with `acl.mode=data` and without `catalog` / `schema` (USE is refused in the
+mode); a blank role is refused, a role name is used as written. The first build ran `SET SESSION VIEW AS` once at
+connect - the review found the node's re-seat and a lost cookie left it. Tests:
+`AclConnectionTest.viewAsIsDeclaredOnEveryCallAndARefusalFailsTheConnect`,
 `LiveMetadataE2ETest.viewAsIsTheRolesCatalogOrNoConnection`.

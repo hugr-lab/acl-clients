@@ -50,6 +50,7 @@ public class ConsoleTest {
 		assertFalse(manage.readOnly());
 		assertNull(manage.connectionType());
 		assertTrue("a console would prefix the user's bootstrap statements", manage.dropInitQueries());
+		assertEquals("a management statement is not held for a commit", Boolean.TRUE, manage.autoCommit());
 
 		ConsoleCopy nativeConsole = ConsoleCopy.of(ConsoleKind.NATIVE, "node", null);
 		assertEquals("native", nativeConsole.mode());
