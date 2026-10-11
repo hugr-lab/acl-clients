@@ -23,7 +23,8 @@
 					<useUIThread>false</useUIThread>
 					<product>org.jkiss.dbeaver.ui.app.standalone.product</product>
 					<application>org.jkiss.dbeaver.ui.app.standalone.standalone</application>
-					<argLine>${ui.test.vmargs} -Dproduct.config.disable=true</argLine>
+					<!-- DBeaver's own dbeaver.ini opens java.nio (Arrow's memory layer, an update's DoPut) -->
+					<argLine>${ui.test.vmargs} -Dproduct.config.disable=true --add-opens=java.base/java.nio=ALL-UNNAMED</argLine>
 					<environmentVariables>
 						<ACL_E2E_URL>${env.ACL_E2E_URL}</ACL_E2E_URL>
 					</environmentVariables>

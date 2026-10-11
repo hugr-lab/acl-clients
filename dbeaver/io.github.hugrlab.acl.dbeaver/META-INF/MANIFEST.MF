@@ -9,6 +9,16 @@ Bundle-ActivationPolicy: lazy
 Require-Bundle: org.jkiss.dbeaver.model,
  org.jkiss.dbeaver.model.sql,
  org.jkiss.dbeaver.ext.generic,
+ org.jkiss.dbeaver.registry,
+ org.jkiss.dbeaver.ui,
+ org.jkiss.dbeaver.ui.navigator,
+ org.jkiss.dbeaver.ui.editors.sql,
+ org.eclipse.core.expressions,
+ org.eclipse.core.commands,
+ org.eclipse.jface,
+ org.eclipse.swt,
+ org.eclipse.ui,
+ org.eclipse.ui.workbench,
  io.github.hugrlab.acl.jdbc
 Import-Package: org.jkiss.code
 Export-Package: org.jkiss.dbeaver.ext.acl.model

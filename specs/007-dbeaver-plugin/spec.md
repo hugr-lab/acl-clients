@@ -185,3 +185,44 @@ A PR each, three review passes, the build and install check green.
   refreshing a schema does not re-read its nested ones (refresh the catalog); signing the p2 repository; the
   driver's ENUM values arrive as their dictionary index (`mood` = 0, spec 006 - a driver fix of its own); the node's
   `duckdb_schemas()` with a filter matching nothing answers 20 columns (duckdb-acl, its own fix).
+
+### 007.2 (2026-10-11)
+- **Where the actions are**: a `duckdb-acl` submenu of the navigator's popup on a connection
+  (`popup:org.eclipse.ui.popup.any`, an `instanceof DBNDataSource` before the test so no other node evaluates it);
+  each item's `visibleWhen` is the property tester `io.github.hugrlab.acl.console` over what the connection read at
+  connect.
+- **What was read**: the meta model now makes an `AclDataSource` (Generic's, our dialect passed explicitly) whose
+  `initialize` reads `SELECT bundles, admin_catalogs, my_views, my_functions FROM platform.console_info()` once, on a
+  data-mode connection only (a console's copy is prefixed, a view-as copy is metadata only). A principal with no
+  administration is refused it - one recorded denial per connect (rate-limited by the node's
+  `acl_audit_denials_per_second`) - and is offered nothing. Rules (`ConsoleInfo.offers`): **manage** = a bundle, an
+  administered catalog or a readable platform view; **native** = `passthrough`; **view-as** = `view_as` callable and
+  `platform.roles` readable. Read again on reconnect.
+- **The copy** (`ConsoleCopy` - pure, unit-tested; `AclConsoles.open`): `new DataSourceDescriptor(original, registry)`
+  with a new id, a name `<original> · manage | · native | · as <role>`, **temporary** (never saved), `acl.mode`
+  `manage` / `native` / `data`. Native is DBeaver's built-in *Production* type (red, confirms execution), view-as
+  *Test* and read-only; the manage console keeps the original's type. The view-as statement
+  `SET SESSION VIEW AS ROLE '<r>'` (a quote doubled) is appended to the copy's bootstrap init queries, so every
+  physical connection DBeaver opens for it - the metadata one included - runs it first; the driver keeps the Flight
+  session cookie per JDBC connection (spec 006), which is the session the mode is kept on.
+- **View as role…** reads `SELECT role FROM platform.roles ORDER BY role` on the original connection (a progress
+  service), then an `ElementListSelectionDialog`; the copy is left in the navigator (its tree is the point). A role
+  the viewer may not view is listed (the node narrows nothing there) and refused by the node at the copy's connect,
+  with its own message. A console opens an SQL editor (`SQLEditorHandlerOpenEditor.openSQLConsole`) on its copy.
+- **Not done**: "the plugin says so instead of a failure dialog" for a data preview under view-as - the node's
+  refusal text (`a view-as session reads metadata only`) is what DBeaver shows, which says it.
+- **Dev realm**: `dev/keycloak.sh` adds the realm role `steward` and the user `steward1` (`steward1-pass`); `dev/node.sh`
+  creates the node role `steward`, `GRANT ADMIN policy` and maps the claim value through the implicit client (a
+  privileged role is reached only by the client's own mapping, duckdb-acl spec 095).
+- **Tests**: unit `ConsoleTest` (the offers per bundle, each copy's settings, the role literal, the driver's list
+  forms); live `LiveConsoleTest` (SWTBot against `dev/node.sh`): steward1 is offered manage and view-as and not
+  native, analyst1 nothing (no submenu); **Management console** from the menu opens an SQL editor on a temporary
+  `· manage` connection; **View as role…** → the dialog → `analyst` → a read-only temporary `· as analyst`
+  connection; a view-as copy's tree to depth 6 is **equal** to analyst1's own and its data read is refused
+  (`metadata only`); a management console runs `CHECK VIRTUAL CATALOG sales`. The test JVM gets
+  `--add-opens=java.base/java.nio=ALL-UNNAMED` - DBeaver's own `dbeaver.ini` has it, and an update through Arrow's
+  driver (a DoPut) needs it.
+- **Measured** (not 007.2's): that tree - 75 nodes - takes ~21 s for analyst1 and for the view-as copy alike; the
+  node answers a table's `information_schema.columns` in ~215 ms and `acl_references()` in ~270 ms warm (pyarrow,
+  same node), so a whole-tree walk is the node's listing cost per node - the duckdb-acl follow-up (a per-node
+  metadata cache), not the plugin's.

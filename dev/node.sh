@@ -114,6 +114,11 @@ ACL ADMIN GRANT TABLE sales.orders TO ROLE analyst WITH (select) RLS (tenant = a
 -- door's password handshake included (a node runs it as exactly one client)
 ACL ADMIN CREATE ISSUER '$KC_REALM' AUDIENCES ('account') ROLE CLAIM 'realm_access.roles'
     CLAIM MAP '{"tenant": "tenant"}' CLIENT ID 'acl-desktop' FLOWS (password, authcode, device);
+-- spec 007.2: an administrator. A role holding administration is reached only through the client's own
+-- mapping (duckdb-acl spec 095), never by an unmapped role value
+ACL ADMIN CREATE ROLE steward;
+ACL ADMIN GRANT ADMIN policy TO ROLE steward;
+ACL ADMIN MAP CLAIM 'steward' FROM CLIENT '$KC_REALM' TO ROLE steward;
 SET GLOBAL acl_allow_anonymous_admin = false;
 $PIPELINES
 $METADATA
