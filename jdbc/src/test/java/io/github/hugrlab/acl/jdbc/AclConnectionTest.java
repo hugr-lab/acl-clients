@@ -102,6 +102,43 @@ class AclConnectionTest {
 	}
 
 	@Test
+	void viewAsIsDeclaredOnEveryCallAndARefusalFailsTheConnect() throws SQLException {
+		AclConfig config = config("acl.viewAs", "o'brien é");
+		assertEquals("o%27brien%20%C3%A9", config.delegateProperties("t").getProperty("x-acl-view-as"),
+		    "every call's header, percent-encoded");
+		// what Arrow's own driver makes of it: a header on every call (an unknown property is one - if a version ever
+		// stopped doing that, the mode would silently be off)
+		assertEquals("o%27brien%20%C3%A9",
+		    new org.apache.arrow.driver.jdbc.utils.ArrowFlightConnectionConfigImpl(config.delegateProperties("t"))
+		        .getHeaderAttributes().get("x-acl-view-as"));
+		FakeArrow arrow = node(new AtomicReference<>("sales"));
+		arrow.refuses = sql -> sql.contains("range(0)"); // the node in the mode: a table function's rows are refused
+		arrow.refusal = "acl: a view-as session reads metadata only";
+		new AclConnection(arrow.connection(), config);
+		assertEquals(List.of("SELECT 1", "SELECT * FROM range(0)"), arrow.sent,
+		             "one call at connect and the proof - nothing set by statement");
+		assertFalse(arrow.closed);
+
+		// a node that ignores the header (older than the driver) answers the probe: the connect fails
+		FakeArrow older = node(new AtomicReference<>("sales"));
+		SQLException ignored = assertThrows(SQLException.class, () -> new AclConnection(older.connection(), config));
+		assertTrue(ignored.getMessage().contains("did not take the view-as mode"), ignored.getMessage());
+		assertTrue(older.closed);
+
+		FakeArrow refusing = node(new AtomicReference<>("sales"));
+		refusing.refuses = sql -> true; // the node refuses the declared mode on the first call
+		assertThrows(SQLException.class, () -> new AclConnection(refusing.connection(), config("acl.viewAs", "steward")));
+		assertTrue(refusing.closed, "a refused view-as closes the connection: it is never handed out as the viewer");
+
+		SQLException mode = assertThrows(SQLException.class, () -> config("acl.viewAs", "r", "acl.mode", "manage"));
+		assertTrue(mode.getMessage().contains("acl.mode=data"), mode.getMessage());
+		assertThrows(SQLException.class, () -> config("acl.viewAs", "r", "catalog", "sales"), "no catalog in the mode");
+		assertEquals("r", config("acl.viewAs", "r", "catalog", "", "schema", "").viewAs, "a blank catalog is none");
+		assertThrows(SQLException.class, () -> config("acl.viewAs", "  "), "a blank role names nothing");
+		assertEquals(" r", config("acl.viewAs", " r").viewAs, "a role name as written");
+	}
+
+	@Test
 	void metadataIsNeverPrefixedAndEmptyAnswersHaveTheirColumns() throws SQLException {
 		FakeArrow arrow = new FakeArrow(sql -> null); // every listing empty, with no columns at all
 		Connection conn = new AclConnection(arrow.connection(), Mode.NATIVE, false);

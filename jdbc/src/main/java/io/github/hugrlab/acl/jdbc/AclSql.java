@@ -250,6 +250,11 @@ final class AclSql {
 		return out.toString();
 	}
 
+	/** A string literal: single quotes, a quote inside doubled. */
+	static String quoteLiteral(String text) {
+		return "'" + text.replace("'", "''") + "'";
+	}
+
 	/** duckdb's quoted identifier: double quotes, a quote inside doubled. */
 	static String quoteIdentifier(String name) {
 		return '"' + name.replace("\"", "\"\"") + '"';

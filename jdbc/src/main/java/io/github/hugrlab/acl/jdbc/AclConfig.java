@@ -61,9 +61,13 @@ final class AclConfig {
 	static final String CATALOG = "catalog";
 	static final String SCHEMA = "schema";
 	static final String MODE = "acl.mode";
+	// duckdb-acl spec 120.3: the role an administrator's connection views the catalog as - declared on EVERY call
+	// (the header below), so a session the door seats afresh is in the mode again; a refusal fails the connect
+	static final String VIEW_AS = "acl.viewAs";
+	static final String VIEW_AS_HEADER = "x-acl-view-as";
 	static final String NESTED = "nested";
 	static final Set<String> OWN = Set.of(FLOW, ISSUER, CLIENT_ID, CLIENT, SCOPE, TOKEN, USER, PASSWORD, TOKEN_CACHE,
-	    TOKEN_CACHE_FILE, LOGIN_TIMEOUT, REDIRECT_PORT, DISCOVERY, LINEAGE_FROM_ENV, CATALOG, SCHEMA, MODE, NESTED);
+	    TOKEN_CACHE_FILE, LOGIN_TIMEOUT, REDIRECT_PORT, DISCOVERY, LINEAGE_FROM_ENV, CATALOG, SCHEMA, MODE, VIEW_AS, NESTED);
 
 	// spec 004: the lineage parent an orchestrator hands its task (OpenLineage's own variables), sent
 	// as the call headers the node reads (duckdb-acl spec 107/109) when the connection names none
@@ -101,6 +105,7 @@ final class AclConfig {
 	final String catalog;
 	final String schema;
 	final Mode mode;
+	final String viewAs;
 	final Nested nested;
 	private final Properties passthrough;
 
@@ -128,6 +133,18 @@ final class AclConfig {
 		this.catalog = blankToNull(all.getProperty(CATALOG));
 		this.schema = blankToNull(all.getProperty(SCHEMA));
 		this.mode = parseEnum(Mode.class, all.getProperty(MODE, "data"), MODE);
+		String declared = all.getProperty(VIEW_AS);
+		if (declared != null && !declared.isEmpty() && declared.isBlank()) {
+			throw new SQLException(VIEW_AS + " names no role");
+		}
+		this.viewAs = declared == null || declared.isEmpty() ? null : declared; // a role name as written, never trimmed
+		if (viewAs != null && mode != Mode.DATA) {
+			throw new SQLException(VIEW_AS + " views the catalog: it needs " + MODE + "=data, not " + mode);
+		}
+		if (viewAs != null && (blankToNull(all.getProperty(CATALOG)) != null || blankToNull(all.getProperty(SCHEMA)) != null)) {
+			throw new SQLException(VIEW_AS + " views the role's catalog: a view-as session takes no " + CATALOG + " / "
+			                       + SCHEMA + " (USE is refused in the mode)");
+		}
 		this.nested = parseEnum(Nested.class, all.getProperty(NESTED, "object"), NESTED);
 		this.passthrough = new Properties();
 		for (String key : all.stringPropertyNames()) {
@@ -136,10 +153,29 @@ final class AclConfig {
 			}
 		}
 		passthrough.setProperty(USE_ENCRYPTION, Boolean.toString(useEncryption));
+		if (viewAs != null) {
+			// an unknown property is a call header to Arrow's driver: on every call, percent-encoded (headers are ASCII)
+			passthrough.setProperty(VIEW_AS_HEADER, percentEncode(viewAs));
+		}
 		if (parseBool(all.getProperty(LINEAGE_FROM_ENV, "true"))) {
 			fromEnv(PARENT_HEADER, PARENT_ENV, env);
 			fromEnv(ROOT_PARENT_HEADER, ROOT_PARENT_ENV, env);
 		}
+	}
+
+	/** Every byte outside RFC 3986's unreserved set as %XX - what the node's URLDecode reads back. */
+	static String percentEncode(String text) {
+		StringBuilder out = new StringBuilder();
+		for (byte b : text.getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+			char c = (char) (b & 0xff);
+			if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_'
+			    || c == '.' || c == '~') {
+				out.append(c);
+			} else {
+				out.append('%').append(String.format("%02X", b & 0xff));
+			}
+		}
+		return out.toString();
 	}
 
 	/**

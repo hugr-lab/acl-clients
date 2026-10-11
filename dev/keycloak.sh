@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The dev IdP for these clients: duckdb-acl's standing realm `acl-dev` (users analyst1/acme,
-# analyst2/globex, viewer1 - see duckdb-acl test/live/keycloak_realm.sh) plus one public client,
+# analyst2/globex, viewer1 - see duckdb-acl test/live/keycloak_realm.sh), an administrator steward1 (the
+# realm role `steward`, the node's policy bundle - spec 007.2's consoles and view-as) plus one public client,
 # `acl-desktop`, that speaks every flow the driver offers: auth code + PKCE (a loopback redirect on
 # 127.0.0.1), device, password, refresh. The node advertises it through `discover-auth`, so a client
 # needs nothing but the node's address. Idempotent.
@@ -32,3 +33,18 @@ code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$KC/admin/realms/$REALM/c
 	"protocolMappers":[{"name":"tenant","protocol":"openid-connect","protocolMapper":"oidc-usermodel-attribute-mapper",
 		"config":{"user.attribute":"tenant","claim.name":"tenant","jsonType.label":"String","access.token.claim":"true"}}]}')
 echo "  client acl-desktop (PKCE + device + password): $([ "$code" = 201 ] && echo created || echo "exists ($code)")"
+# spec 007.2: an administrator - the realm role `steward`, which dev/node.sh maps to the node's policy bundle
+code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$KC/admin/realms/$REALM/roles" -H "$AUTH" \
+	-H "Content-Type: application/json" -d '{"name":"steward"}')
+body='{"username":"steward1","enabled":true,"emailVerified":true,"email":"steward1@'"$REALM"'.local",
+	"firstName":"steward1","lastName":"user","requiredActions":[],"attributes":{"tenant":["acme"]}}'
+created=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$KC/admin/realms/$REALM/users" -H "$AUTH" \
+	-H "Content-Type: application/json" -d "$body")
+uid=$(curl -sf "$KC/admin/realms/$REALM/users?username=steward1&exact=true" -H "$AUTH" \
+	| python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["id"])')
+curl -sf -o /dev/null -X PUT "$KC/admin/realms/$REALM/users/$uid/reset-password" -H "$AUTH" \
+	-H "Content-Type: application/json" -d "{\"type\":\"password\",\"value\":\"${ACL_KC_STEWARD1_PASS:-steward1-pass}\",\"temporary\":false}"
+rid=$(curl -sf "$KC/admin/realms/$REALM/roles/steward" -H "$AUTH" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+curl -s -o /dev/null -X POST "$KC/admin/realms/$REALM/users/$uid/role-mappings/realm" -H "$AUTH" \
+	-H "Content-Type: application/json" -d "[{\"id\":\"$rid\",\"name\":\"steward\"}]"
+echo "  user steward1 (role steward): $([ "$created" = 201 ] && echo created || echo converged)"

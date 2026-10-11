@@ -20,6 +20,8 @@ import java.sql.Statement;
  * <li>{@code acl.mode} sends every statement as data, management ({@code ACL }) or native
  * ({@code ACL NATIVE }) SQL. The metadata listings are never prefixed: the tree is always the
  * principal's virtual catalog.
+ * <li>{@code acl.viewAs} declares the view-as mode on every call ({@code x-acl-view-as}, duckdb-acl spec 120.3), so a
+ * session the door seats afresh is in it again; the connect makes one call, and a refusal fails it.
  * <li>results carry duckdb's types ({@link AclResultSet}).
  * </ul>
  */
@@ -37,6 +39,12 @@ final class AclConnection extends ForwardingConnection {
 			}
 			if (config.schema != null) {
 				setSchema(config.schema);
+			}
+			// the mode rides every call (x-acl-view-as); one call now, so a refusal fails the connect - and a positive
+			// check: a node that does not know the header ignores it, and the connection would be the viewer's own
+			if (config.viewAs != null) {
+				warm();
+				proveViewAs();
 			}
 		} catch (SQLException e) {
 			try {
@@ -113,6 +121,33 @@ final class AclConnection extends ForwardingConnection {
 				return s.execute(sql);
 			}
 		});
+	}
+
+	/**
+	 * Proves the node took the view-as mode: in it a table function's rows are refused (duckdb-acl spec 120.3,
+	 * "metadata only"); answered, the node ignored the header (older than the driver) - the connect fails, never handing
+	 * out the viewer's own session under the role's name.
+	 */
+	private void proveViewAs() throws SQLException {
+		try (Statement s = delegate.createStatement(); ResultSet rs = s.executeQuery("SELECT * FROM range(0)")) {
+			while (rs.next()) {
+				// drained
+			}
+		} catch (SQLException e) {
+			if (String.valueOf(e.getMessage()).contains("metadata only") || causes(e).contains("metadata only")) {
+				return;
+			}
+			throw new SQLException("acl.viewAs: the node did not confirm the view-as mode: " + e.getMessage(), e);
+		}
+		throw new SQLException("acl.viewAs: the node did not take the view-as mode - it may be older than the driver");
+	}
+
+	private static String causes(Throwable e) {
+		StringBuilder out = new StringBuilder();
+		for (Throwable t = e; t != null; t = t.getCause()) {
+			out.append(t.getMessage()).append(" / ");
+		}
+		return out.toString();
 	}
 
 	/** The cookie's first call: only once one has succeeded is the session there for a USE. */

@@ -19,13 +19,31 @@ download, nothing to merge into DBeaver's config.
 
 Built against DBeaver CE 26.2.2 (Java 21).
 
-## What you get (007.1)
+## What you get
 
 - The node's tree as the signed-in principal sees it: catalogs, schemas nested by their path (`raw` → `eu`),
   tables (columns, declared keys and references), views, table functions and scalars (parameters, result columns).
 - The ACL management words highlighted in the SQL editor.
+- For an administrator, **duckdb-acl ▸** on a connection (right-click in the navigator) - each item shown only when
+  the node's `platform.console_info()` says it works for you (the node judges again anyway):
+  - **Management console** - an SQL editor where every statement is management (`CREATE VIRTUAL …`, `GRANT …`,
+    `CHECK VIRTUAL CATALOG …`): the bundles `policy`, a catalog's `manage`, any platform view.
+  - **Native console** - plain SQL outside the virtual catalog (`passthrough` only). Its connection is DBeaver's
+    *Production* type: red, and DBeaver confirms what it executes (in auto-commit).
+  - **View as role…** - choose a role, get a read-only connection (*Test* type) whose tree is the catalog as that
+    role sees it - what a user holding it gets in their own DBeaver. Metadata only: a data preview is refused
+    ("a view-as session reads metadata only"). The `policy` bundle; a role that itself administers is viewed by
+    `passthrough` only - the node refuses it and no connection is left. Every call of the connection says which role
+    it views as, so a session the node seats again (after its idle timeout, a restart) is in the mode again - it
+    never goes on as you; once you lose the right (or the role comes to hold administration) its statements are
+    refused - open a new one. The catalog selector does not apply there (the role's catalog is the view).
 
-Coming: management and native consoles, **View as role…** (007.2), the Access control branch (007.3).
+  Each opens a connection of its own - a copy of yours (same node, same sign-in) named `<yours> · manage`,
+  `· native`, `· as <role>`; it is temporary: never saved, gone when DBeaver restarts (delete it sooner as any
+  connection). Asked again, the same copy is reused. A console does not run your connection's bootstrap
+  statements (they would be prefixed).
+
+Coming: the Access control branch (007.3).
 
 ## Develop
 
@@ -34,7 +52,7 @@ A local JDK 21 and Maven (`brew install openjdk@21 maven`):
 ```sh
 dbeaver/build.sh                    # the driver jar, then Tycho against DBeaver 26.2.2 (fetched once into dbeaver/.dbeaver/)
 dbeaver/install-check.sh            # the p2 repository installed into a copy of that DBeaver (headless)
-ACL_METADATA=1 dev/node.sh &        # (after dev/keycloak.sh) - then the live UI tests run too:
+ACL_METADATA=1 dev/node.sh &        # (after dev/keycloak.sh: analyst1, and steward1 - the policy bundle) - then the live UI tests run too:
 ACL_E2E_URL="jdbc:acl://localhost:32800?disableCertificateVerification=true" dbeaver/build.sh
 ```
 

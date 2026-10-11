@@ -16,8 +16,10 @@ import org.jkiss.dbeaver.ext.generic.model.GenericSchema;
 import org.jkiss.dbeaver.ext.generic.model.GenericStructContainer;
 import org.jkiss.dbeaver.ext.generic.model.GenericTableBase;
 import org.jkiss.dbeaver.ext.generic.model.meta.GenericMetaModel;
+import org.jkiss.dbeaver.model.DBPDataSourceContainer;
 import org.jkiss.dbeaver.model.exec.jdbc.JDBCResultSet;
 import org.jkiss.dbeaver.model.exec.jdbc.JDBCSession;
+import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.struct.rdb.DBSProcedureType;
 
 /**
@@ -26,6 +28,12 @@ import org.jkiss.dbeaver.model.struct.rdb.DBSProcedureType;
  * children, so the tree nests them, and every object's SQL name quotes the path part by part (spec 007.1).
  */
 public class AclMetaModel extends GenericMetaModel {
+	@Override
+	public GenericDataSource createDataSourceImpl(DBRProgressMonitor monitor, DBPDataSourceContainer container)
+	    throws DBException {
+		return new AclDataSource(monitor, container, this);
+	}
+
 	@Override
 	public GenericCatalog createCatalogImpl(GenericDataSource dataSource, String catalogName) {
 		return new AclCatalog(dataSource, catalogName);

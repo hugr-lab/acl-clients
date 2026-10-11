@@ -92,6 +92,9 @@ public final class AclDriver implements Driver {
 		    "What every statement is sent as: data (as written), manage (ACL <statement>), native (ACL NATIVE "
 		        + "<statement>); the node decides by the principal's scope. Metadata is always the virtual catalog's",
 		    "data", "manage", "native"));
+		out.add(property(AclConfig.VIEW_AS, null,
+		    "View the catalog as this role (an administrator's connection, the policy bundle): metadata only, declared "
+		        + "on every call; a refusal fails the connect. Needs acl.mode=data and no catalog / schema"));
 		out.add(property(AclConfig.NESTED, "object",
 		    "STRUCT / MAP / LIST values from getObject: object (java.sql.Struct, Map, java.sql.Array) or json (text)",
 		    "object", "json"));

@@ -103,4 +103,78 @@
 		         label="duckdb-acl"
 		         description="duckdb SQL and the ACL management grammar"/>
 	</extension>
+	<!-- spec 007.2: consoles and view-as - each a connection of its own (a temporary copy of the user's); shown only
+	     where the connection's platform.console_info() offers it, judged again by the node whatever is shown -->
+	<extension point="org.eclipse.core.expressions.propertyTesters">
+		<propertyTester id="io.github.hugrlab.acl.consoleTester"
+		                class="org.jkiss.dbeaver.ext.acl.ui.AclConsoleTester"
+		                namespace="io.github.hugrlab.acl"
+		                properties="console"
+		                type="org.jkiss.dbeaver.model.navigator.DBNDataSource"/>
+	</extension>
+
+	<extension point="org.eclipse.ui.commands">
+		<command id="io.github.hugrlab.acl.console" name="duckdb-acl console"
+		         description="A management or native console, or the catalog as a role sees it"
+		         defaultHandler="org.jkiss.dbeaver.ext.acl.ui.AclConsoleHandler">
+			<commandParameter id="io.github.hugrlab.acl.console.kind" name="Kind" optional="false"/>
+		</command>
+	</extension>
+
+	<extension point="org.eclipse.ui.menus">
+		<menuContribution locationURI="popup:org.eclipse.ui.popup.any?after=additions">
+			<menu id="io.github.hugrlab.acl.menu" label="duckdb-acl">
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDataSource"/>
+								<test property="io.github.hugrlab.acl.console" args="any" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+				<command commandId="io.github.hugrlab.acl.console" label="Management console" tooltip="An SQL console where every statement is management (ACL …)" style="push">
+					<parameter name="io.github.hugrlab.acl.console.kind" value="manage"/>
+					<visibleWhen checkEnabled="false">
+						<with variable="selection">
+							<iterate ifEmpty="false" operator="and">
+								<and>
+									<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDataSource"/>
+									<test property="io.github.hugrlab.acl.console" args="manage" forcePluginActivation="true"/>
+								</and>
+							</iterate>
+						</with>
+					</visibleWhen>
+				</command>
+				<command commandId="io.github.hugrlab.acl.console" label="Native console" tooltip="An SQL console of plain SQL outside the virtual catalog (passthrough)" style="push">
+					<parameter name="io.github.hugrlab.acl.console.kind" value="native"/>
+					<visibleWhen checkEnabled="false">
+						<with variable="selection">
+							<iterate ifEmpty="false" operator="and">
+								<and>
+									<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDataSource"/>
+									<test property="io.github.hugrlab.acl.console" args="native" forcePluginActivation="true"/>
+								</and>
+							</iterate>
+						</with>
+					</visibleWhen>
+				</command>
+				<command commandId="io.github.hugrlab.acl.console" label="View as role…" tooltip="A read-only connection whose tree is the catalog as a role sees it" style="push">
+					<parameter name="io.github.hugrlab.acl.console.kind" value="view_as"/>
+					<visibleWhen checkEnabled="false">
+						<with variable="selection">
+							<iterate ifEmpty="false" operator="and">
+								<and>
+									<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDataSource"/>
+									<test property="io.github.hugrlab.acl.console" args="view_as" forcePluginActivation="true"/>
+								</and>
+							</iterate>
+						</with>
+					</visibleWhen>
+				</command>
+			</menu>
+		</menuContribution>
+	</extension>
 </plugin>
