@@ -141,7 +141,7 @@ final class AclConfig {
 		if (viewAs != null && mode != Mode.DATA) {
 			throw new SQLException(VIEW_AS + " views the catalog: it needs " + MODE + "=data, not " + mode);
 		}
-		if (viewAs != null && (all.getProperty(CATALOG) != null || all.getProperty(SCHEMA) != null)) {
+		if (viewAs != null && (blankToNull(all.getProperty(CATALOG)) != null || blankToNull(all.getProperty(SCHEMA)) != null)) {
 			throw new SQLException(VIEW_AS + " views the role's catalog: a view-as session takes no " + CATALOG + " / "
 			                       + SCHEMA + " (USE is refused in the mode)");
 		}
@@ -163,11 +163,6 @@ final class AclConfig {
 		}
 	}
 
-	/**
-	 * A header the connection does not set itself (in any case: gRPC lowercases header names), from the
-	 * variable an orchestrator set. The environment is ambient - a value not in the node's form is
-	 * skipped with a warning naming the variable, never the value, rather than failing every call.
-	 */
 	/** Every byte outside RFC 3986's unreserved set as %XX - what the node's URLDecode reads back. */
 	static String percentEncode(String text) {
 		StringBuilder out = new StringBuilder();
@@ -183,6 +178,11 @@ final class AclConfig {
 		return out.toString();
 	}
 
+	/**
+	 * A header the connection does not set itself (in any case: gRPC lowercases header names), from the
+	 * variable an orchestrator set. The environment is ambient - a value not in the node's form is
+	 * skipped with a warning naming the variable, never the value, rather than failing every call.
+	 */
 	private void fromEnv(String header, String variable, UnaryOperator<String> env) {
 		for (String key : passthrough.stringPropertyNames()) {
 			if (key.equalsIgnoreCase(header)) {

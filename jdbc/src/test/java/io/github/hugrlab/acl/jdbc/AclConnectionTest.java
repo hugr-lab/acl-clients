@@ -106,6 +106,11 @@ class AclConnectionTest {
 		AclConfig config = config("acl.viewAs", "o'brien é");
 		assertEquals("o%27brien%20%C3%A9", config.delegateProperties("t").getProperty("x-acl-view-as"),
 		    "every call's header, percent-encoded");
+		// what Arrow's own driver makes of it: a header on every call (an unknown property is one - if a version ever
+		// stopped doing that, the mode would silently be off)
+		assertEquals("o%27brien%20%C3%A9",
+		    new org.apache.arrow.driver.jdbc.utils.ArrowFlightConnectionConfigImpl(config.delegateProperties("t"))
+		        .getHeaderAttributes().get("x-acl-view-as"));
 		FakeArrow arrow = node(new AtomicReference<>("sales"));
 		new AclConnection(arrow.connection(), config);
 		assertEquals(List.of("SELECT 1"), arrow.sent, "one call at connect - nothing set by statement");
@@ -119,6 +124,7 @@ class AclConnectionTest {
 		SQLException mode = assertThrows(SQLException.class, () -> config("acl.viewAs", "r", "acl.mode", "manage"));
 		assertTrue(mode.getMessage().contains("acl.mode=data"), mode.getMessage());
 		assertThrows(SQLException.class, () -> config("acl.viewAs", "r", "catalog", "sales"), "no catalog in the mode");
+		assertEquals("r", config("acl.viewAs", "r", "catalog", "", "schema", "").viewAs, "a blank catalog is none");
 		assertThrows(SQLException.class, () -> config("acl.viewAs", "  "), "a blank role names nothing");
 		assertEquals(" r", config("acl.viewAs", " r").viewAs, "a role name as written");
 	}

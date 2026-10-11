@@ -33,9 +33,10 @@ Built against DBeaver CE 26.2.2 (Java 21).
   - **View as role…** - choose a role, get a read-only connection (*Test* type) whose tree is the catalog as that
     role sees it - what a user holding it gets in their own DBeaver. Metadata only: a data preview is refused
     ("a view-as session reads metadata only"). The `policy` bundle; a role that itself administers is viewed by
-    `passthrough` only - the node refuses it and no connection is left. A view-as connection that sat idle past the
-    node's session timeout (or was ended by an operator) says "connect again": reconnect it (DBeaver's
-    Invalidate/Reconnect) - it never goes on as you.
+    `passthrough` only - the node refuses it and no connection is left. Every call of the connection says which role
+    it views as, so a session the node seats again (after its idle timeout, a restart) is in the mode again - it
+    never goes on as you; once you lose the right (or the role comes to hold administration) its statements are
+    refused - open a new one. The catalog selector does not apply there (the role's catalog is the view).
 
   Each opens a connection of its own - a copy of yours (same node, same sign-in) named `<yours> · manage`,
   `· native`, `· as <role>`; it is temporary: never saved, gone when DBeaver restarts (delete it sooner as any

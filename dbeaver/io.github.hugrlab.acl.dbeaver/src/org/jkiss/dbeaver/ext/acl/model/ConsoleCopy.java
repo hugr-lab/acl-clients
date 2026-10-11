@@ -2,8 +2,8 @@ package org.jkiss.dbeaver.ext.acl.model;
 
 /**
  * How a console's connection differs from the user's (spec 007.2): its name, the driver's `acl.mode`, the role the
- * driver's `acl.viewAs` sets at connect (a refusal fails the connect - never the viewer's own view under the role's
- * label), read-only, DBeaver's connection type (its colour) - null keeps the user's -, and whether the user's own
+ * driver's `acl.viewAs` declares on every call (a refusal fails the connect - never the viewer's own view under the
+ * role's label), read-only, DBeaver's connection type (its colour) - null keeps the user's -, and whether the user's own
  * bootstrap statements are dropped (a console would prefix them). A console runs in auto-commit (a management or native
  * statement is not held for a commit); a native console is `prod` (DBeaver confirms what it executes), a view-as
  * connection `test`.

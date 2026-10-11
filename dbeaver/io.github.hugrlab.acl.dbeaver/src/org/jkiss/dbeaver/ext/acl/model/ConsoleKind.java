@@ -6,7 +6,7 @@ public enum ConsoleKind {
 	MANAGE("manage"),
 	/** `acl.mode=native`: plain SQL outside the virtual catalog - the node's passthrough. */
 	NATIVE("native"),
-	/** `SET SESSION VIEW AS ROLE` on every connection: the catalog as a role sees it (duckdb-acl spec 120.3). */
+	/** The driver's `acl.viewAs` - the mode declared on every call: the catalog as a role sees it (duckdb-acl 120.3). */
 	VIEW_AS("view_as");
 
 	private final String id;

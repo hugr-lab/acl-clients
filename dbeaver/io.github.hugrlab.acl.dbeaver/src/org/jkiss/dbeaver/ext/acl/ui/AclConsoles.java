@@ -23,6 +23,23 @@ public final class AclConsoles {
 	private AclConsoles() {
 	}
 
+	/** A URL without its `catalog` / `schema` query parameters (a view-as session's catalog is the role's). */
+	static String withoutStart(String url) {
+		int q = url.indexOf('?');
+		if (q < 0) {
+			return url;
+		}
+		StringBuilder kept = new StringBuilder();
+		for (String pair : url.substring(q + 1).split("&")) {
+			String key = pair.contains("=") ? pair.substring(0, pair.indexOf('=')) : pair;
+			if (pair.isEmpty() || key.equalsIgnoreCase("catalog") || key.equalsIgnoreCase("schema")) {
+				continue;
+			}
+			kept.append(kept.length() == 0 ? "" : "&").append(pair);
+		}
+		return kept.length() == 0 ? url.substring(0, q) : url.substring(0, q + 1) + kept;
+	}
+
 	public static DataSourceDescriptor open(DataSourceDescriptor original, ConsoleCopy spec) throws DBException {
 		DBPDataSourceRegistry registry = original.getRegistry();
 		String role = spec.viewAs() == null ? "" : spec.viewAs();
@@ -52,6 +69,9 @@ public final class AclConsoles {
 			// the role's catalog: the driver takes no catalog / schema with it, and the mode refuses a USE
 			configuration.removeProperty("catalog");
 			configuration.removeProperty("schema");
+			if (configuration.getUrl() != null) {
+				configuration.setUrl(withoutStart(configuration.getUrl()));
+			}
 			configuration.getBootstrap().setDefaultCatalogName(null);
 			configuration.getBootstrap().setDefaultSchemaName(null);
 		} else {

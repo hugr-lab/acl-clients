@@ -240,8 +240,8 @@ A PR each, three review passes, the build and install check green.
   **equal** to analyst1's own, it reads no console_info and its data read is refused (`metadata only`); a refused
   view-as copy does not connect (`holds administration`); a management console runs `CHECK VIRTUAL CATALOG sales`.
   The test JVM gets `--add-opens=java.base/java.nio=ALL-UNNAMED` (DBeaver's own `dbeaver.ini` has it; an update
-  through Arrow's driver, a DoPut, needs it). Driver: `AclConnectionTest` (the SET after the USE, a refusal closes
-  the connection, `acl.viewAs` needs data mode), `LiveMetadataE2ETest` (steward1 as analyst lists analyst1's catalogs
+  through Arrow's driver, a DoPut, needs it). Driver: `AclConnectionTest` (the header on every call - also as Arrow's
+  own config reads it -, one call at connect, a refusal closes the connection, data mode only, no catalog / schema), `LiveMetadataE2ETest` (steward1 as analyst lists analyst1's catalogs
   and reads no rows; as steward - refused, no connection).
 - **Review** (three passes, before the PR): the bootstrap-query view-as and the node's re-seat (both fail closed now,
   above), a point grant offering view-as (node), the prod type's manual commit, the user's colour over the marker,
