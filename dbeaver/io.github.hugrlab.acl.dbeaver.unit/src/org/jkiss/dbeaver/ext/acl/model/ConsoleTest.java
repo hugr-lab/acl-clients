@@ -2,6 +2,7 @@ package org.jkiss.dbeaver.ext.acl.model;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -45,25 +46,37 @@ public class ConsoleTest {
 		ConsoleCopy manage = ConsoleCopy.of(ConsoleKind.MANAGE, "node", null);
 		assertEquals("node · manage", manage.name());
 		assertEquals("manage", manage.mode());
-		assertTrue(manage.initQueries().isEmpty());
+		assertNull(manage.viewAs());
 		assertFalse(manage.readOnly());
 		assertNull(manage.connectionType());
+		assertTrue("a console would prefix the user's bootstrap statements", manage.dropInitQueries());
 
 		ConsoleCopy nativeConsole = ConsoleCopy.of(ConsoleKind.NATIVE, "node", null);
 		assertEquals("native", nativeConsole.mode());
 		assertEquals("prod", nativeConsole.connectionType());
+		assertEquals("DBeaver's prod type is manual-commit; a native statement commits", Boolean.TRUE,
+		             nativeConsole.autoCommit());
 
 		ConsoleCopy viewAs = ConsoleCopy.of(ConsoleKind.VIEW_AS, "node", "o'brien");
 		assertEquals("node · as o'brien", viewAs.name());
 		assertEquals("data", viewAs.mode());
-		assertEquals(List.of("SET SESSION VIEW AS ROLE 'o''brien'"), viewAs.initQueries());
+		assertEquals("the driver sets it at connect, a refusal fails the connect", "o'brien", viewAs.viewAs());
 		assertTrue(viewAs.readOnly());
 		assertEquals("test", viewAs.connectionType());
+		assertFalse(viewAs.dropInitQueries());
+
+		assertNull(ConsoleCopy.unviewable("analyst"));
+		assertNotNull("DBeaver would substitute it", ConsoleCopy.unviewable("${user}"));
 	}
 
 	@Test
 	public void aListAsTheDriverAnswersIt() throws Exception {
 		assertEquals(Set.of("a", "b"), AclDataSource.strings(List.of("a", "b")));
+		// what the driver answers for a VARCHAR[]: a java.sql.Array
+		java.sql.Array array = (java.sql.Array) java.lang.reflect.Proxy.newProxyInstance(getClass().getClassLoader(),
+		    new Class<?>[] {java.sql.Array.class},
+		    (proxy, method, args) -> "getArray".equals(method.getName()) ? new Object[] {"policy", "observe"} : null);
+		assertEquals(Set.of("policy", "observe"), AclDataSource.strings(array));
 		assertEquals(Set.of("a"), AclDataSource.strings(new Object[] {"a", null}));
 		assertTrue(AclDataSource.strings(null).isEmpty());
 		assertEquals(ConsoleKind.VIEW_AS, ConsoleKind.of("view_as"));

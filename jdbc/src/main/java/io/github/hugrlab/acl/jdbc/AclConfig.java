@@ -61,9 +61,12 @@ final class AclConfig {
 	static final String CATALOG = "catalog";
 	static final String SCHEMA = "schema";
 	static final String MODE = "acl.mode";
+	// duckdb-acl spec 120.3: the role an administrator's connection views the catalog as - set once the connection
+	// holds its session, and a refusal fails the connect (a console must never fall back to the viewer's own view)
+	static final String VIEW_AS = "acl.viewAs";
 	static final String NESTED = "nested";
 	static final Set<String> OWN = Set.of(FLOW, ISSUER, CLIENT_ID, CLIENT, SCOPE, TOKEN, USER, PASSWORD, TOKEN_CACHE,
-	    TOKEN_CACHE_FILE, LOGIN_TIMEOUT, REDIRECT_PORT, DISCOVERY, LINEAGE_FROM_ENV, CATALOG, SCHEMA, MODE, NESTED);
+	    TOKEN_CACHE_FILE, LOGIN_TIMEOUT, REDIRECT_PORT, DISCOVERY, LINEAGE_FROM_ENV, CATALOG, SCHEMA, MODE, VIEW_AS, NESTED);
 
 	// spec 004: the lineage parent an orchestrator hands its task (OpenLineage's own variables), sent
 	// as the call headers the node reads (duckdb-acl spec 107/109) when the connection names none
@@ -101,6 +104,7 @@ final class AclConfig {
 	final String catalog;
 	final String schema;
 	final Mode mode;
+	final String viewAs;
 	final Nested nested;
 	private final Properties passthrough;
 
@@ -128,6 +132,10 @@ final class AclConfig {
 		this.catalog = blankToNull(all.getProperty(CATALOG));
 		this.schema = blankToNull(all.getProperty(SCHEMA));
 		this.mode = parseEnum(Mode.class, all.getProperty(MODE, "data"), MODE);
+		this.viewAs = blankToNull(all.getProperty(VIEW_AS));
+		if (viewAs != null && mode != Mode.DATA) {
+			throw new SQLException(VIEW_AS + " views the catalog: it needs " + MODE + "=data, not " + mode);
+		}
 		this.nested = parseEnum(Nested.class, all.getProperty(NESTED, "object"), NESTED);
 		this.passthrough = new Properties();
 		for (String key : all.stringPropertyNames()) {

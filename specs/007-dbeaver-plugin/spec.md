@@ -190,39 +190,63 @@ A PR each, three review passes, the build and install check green.
 - **Where the actions are**: a `duckdb-acl` submenu of the navigator's popup on a connection
   (`popup:org.eclipse.ui.popup.any`, an `instanceof DBNDataSource` before the test so no other node evaluates it);
   each item's `visibleWhen` is the property tester `io.github.hugrlab.acl.console` over what the connection read at
-  connect.
-- **What was read**: the meta model now makes an `AclDataSource` (Generic's, our dialect passed explicitly) whose
-  `initialize` reads `SELECT bundles, admin_catalogs, my_views, my_functions FROM platform.console_info()` once, on a
-  data-mode connection only (a console's copy is prefixed, a view-as copy is metadata only). A principal with no
-  administration is refused it - one recorded denial per connect (rate-limited by the node's
-  `acl_audit_denials_per_second`) - and is offered nothing. Rules (`ConsoleInfo.offers`): **manage** = a bundle, an
-  administered catalog or a readable platform view; **native** = `passthrough`; **view-as** = `view_as` callable and
-  `platform.roles` readable. Read again on reconnect.
+  connect. The command without its kind (Quick Access) does nothing.
+- **What was read**: the meta model now makes an `AclDataSource` (Generic's) whose `initialize` reads
+  `SELECT bundles, admin_catalogs, my_views, my_functions FROM platform.console_info()` once, on the user's own
+  connection only (data mode, no view-as - a console's copy is prefixed, a view-as copy is the role's; neither records
+  a denial). A principal with no administration is refused it - one recorded denial per connect (rate-limited by the
+  node's `acl_audit_denials_per_second`) - and is offered nothing. Rules (`ConsoleInfo.offers`): **manage** = a
+  bundle, an administered catalog or a readable platform view; **native** = `passthrough`; **view-as** = `view_as`
+  callable (the policy bundle's alone since duckdb-acl 120.3's addendum - a point grant no longer offers it) and
+  `platform.roles` readable. `createDataSourceImpl` also passes **our dialect**: Generic's made its own, so until now a
+  connected session used Generic's dialect and ours reached only a disconnected editor (007.1's highlighting held
+  there only); now keywords, `mustBeQuoted` and `$$` are ours on every connection.
 - **The copy** (`ConsoleCopy` - pure, unit-tested; `AclConsoles.open`): `new DataSourceDescriptor(original, registry)`
-  with a new id, a name `<original> · manage | · native | · as <role>`, **temporary** (never saved), `acl.mode`
-  `manage` / `native` / `data`. Native is DBeaver's built-in *Production* type (red, confirms execution), view-as
-  *Test* and read-only; the manage console keeps the original's type. The view-as statement
-  `SET SESSION VIEW AS ROLE '<r>'` (a quote doubled) is appended to the copy's bootstrap init queries, so every
-  physical connection DBeaver opens for it - the metadata one included - runs it first; the driver keeps the Flight
-  session cookie per JDBC connection (spec 006), which is the session the mode is kept on.
-- **View as role…** reads `SELECT role FROM platform.roles ORDER BY role` on the original connection (a progress
-  service), then an `ElementListSelectionDialog`; the copy is left in the navigator (its tree is the point). A role
-  the viewer may not view is listed (the node narrows nothing there) and refused by the node at the copy's connect,
-  with its own message. A console opens an SQL editor (`SQLEditorHandlerOpenEditor.openSQLConsole`) on its copy.
+  (a deep copy - nothing mutable shared) with a new id, a name `<original> · manage | · native | · as <role>`,
+  **temporary** (`isDetached()`: never persisted, nor its secrets), `acl.mode` `manage` / `native` / `data`. Asked
+  again, the temporary copy of that name is reused. Native is DBeaver's built-in *Production* type (red, confirms
+  execution) **in auto-commit** (the type alone is manual-commit, and a native statement would wait for a commit),
+  view-as *Test* and read-only; the user's own colour is cleared where a type is set (it would hide the marker); the
+  manage console keeps the original's type. Manage and native drop the user's bootstrap statements (each would be
+  prefixed: `ACL SET …` refused, `ACL NATIVE SET …` run physically).
+- **View-as fails closed.** The first build appended `SET SESSION VIEW AS ROLE` to the copy's bootstrap queries -
+  and DBeaver only logs a failed bootstrap query, so a refused SET (a role holding administration, a role dropped
+  meanwhile, a user's own init query failing first) left a `· as r` connection that was the viewer's own session
+  (the review's first finding). Now it is the driver's `acl.viewAs` (spec 006 addendum): set once the connection
+  holds its session, and a refusal closes the connection and fails the connect; every physical connection DBeaver
+  opens (the metadata one, a reconnect) is a new driver connection that sets it again. The node refuses a Flight
+  connection whose session ended in the mode (idle, killed, a swap) instead of re-seating it as the viewer
+  (duckdb-acl 120.3 addendum) - the next call says "connect again". The action connects the copy at once (a progress
+  service): refused, the copy is removed and the node's message shown. A role named with `${...}` is refused by the
+  plugin - DBeaver substitutes variables in a connection's properties.
+- **View as role…** reads `SELECT role FROM platform.roles ORDER BY role` on the original connection, then an
+  `ElementListSelectionDialog`; cancelling the read is silent. The copy stays in the navigator (its tree is the
+  point). A console opens an SQL editor (`SQLEditorHandlerOpenEditor.openSQLConsole`) on its copy.
 - **Not done**: "the plugin says so instead of a failure dialog" for a data preview under view-as - the node's
-  refusal text (`a view-as session reads metadata only`) is what DBeaver shows, which says it.
+  refusal text (`a view-as session reads metadata only`) is what DBeaver shows, which says it. A console's own tree
+  is the virtual catalog (metadata is never prefixed) while its data tab is prefixed - `ACL NATIVE SELECT … FROM
+  sales.main.orders` names a physical object: use a console for SQL, the user's connection for the tree. The
+  driver's `setClientInfo` (DBeaver's application name) answers Arrow's refusal - logged by DBeaver, harmless.
 - **Dev realm**: `dev/keycloak.sh` adds the realm role `steward` and the user `steward1` (`steward1-pass`); `dev/node.sh`
   creates the node role `steward`, `GRANT ADMIN policy` and maps the claim value through the implicit client (a
   privileged role is reached only by the client's own mapping, duckdb-acl spec 095).
-- **Tests**: unit `ConsoleTest` (the offers per bundle, each copy's settings, the role literal, the driver's list
-  forms); live `LiveConsoleTest` (SWTBot against `dev/node.sh`): steward1 is offered manage and view-as and not
-  native, analyst1 nothing (no submenu); **Management console** from the menu opens an SQL editor on a temporary
-  `· manage` connection; **View as role…** → the dialog → `analyst` → a read-only temporary `· as analyst`
-  connection; a view-as copy's tree to depth 6 is **equal** to analyst1's own and its data read is refused
-  (`metadata only`); a management console runs `CHECK VIRTUAL CATALOG sales`. The test JVM gets
-  `--add-opens=java.base/java.nio=ALL-UNNAMED` - DBeaver's own `dbeaver.ini` has it, and an update through Arrow's
-  driver (a DoPut) needs it.
-- **Measured** (not 007.2's): that tree - 75 nodes - takes ~21 s for analyst1 and for the view-as copy alike; the
-  node answers a table's `information_schema.columns` in ~215 ms and `acl_references()` in ~270 ms warm (pyarrow,
-  same node), so a whole-tree walk is the node's listing cost per node - the duckdb-acl follow-up (a per-node
-  metadata cache), not the plugin's.
+- **Tests**: unit `ConsoleTest` (the offers per bundle, each copy's settings, `${...}` refused, the driver's list
+  forms incl. `java.sql.Array`); live `LiveConsoleTest` (SWTBot against `dev/node.sh`): steward1 is offered manage
+  and view-as and not native, analyst1 nothing (no submenu); **Management console** from the menu opens an SQL editor
+  on a temporary `· manage` connection; **View as role…** → the dialog → `analyst` → a read-only, connected `· as
+  analyst`; → `steward` → the node's refusal shown and no connection left; a view-as copy's tree to depth 6 is
+  **equal** to analyst1's own, it reads no console_info and its data read is refused (`metadata only`); a refused
+  view-as copy does not connect (`holds administration`); a management console runs `CHECK VIRTUAL CATALOG sales`.
+  The test JVM gets `--add-opens=java.base/java.nio=ALL-UNNAMED` (DBeaver's own `dbeaver.ini` has it; an update
+  through Arrow's driver, a DoPut, needs it). Driver: `AclConnectionTest` (the SET after the USE, a refusal closes
+  the connection, `acl.viewAs` needs data mode), `LiveMetadataE2ETest` (steward1 as analyst lists analyst1's catalogs
+  and reads no rows; as steward - refused, no connection).
+- **Review** (three passes, before the PR): the bootstrap-query view-as and the node's re-seat (both fail closed now,
+  above), a point grant offering view-as (node), the prod type's manual commit, the user's colour over the marker,
+  console_info read on the view-as copy, cancel shown as an error, `${...}`, the user's init queries prefixed in a
+  console, a copy closed while connecting (it leaked a session), no `java.sql.Array` unit case, duplicate copies, the
+  dialect change unstated - each fixed or stated above.
+- **Measured** (not 007.2's): the whole tree to depth 6 - 75 nodes - takes ~21 s for analyst1 and for the view-as
+  copy alike; the node answers a table's `information_schema.columns` in ~215 ms and `acl_references()` in ~270 ms
+  warm (pyarrow, same node), so a whole-tree walk is the node's listing cost per node - the duckdb-acl follow-up (a
+  per-node metadata cache), not the plugin's.

@@ -117,7 +117,30 @@ public class LiveConsoleTest {
 		dialog.button("OK").click();
 		DataSourceDescriptor viewAs = waitFor(bot, stewardName + " · as analyst");
 		assertTrue(viewAs.isConnectionReadOnly());
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				return viewAs.isConnected();
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "the action did not connect the view-as copy";
+			}
+		}, 30_000);
 		close(viewAs);
+		// a role the viewer may not view (steward holds administration - passthrough's to view): the node refuses
+		// it at connect, the plugin says so and leaves no connection behind
+		bot.viewById(NAVIGATOR).bot().tree().getTreeItem(stewardName).select().contextMenu("duckdb-acl")
+		    .menu("View as role…").click();
+		SWTBot again = bot.shell("View as role").bot();
+		again.text().setText("steward");
+		again.table().select("steward");
+		again.button("OK").click();
+		bot.shell("duckdb-acl").close();
+		for (DBPDataSourceContainer each : steward().getRegistry().getDataSources()) {
+			assertFalse("a refused view-as left a connection", each.getName().equals(stewardName + " · as steward"));
+		}
 	}
 
 	/** The temporary connection an action added, by its name. */
@@ -153,6 +176,7 @@ public class LiveConsoleTest {
 			assertTrue(copy.isTemporary());
 			assertTrue(copy.isConnectionReadOnly());
 			copy.connect(monitor, true, true);
+			assertNull("a view-as copy reads no console_info (no denial recorded for it)", console(copy));
 			// the same tree as analyst1's own connection: the node answers the role's listings
 			assertEquals(tree(LiveTreeTest.analyst()), tree(copy));
 			// and no data: a view-as session reads metadata only (duckdb-acl spec 120.3)
@@ -168,6 +192,26 @@ public class LiveConsoleTest {
 				}
 				assertTrue(chain.toString(), chain.toString().contains("metadata only"));
 			}
+		} finally {
+			close(copy);
+		}
+	}
+
+	@Test
+	public void aRefusedViewAsDoesNotConnect() throws Exception {
+		LiveTreeTest.assumeNode();
+		DataSourceDescriptor copy = AclConsoles.open((DataSourceDescriptor) steward(),
+		    ConsoleCopy.of(ConsoleKind.VIEW_AS, steward().getName(), "steward"));
+		try {
+			copy.connect(new VoidProgressMonitor(), true, true);
+			fail("a view-as the node refuses connected - as the viewer, under the role's label");
+		} catch (Exception e) {
+			StringBuilder chain = new StringBuilder();
+			for (Throwable t = e; t != null; t = t.getCause()) {
+				chain.append(t.getMessage()).append(" / ");
+			}
+			assertTrue(chain.toString(), chain.toString().contains("holds administration"));
+			assertFalse(copy.isConnected());
 		} finally {
 			close(copy);
 		}
@@ -204,7 +248,13 @@ public class LiveConsoleTest {
 	}
 
 	private static void close(DataSourceDescriptor copy) throws Exception {
-		copy.disconnect(new VoidProgressMonitor());
+		// a console's editor may still be connecting it: wait, or the connection completes after removal and leaks
+		for (int i = 0; i < 300 && copy.isConnecting(); i++) {
+			Thread.sleep(100);
+		}
+		if (copy.isConnected()) {
+			copy.disconnect(new VoidProgressMonitor());
+		}
 		copy.getRegistry().removeDataSource(copy);
 	}
 }

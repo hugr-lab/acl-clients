@@ -102,6 +102,24 @@ class AclConnectionTest {
 	}
 
 	@Test
+	void viewAsIsSetAtConnectAndARefusalFailsTheConnect() throws SQLException {
+		FakeArrow arrow = node(new AtomicReference<>("sales"));
+		new AclConnection(arrow.connection(), config("catalog", "inventory", "acl.viewAs", "o'brien"));
+		// after the USE (refused inside the mode), unprefixed, the role a literal
+		assertEquals(List.of("SELECT 1", "USE \"inventory\"", "SET SESSION VIEW AS ROLE 'o''brien'"), arrow.sent);
+		assertFalse(arrow.closed);
+
+		FakeArrow refusing = node(new AtomicReference<>("sales"));
+		refusing.refuses = sql -> sql.startsWith("SET SESSION VIEW AS");
+		assertThrows(SQLException.class,
+		    () -> new AclConnection(refusing.connection(), config("acl.viewAs", "steward")));
+		assertTrue(refusing.closed, "a refused view-as closes the connection: it is never handed out as the viewer");
+
+		SQLException mode = assertThrows(SQLException.class, () -> config("acl.viewAs", "r", "acl.mode", "manage"));
+		assertTrue(mode.getMessage().contains("acl.mode=data"), mode.getMessage());
+	}
+
+	@Test
 	void metadataIsNeverPrefixedAndEmptyAnswersHaveTheirColumns() throws SQLException {
 		FakeArrow arrow = new FakeArrow(sql -> null); // every listing empty, with no columns at all
 		Connection conn = new AclConnection(arrow.connection(), Mode.NATIVE, false);

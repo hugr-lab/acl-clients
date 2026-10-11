@@ -67,6 +67,42 @@ class LiveMetadataE2ETest {
 		return driver.connect(URL, p);
 	}
 
+	/** The catalog names a connection lists. */
+	private static List<Object> catalogNames(Connection conn) throws SQLException {
+		List<Object> names = new ArrayList<>();
+		for (Map<String, Object> row : rows("catalogs", conn.getMetaData().getCatalogs())) {
+			names.add(row.get("TABLE_CAT"));
+		}
+		return names;
+	}
+
+	@Test
+	void viewAsIsTheRolesCatalogOrNoConnection() throws SQLException {
+		// steward1 holds the policy bundle (dev/node.sh): as analyst it lists analyst1's catalogs and reads no rows
+		List<Object> own;
+		try (Connection conn = connect()) {
+			own = catalogNames(conn);
+		}
+		try (Connection conn = connect("user", "steward1", "password", "steward1-pass", "acl.viewAs", "analyst")) {
+			assertEquals(own, catalogNames(conn));
+			SQLException read = assertThrows(SQLException.class,
+			    () -> conn.createStatement().executeQuery("SELECT * FROM sales.main.orders").next());
+			assertTrue(causes(read).contains("metadata only"), causes(read));
+		}
+		// a role that itself administers is viewed by passthrough only: the connect fails, never steward1's own view
+		SQLException refused = assertThrows(SQLException.class,
+		    () -> connect("user", "steward1", "password", "steward1-pass", "acl.viewAs", "steward"));
+		assertTrue(causes(refused).contains("holds administration"), causes(refused));
+	}
+
+	private static String causes(Throwable e) {
+		StringBuilder out = new StringBuilder();
+		for (Throwable t = e; t != null; t = t.getCause()) {
+			out.append(t.getMessage()).append(" / ");
+		}
+		return out.toString();
+	}
+
 	/** The rows as maps (label → value), dumped for review under the title. */
 	private static List<Map<String, Object>> rows(String title, ResultSet rs) throws SQLException {
 		List<Map<String, Object>> out = new ArrayList<>();

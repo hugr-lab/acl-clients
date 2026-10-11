@@ -14,6 +14,7 @@ import org.jkiss.dbeaver.ext.generic.model.GenericDataSource;
 import org.jkiss.dbeaver.ext.generic.model.meta.GenericMetaModel;
 import org.jkiss.dbeaver.model.DBPDataSourceContainer;
 import org.jkiss.dbeaver.model.DBUtils;
+import org.jkiss.dbeaver.model.connection.DBPConnectionConfiguration;
 import org.jkiss.dbeaver.model.exec.jdbc.JDBCPreparedStatement;
 import org.jkiss.dbeaver.model.exec.jdbc.JDBCResultSet;
 import org.jkiss.dbeaver.model.exec.jdbc.JDBCSession;
@@ -21,8 +22,9 @@ import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 
 /**
  * A connection to a node: Generic's, plus what `platform.console_info()` answered at connect (spec 007.2) - read once,
- * on a connection in data mode; a principal with no administration is refused it (one recorded denial per connect),
- * and then no console action is shown.
+ * on the user's own connection (data mode, no view-as); a principal with no administration is refused it (one
+ * recorded denial per connect), and then no console action is shown. Our dialect is passed here - Generic's
+ * createDataSourceImpl makes its own, so a connected session used Generic's until 007.2.
  */
 public class AclDataSource extends GenericDataSource {
 	private static final Log log = Log.getLog(AclDataSource.class);
@@ -38,8 +40,12 @@ public class AclDataSource extends GenericDataSource {
 	@Override
 	public void initialize(@NotNull DBRProgressMonitor monitor) throws DBException {
 		super.initialize(monitor);
-		String mode = getContainer().getConnectionConfiguration().getProperty("acl.mode");
-		console = mode == null || mode.isEmpty() || "data".equals(mode) ? readConsole(monitor) : null;
+		// a console's copy is prefixed and a view-as one is the role's: neither reads it (nor records a denial)
+		DBPConnectionConfiguration configuration = getContainer().getConnectionConfiguration();
+		String mode = configuration.getProperty("acl.mode");
+		boolean data = mode == null || mode.isEmpty() || "data".equals(mode);
+		String viewAs = configuration.getProperty("acl.viewAs");
+		console = data && (viewAs == null || viewAs.isEmpty()) ? readConsole(monitor) : null;
 	}
 
 	/** What console_info answered at connect; null when it was not read or was refused. */

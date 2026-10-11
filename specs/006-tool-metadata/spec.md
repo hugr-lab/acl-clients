@@ -273,3 +273,11 @@ the jar (`META-INF/`, shade plugin).
   grammar without the `ACL` marker under a principal (duckdb-acl spec 117).
 - Tests: `AclSqlTest` (`quotePath`), `AclConnectionTest`, `LiveMetadataE2ETest` (an empty result's columns once,
   an ENUM's label).
+
+## Addendum 2026-10-11: `acl.viewAs` (for spec 007.2)
+A connection property: the role an administrator's connection views the catalog as (duckdb-acl spec 120.3).
+`AclConnection` runs `SET SESSION VIEW AS ROLE '<r>'` (a literal, quotes doubled) after `catalog` / `schema` (a USE is
+refused inside the mode), unprefixed, once the cookie is earned; a refusal closes Arrow's connection and fails the
+connect - a client never holds a connection that is the viewer's own under a view-as label. Only with
+`acl.mode=data` (refused at parse otherwise). Tests: `AclConnectionTest.viewAsIsSetAtConnectAndARefusalFailsTheConnect`,
+`LiveMetadataE2ETest.viewAsIsTheRolesCatalogOrNoConnection`.

@@ -20,6 +20,8 @@ import java.sql.Statement;
  * <li>{@code acl.mode} sends every statement as data, management ({@code ACL }) or native
  * ({@code ACL NATIVE }) SQL. The metadata listings are never prefixed: the tree is always the
  * principal's virtual catalog.
+ * <li>{@code acl.viewAs} sets {@code SET SESSION VIEW AS ROLE} once connected (duckdb-acl spec 120.3); a refusal
+ * fails the connect - a client never goes on as the viewer under a view-as label.
  * <li>results carry duckdb's types ({@link AclResultSet}).
  * </ul>
  */
@@ -37,6 +39,10 @@ final class AclConnection extends ForwardingConnection {
 			}
 			if (config.schema != null) {
 				setSchema(config.schema);
+			}
+			// last: inside the mode a USE is refused (and the viewer's own does not apply)
+			if (config.viewAs != null) {
+				run("SET SESSION VIEW AS ROLE " + AclSql.quoteLiteral(config.viewAs));
 			}
 		} catch (SQLException e) {
 			try {

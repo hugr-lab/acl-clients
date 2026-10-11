@@ -30,7 +30,9 @@ import org.jkiss.dbeaver.ui.navigator.NavigatorUtils;
 
 /**
  * duckdb-acl ▸ Management console | Native console | View as role… on a connection (spec 007.2): a connection of its
- * own; a console opens an SQL editor on it, view-as leaves it in the navigator - its tree is the role's.
+ * own; a console opens an SQL editor on it, view-as leaves it in the navigator - its tree is the role's. A role the
+ * viewer may not view is listed too (platform.roles is the viewer's listing): the node refuses it at the copy's
+ * connect, and the copy does not connect.
  */
 public class AclConsoleHandler extends AbstractHandler {
 	static final String KIND = "io.github.hugrlab.acl.console.kind";
@@ -38,7 +40,11 @@ public class AclConsoleHandler extends AbstractHandler {
 
 	@Override
 	public Object execute(ExecutionEvent event) {
-		ConsoleKind kind = ConsoleKind.of(event.getParameter(KIND));
+		String which = event.getParameter(KIND);
+		if (which == null) {
+			return null; // the command without its kind (Quick Access): nothing to open
+		}
+		ConsoleKind kind = ConsoleKind.of(which);
 		DBNNode node = NavigatorUtils.getSelectedNode(HandlerUtil.getCurrentSelection(event));
 		if (!(node instanceof DBNDataSource source)
 		    || !(source.getDataSourceContainer() instanceof DataSourceDescriptor original)) {
@@ -52,16 +58,42 @@ public class AclConsoleHandler extends AbstractHandler {
 				if (role == null) {
 					return null;
 				}
+				String why = ConsoleCopy.unviewable(role);
+				if (why != null) {
+					DBWorkbench.getPlatformUI().showError("View as role", why);
+					return null;
+				}
 			}
 			DataSourceDescriptor copy = AclConsoles.open(original, ConsoleCopy.of(kind, original.getName(), role));
+			if (kind == ConsoleKind.VIEW_AS && !copy.isConnected()) {
+				connectOrDrop(copy);
+			}
 			if (kind != ConsoleKind.VIEW_AS) {
 				SQLEditorHandlerOpenEditor.openSQLConsole(window, new SQLNavigatorContext(copy, null), copy.getName(), "");
 			}
+		} catch (InterruptedException e) {
+			return null; // the user cancelled reading the roles
 		} catch (Exception e) {
 			Throwable cause = e instanceof InvocationTargetException wrapped ? wrapped.getTargetException() : e;
 			DBWorkbench.getPlatformUI().showError("duckdb-acl", "Could not open the " + kind.id() + " connection", cause);
 		}
 		return null;
+	}
+
+	/** A view-as copy connects now: a refusal (a role the viewer may not view) leaves no connection behind. */
+	private static void connectOrDrop(DataSourceDescriptor copy) throws Exception {
+		try {
+			UIUtils.runInProgressService(monitor -> {
+				try {
+					copy.connect(monitor, true, true);
+				} catch (Exception e) {
+					throw new InvocationTargetException(e);
+				}
+			});
+		} catch (Exception e) {
+			copy.getRegistry().removeDataSource(copy);
+			throw e;
+		}
 	}
 
 	/** The roles the principal may view, as `platform.roles` lists them (the node narrows them to its rights). */

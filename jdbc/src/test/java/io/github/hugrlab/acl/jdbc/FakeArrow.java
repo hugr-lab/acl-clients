@@ -32,6 +32,7 @@ final class FakeArrow {
 	private final Function<String, Answer> script;
 	/** Texts the node refuses (an SQLException, like a refusal through Arrow). */
 	java.util.function.Predicate<String> refuses = sql -> false;
+	boolean closed;
 
 	FakeArrow(Function<String, Answer> script) {
 		this.script = script;
@@ -52,8 +53,12 @@ final class FakeArrow {
 				nativeSql.add((String) a[0]);
 				yield a[0];
 			}
-			case "isClosed", "isReadOnly" -> false;
-			case "close" -> null;
+			case "isClosed" -> closed;
+			case "isReadOnly" -> false;
+			case "close" -> {
+				closed = true;
+				yield null;
+			}
 			default -> throw new UnsupportedOperationException(m.getName());
 		});
 	}
