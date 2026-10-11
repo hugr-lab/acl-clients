@@ -29,8 +29,9 @@ case "$(uname -s)" in
 esac
 # the driver, shaded, inside the plugin (spec 006's -all jar)
 (cd "$HERE/../jdbc" && mvn -B -q -DskipTests package)
-rm -f "$HERE/io.github.hugrlab.acl.dbeaver/drivers/acl/"*.jar
-cp "$HERE"/../jdbc/target/acl-jdbc-*-SNAPSHOT-all.jar "$HERE/io.github.hugrlab.acl.dbeaver/drivers/acl/"
+rm -f "$HERE/io.github.hugrlab.acl.jdbc/lib/"*.jar
+# the newest -all jar the package made (a release build carries the tag's version, a local one the snapshot's)
+cp "$(ls -t "$HERE"/../jdbc/target/acl-jdbc-*-all.jar | head -1)" "$HERE/io.github.hugrlab.acl.jdbc/lib/"
 cd "$HERE"
 if [ "$#" -eq 0 ]; then set -- clean verify; fi
 mvn -B "$@"

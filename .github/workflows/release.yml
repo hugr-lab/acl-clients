@@ -1,7 +1,8 @@
 name: Release
 
 # A tag v<major>.<minor>.<patch> releases the JDBC driver: the tests run, the version comes from the
-# tag, and the GitHub release gets the single jar DBeaver loads plus its checksum. Maven Central
+# tag, and the GitHub release gets the single jar DBeaver loads plus its checksum - and the DBeaver
+# plugin's p2 repository (spec 007), zipped, with the driver inside. Maven Central
 # follows in the same run once the repository has its secrets (see jdbc/README.md, "Releasing");
 # until then that step says it is skipped.
 on:
@@ -38,6 +39,23 @@ jobs:
           sha256sum "$jar" | sed 's|jdbc/target/||' > "$jar.sha256"
           gh release create "$GITHUB_REF_NAME" "$jar" "$jar.sha256" --title "acl-jdbc ${GITHUB_REF_NAME}" \
             --notes "The duckdb-acl JDBC driver. For DBeaver: add \`$(basename "$jar")\` in Driver Manager, class \`io.github.hugrlab.acl.jdbc.AclDriver\`, URL template \`jdbc:acl://{host}:{port}\` - see the README."
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: The DBeaver plugin (spec 007) - its version from the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd dbeaver && mvn -B -q org.eclipse.tycho:tycho-versions-plugin:5.0.4:set-version -DnewVersion="${GITHUB_REF_NAME#v}")
+          dbeaver/build.sh clean verify -DskipUITests=true
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb > /dev/null
+          xvfb-run -a dbeaver/install-check.sh
+          zip="dbeaver/io.github.hugrlab.acl.dbeaver.site/target/acl-dbeaver-${GITHUB_REF_NAME#v}.zip"
+          mv dbeaver/io.github.hugrlab.acl.dbeaver.site/target/io.github.hugrlab.acl.dbeaver.site-*.zip "$zip"
+          sha256sum "$zip" | sed 's|.*/||' > "$zip.sha256"
+          gh release upload "$GITHUB_REF_NAME" "$zip" "$zip.sha256"
       - name: Maven Central
         env:
           CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}

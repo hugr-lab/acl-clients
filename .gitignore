@@ -16,5 +16,5 @@ __pycache__/
 dev/.work/
 # DBeaver plugin (spec 007): the downloaded DBeaver releases, the bundled driver jar, Tycho output
 dbeaver/.dbeaver/
-dbeaver/io.github.hugrlab.acl.dbeaver/drivers/acl/*.jar
+dbeaver/io.github.hugrlab.acl.jdbc/lib/*.jar
 dbeaver/**/target/

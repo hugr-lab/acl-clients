@@ -8,7 +8,8 @@ Bundle-RequiredExecutionEnvironment: JavaSE-21
 Bundle-ActivationPolicy: lazy
 Require-Bundle: org.jkiss.dbeaver.model,
  org.jkiss.dbeaver.model.sql,
- org.jkiss.dbeaver.ext.generic
+ org.jkiss.dbeaver.ext.generic,
+ io.github.hugrlab.acl.jdbc
 Import-Package: org.jkiss.code
 Export-Package: io.github.hugrlab.acl.dbeaver.model
 Automatic-Module-Name: io.github.hugrlab.acl.dbeaver

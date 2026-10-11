@@ -13,4 +13,5 @@ Require-Bundle: org.junit,
  org.jkiss.dbeaver.registry,
  org.jkiss.dbeaver.model,
  org.eclipse.ui,
- org.eclipse.swt
+ org.eclipse.swt,
+ org.jkiss.dbeaver.ui

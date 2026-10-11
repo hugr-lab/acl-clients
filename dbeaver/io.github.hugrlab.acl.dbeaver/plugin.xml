@@ -15,6 +15,52 @@
 		        inheritProviderProperties="true"
 		        label="duckdb-acl"
 		        dialect="duckdb_acl">
+			<!-- The node's tree (Generic's, 26.2, cut to what a duckdb-acl node has). No visibleIf: DBeaver evaluates those
+			     with JEXL limited to its own packages, so a condition on our classes is silently false - the node's
+			     capabilities are known here. Nested schemas sit under their parent (spec 116 paths); no per-schema
+			     Data Types (the types are the system catalog's, the same everywhere); no indexes, sequences, synonyms,
+			     triggers or procedures (a table function and a scalar are both functions). -->
+			<tree path="duckdb_acl" label="duckdb-acl node" supportsEntityMerge="true">
+				<items label="Catalog" path="catalog" property="catalogList" icon="#database" optional="true">
+					<items label="Schema" path="schema" property="schemaList" icon="#schema" optional="true">
+						<folder type="org.jkiss.dbeaver.ext.generic.model.GenericTable" label="Tables" icon="#folder_table" description="Tables">
+							<items label="Table" path="table" property="physicalTables" icon="#table">
+								<folder type="org.jkiss.dbeaver.ext.generic.model.GenericTableColumn" label="Columns" icon="#columns" description="Columns">
+									<items label="Column" path="attribute" property="attributes" icon="#column"/>
+								</folder>
+								<folder type="org.jkiss.dbeaver.ext.generic.model.GenericUniqueKey" label="Keys" icon="#constraints" description="Declared keys">
+									<items label="Key" path="uniqueKey" property="constraints" icon="#unique-key">
+										<items label="Key columns" itemLabel="Column" path="column" property="attributeReferences" navigable="false" inline="true"/>
+									</items>
+								</folder>
+								<folder type="org.jkiss.dbeaver.ext.generic.model.GenericTableForeignKey" label="Foreign Keys" icon="#foreign-keys" description="Declared references to other objects">
+									<items label="Foreign Key" path="association" property="associations" icon="#foreign-key">
+										<items label="Columns" itemLabel="Column" path="column" property="attributeReferences" navigable="false" inline="true"/>
+									</items>
+								</folder>
+								<folder label="References" icon="#references" description="Declared references from other objects" virtual="true">
+									<items label="Reference" path="reference" property="references" icon="#reference" virtual="true">
+										<items label="Columns" itemLabel="Column" path="column" property="attributeReferences" navigable="false" inline="true" virtual="true"/>
+									</items>
+								</folder>
+							</items>
+						</folder>
+						<folder type="org.jkiss.dbeaver.ext.generic.model.GenericView" label="Views" icon="#folder_view" description="Views">
+							<items label="View" path="view" property="views" icon="#view">
+								<folder type="org.jkiss.dbeaver.ext.generic.model.GenericTableColumn" label="Columns" icon="#columns" description="View columns">
+									<items label="Column" path="attribute" property="attributes" icon="#column"/>
+								</folder>
+							</items>
+						</folder>
+						<folder label="Functions" icon="#functions" description="Table functions and scalar functions">
+							<items label="Functions" itemLabel="Function" path="function" property="functionsOnly" icon="#function">
+								<items label="Parameters" itemLabel="Column" path="column" property="parameters" navigable="false"/>
+							</items>
+						</folder>
+						<items label="Schema" path="schema" property="childSchemas" icon="#schema" optional="true" recursive=".."/>
+					</items>
+				</items>
+			</tree>
 			<drivers managable="true">
 				<driver
 				        id="duckdb_acl_jdbc"
@@ -27,7 +73,7 @@
 				        description="duckdb-acl node: Flight SQL door, OAuth sign-in"
 				        supportedConfigurationTypes="MANUAL,URL"
 				        categories="sql,analytic">
-					<file type="jar" path="drivers/acl" bundle="io.github.hugrlab.acl.dbeaver"/>
+					<file type="jar" path="bundle:/io.github.hugrlab.acl.jdbc"/>
 					<!-- spec 006's drivers.xml: functions listed by getFunctions and getProcedures; the active
 					     catalog is the session's USE (duckdb-acl spec 114) -->
 					<parameter name="split-procedures-and-functions" value="true"/>

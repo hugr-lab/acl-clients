@@ -27,6 +27,12 @@ jdbc/                 Maven, Java 17: io.github.hugrlab.acl.jdbc
 examples/{go,python,dotnet,java}
 examples/pipelines/   spark/ (3.5, 4), dbt/, python/ - with lineage (spec 004)
 examples/dbeaver/     drivers.xml - the driver as a DBeaver Generic driver (spec 006)
+dbeaver/              the DBeaver plugin (spec 007): Tycho against one DBeaver release's bundles (build.sh fetches it);
+  io.github.hugrlab.acl.jdbc       the driver's -all jar as a bundle (DBeaver loads `bundle:/<id>`)
+  io.github.hugrlab.acl.dbeaver    the connection type (Generic parent), AclMetaModel (nested schemas), the dialect,
+                                   our navigator tree (no visibleIf - DBeaver's JEXL allows only its own packages)
+  io.github.hugrlab.acl.dbeaver.tests  SWTBot UI tests in a real DBeaver; Live* need ACL_E2E_URL (dev/node.sh)
+  .feature / .site                 the feature and the p2 repository (zipped: the release asset)
 dev/                  keycloak.sh, node.sh [ACL_PIPELINES=1] [ACL_METADATA=1], token.sh, jdbc-e2e.sh, marquez.sh, pipelines-e2e.sh
 specs/NNN-slug/spec.md
 ```
@@ -40,6 +46,7 @@ default is a newer JDK); no .NET. CI and the examples build in Docker:
 dev/keycloak.sh && dev/node.sh &                   # the dev node (needs a built ../duckdb-acl)
 docker run --rm -v acl-m2:/root/.m2 -v "$PWD/jdbc":/src -w /src maven:3-eclipse-temurin-17 mvn -B test
 dev/jdbc-e2e.sh [all]                               # driver e2e against the dev node + Keycloak
+dbeaver/build.sh && dbeaver/install-check.sh        # the DBeaver plugin (local JDK 21) - UI tests included
 dev/marquez.sh && ACL_PIPELINES=1 ACL_OTEL=<acl-otel ext> dev/node.sh &   # lineage on, quack door :31900
 dev/pipelines-e2e.sh [spark3|spark4|dbt|python]     # the recipes + the joined graph in Marquez
 (cd examples/go && GOWORK=off ACL_TOKEN=$(../../dev/token.sh) ACL_INSECURE=1 go run .)

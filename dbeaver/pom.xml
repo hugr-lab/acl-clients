@@ -16,6 +16,7 @@
 
 	<modules>
 		<module>target-platform</module>
+		<module>io.github.hugrlab.acl.jdbc</module>
 		<module>io.github.hugrlab.acl.dbeaver</module>
 		<module>io.github.hugrlab.acl.dbeaver.tests</module>
 		<module>io.github.hugrlab.acl.dbeaver.feature</module>

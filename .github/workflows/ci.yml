@@ -45,6 +45,34 @@ jobs:
           name: acl-jdbc
           path: jdbc/target/acl-jdbc-*-all.jar
 
+  dbeaver:
+    name: DBeaver plugin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: The DBeaver release the plugin is built against
+        uses: actions/cache@v4
+        with:
+          path: dbeaver/.dbeaver
+          key: dbeaver-${{ hashFiles('dbeaver/build.sh') }}
+      - name: Build, unit and UI tests (Xvfb; the live tests skip without a node)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb > /dev/null
+          xvfb-run -a dbeaver/build.sh clean verify
+      - name: Install check (p2 director into a copy of that DBeaver)
+        run: xvfb-run -a dbeaver/install-check.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: acl-dbeaver-p2
+          path: dbeaver/io.github.hugrlab.acl.dbeaver.site/target/*.zip
+
   examples:
     name: Examples build
     runs-on: ubuntu-latest

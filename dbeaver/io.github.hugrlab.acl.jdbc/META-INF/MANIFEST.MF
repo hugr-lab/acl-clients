@@ -1,0 +1,7 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: duckdb-acl JDBC driver
+Bundle-SymbolicName: io.github.hugrlab.acl.jdbc
+Bundle-Version: 0.1.0.qualifier
+Bundle-Vendor: hugr-lab
+Bundle-RequiredExecutionEnvironment: JavaSE-21

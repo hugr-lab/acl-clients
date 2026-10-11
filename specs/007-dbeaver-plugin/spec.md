@@ -121,3 +121,31 @@ Editors (a form → the `ACL …` statement previewed → executed), running a c
 ## Stages
 007.1 skeleton + data tree + dialect; 007.2 consoles + view-as; 007.3 the Access control branch (read only).
 A PR each, three review passes, the build and install check green.
+
+## As built
+
+### 007.1 (2026-10-11)
+- **The target platform is a DBeaver release's own bundles**, not its p2 site (`latest` only): `dbeaver/build.sh`
+  fetches DBeaver CE 26.2.2 (the macOS dmg locally, the Linux tarball in CI) into `dbeaver/.dbeaver/` and
+  `target-platform.target` points at it (`${env_var:DBEAVER_HOME}`, a Directory location); SWTBot and JUnit 4 come
+  from Eclipse's repositories. Tycho 5.0.4, Java 21.
+- **The driver is a bundle of its own** (`io.github.hugrlab.acl.jdbc`): DBeaver loads a bundled driver as a whole
+  bundle jar (`<file path="bundle:/io.github.hugrlab.acl.jdbc"/>` - `bundle=` is a product filter, not a path), so the
+  shaded `-all` jar is unpacked into that bundle's classes; the plugin requires it, so it installs with the plugin.
+- **Our navigator tree, without `visibleIf`**: DBeaver evaluates `visibleIf` with JEXL permitted only on
+  `org.jkiss.dbeaver.*` / `com.dbeaver.*` classes, so any condition over a class of ours (`AclSchema`, `AclMetaModel`)
+  is silently false - Generic's tree inherited as is hid views, and functions under our schema. The tree is Generic's cut
+  to what a node has: tables (columns, keys, foreign keys, references), views, functions, nested schemas; no
+  indexes, sequences, synonyms, triggers, procedures, and no per-schema Data Types (the system catalog's types).
+- **Nested schemas**: `AclMetaModel.loadSchemas` keeps the catalog's top level and hangs `raw.eu` under `raw`
+  (`SchemaPath` reads spec 116 paths, a quoted part is one part); `AclSchema` keeps the whole path as its name (what
+  every listing filters by) and shows the last part (`DBPOverloadedObject`). Not yet: the SQL editor's resolution of
+  a nested schema by name (the catalog lists only the top level).
+- **Tests**: `PluginLoadedTest` (the connection type and its driver registered in a running DBeaver, the workbench
+  window up - not focused: macOS keeps a background process from the focus, SWTBot drives by events),
+  `SchemaPathTest`, `LiveTreeTest` (against `ACL_METADATA=1 dev/node.sh` as analyst1: the tree - nested `eu`, views,
+  functions, keys, no Data Types - and a query read through DBeaver's own execution context, the node's RLS). The
+  first-run Product Config wizard is off (`-Dproduct.config.disable=true`); a test connection saves its password
+  (else DBeaver prompts). `install-check.sh`: the p2 repository into a copy of that DBeaver by the p2 director, the
+  user's keyring untouched. CI: build + UI tests under Xvfb + install check; the release attaches the zipped p2
+  repository (versions from the tag, `tycho-versions`).

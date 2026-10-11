@@ -7,4 +7,5 @@
 		<import plugin="org.jkiss.dbeaver.ext.generic"/>
 	</requires>
 	<plugin id="io.github.hugrlab.acl.dbeaver" version="0.0.0" unpack="false"/>
+	<plugin id="io.github.hugrlab.acl.jdbc" version="0.0.0" unpack="false"/>
 </feature>
