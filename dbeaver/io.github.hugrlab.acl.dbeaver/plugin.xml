@@ -60,6 +60,96 @@
 						<items label="Schema" path="schema" property="childSchemas" icon="#schema" optional="true" recursive=".."/>
 					</items>
 				</items>
+				<!-- spec 007.3: the Access control branch, read only - shown where the node answered console_info, each folder
+				     where the principal reads its platform view or calls its read function (visibleIf on our model's
+				     org.jkiss.dbeaver.ext.acl.model classes, which DBeaver's JEXL may call); every node is one statement -->
+				<folder label="Access control" icon="#folder" visibleIf="object.accessControl">
+					<folder label="Roles" icon="#folder" visibleIf="object.shows('roles')">
+						<items label="Role" path="accessRole" property="accessRoles" icon="#user">
+							<folder label="Claims" icon="#folder" visibleIf="object.dataSource.shows('role_claims')">
+								<items label="Claim" path="roleClaim" property="claims" icon="#info"/>
+							</folder>
+							<folder label="Catalog grants" icon="#folder" visibleIf="object.dataSource.shows('grants')">
+								<items label="Grant" path="catalogGrant" property="catalogGrants" icon="#database"/>
+							</folder>
+							<folder label="Schema grants" icon="#folder" visibleIf="object.dataSource.shows('schema_grants')">
+								<items label="Grant" path="schemaGrant" property="schemaGrants" icon="#schema"/>
+							</folder>
+							<folder label="Object grants" icon="#folder" visibleIf="object.dataSource.shows('object_grants')">
+								<items label="Grant" path="objectGrant" property="objectGrants" icon="#table"/>
+							</folder>
+							<folder label="Administration" icon="#folder" visibleIf="object.dataSource.shows('admins')">
+								<items label="Scope" path="adminScope" property="adminScopes" icon="#info"/>
+							</folder>
+							<folder label="Resource groups" icon="#folder" visibleIf="object.dataSource.shows('role_resource_groups')">
+								<items label="Group" path="roleGroup" property="resourceGroups" icon="#info"/>
+							</folder>
+							<folder label="Effective rights" icon="#folder" visibleIf="object.dataSource.calls('effective_rights')">
+								<items label="Catalog" path="effectiveCatalog" property="effectiveCatalogs" icon="#database">
+									<items label="Right" path="effectiveRight" property="rights" icon="#table"/>
+								</items>
+							</folder>
+						</items>
+					</folder>
+					<folder label="Virtual catalogs" icon="#folder" visibleIf="object.shows('catalogs')">
+						<items label="Catalog" path="accessCatalog" property="accessCatalogs" icon="#database">
+							<folder label="Relations" icon="#folder_table" visibleIf="object.dataSource.shows('relations')">
+								<items label="Relation" path="accessRelation" property="relations" icon="#table">
+									<folder label="Columns" icon="#columns" visibleIf="object.dataSource.shows('relation_columns')">
+										<items label="Column" path="relationColumn" property="columns" icon="#column"/>
+									</folder>
+									<folder label="Keys" icon="#constraints" visibleIf="object.dataSource.shows('keys')">
+										<items label="Column" path="keyColumn" property="keyColumns" icon="#unique-key"/>
+									</folder>
+								</items>
+							</folder>
+							<folder label="Schemas" icon="#schema" visibleIf="object.dataSource.shows('schemas')">
+								<items label="Schema" path="virtualSchema" property="virtualSchemas" icon="#schema"/>
+							</folder>
+							<folder label="Functions" icon="#functions" visibleIf="object.dataSource.shows('functions')">
+								<items label="Function" path="functionEntry" property="functionEntries" icon="#function"/>
+							</folder>
+							<folder label="References" icon="#references" visibleIf="object.dataSource.shows('references')">
+								<items label="Reference" path="referenceEntry" property="referenceEntries" icon="#reference"/>
+							</folder>
+							<folder label="Check" icon="#info" visibleIf="object.dataSource.calls('check_catalog')">
+								<items label="Finding" path="finding" property="findings" icon="#info"/>
+							</folder>
+						</items>
+					</folder>
+					<folder label="Sources" icon="#folder" visibleIf="object.calls('exposures')">
+						<items label="Source" path="accessSource" property="accessSources" icon="#database">
+							<folder label="Exposures" icon="#folder">
+								<items label="Exposure" path="exposure" property="exposures" icon="#table"/>
+							</folder>
+						</items>
+					</folder>
+					<folder label="Identity" icon="#folder" visibleIf="object.shows('issuers') || object.shows('role_mappings')">
+						<folder label="Issuers" icon="#folder" visibleIf="object.shows('issuers')">
+							<items label="Issuer" path="accessIssuer" property="accessIssuers" icon="#info">
+								<folder label="Clients" icon="#folder" visibleIf="object.dataSource.shows('clients')">
+									<items label="Client" path="accessClient" property="clients" icon="#info"/>
+								</folder>
+							</items>
+						</folder>
+						<folder label="Role mappings" icon="#folder" visibleIf="object.shows('role_mappings')">
+							<items label="Mapping" path="roleMapping" property="accessRoleMappings" icon="#info"/>
+						</folder>
+					</folder>
+					<folder label="Function categories" icon="#functions" visibleIf="object.shows('function_categories')">
+						<items label="Category" path="functionCategory" property="accessFunctionCategories" icon="#functions">
+							<folder label="Members" icon="#folder" visibleIf="object.dataSource.shows('function_category_members')">
+								<items label="Function" path="categoryMember" property="members" icon="#function"/>
+							</folder>
+						</items>
+					</folder>
+					<folder label="Function grants" icon="#functions" visibleIf="object.shows('function_grants')">
+						<items label="Grant" path="functionGrant" property="accessFunctionGrants" icon="#function"/>
+					</folder>
+					<folder label="Resource groups" icon="#folder" visibleIf="object.shows('resource_groups')">
+						<items label="Group" path="resourceGroup" property="accessResourceGroups" icon="#info"/>
+					</folder>
+				</folder>
 			</tree>
 			<drivers managable="true">
 				<driver

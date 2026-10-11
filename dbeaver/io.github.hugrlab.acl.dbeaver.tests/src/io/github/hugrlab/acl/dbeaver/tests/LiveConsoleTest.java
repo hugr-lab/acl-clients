@@ -45,7 +45,7 @@ public class LiveConsoleTest {
 	private static final String NAVIGATOR = "org.jkiss.dbeaver.core.databaseNavigator";
 	private static DBPDataSourceContainer steward;
 
-	static synchronized DBPDataSourceContainer steward() throws Exception {
+	public static synchronized DBPDataSourceContainer steward() throws Exception {
 		if (steward == null) {
 			Workbench.waitUp();
 			steward = LiveTreeTest.connect("steward1", "steward1-pass");
