@@ -111,7 +111,7 @@ public abstract class AclObjectManager<T extends AclPlatformObject> extends SQLO
 	@Override
 	protected void addObjectCreateActions(@NotNull DBRProgressMonitor monitor, @NotNull DBCExecutionContext executionContext,
 	                                      @NotNull List<DBEPersistAction> actions, @NotNull ObjectCreateCommand command,
-	                                      @NotNull Map<String, Object> options) {
+	                                      @NotNull Map<String, Object> options) throws DBException {
 		add(actions, "Create " + command.getObject().getName(), command.getObject().createStatements());
 	}
 

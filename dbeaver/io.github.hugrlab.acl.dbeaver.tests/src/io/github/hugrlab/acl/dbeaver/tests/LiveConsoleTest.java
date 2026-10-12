@@ -452,6 +452,46 @@ public class LiveConsoleTest {
 		UIThreadRunnable.syncExec(() -> part.getSite().getPage().closeEditor(part, false));
 	}
 
+	/** Spec 008.2: a virtual function's parameters, result and template are on its Definition tab (the owner's ask). */
+	@Test
+	public void aFunctionsDefinitionTab() throws Exception {
+		LiveTreeTest.assumeNode();
+		SWTWorkbenchBot bot = new SWTWorkbenchBot();
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem connection = bot.viewById(NAVIGATOR).bot().tree()
+		    .getTreeItem(steward().getName()).expand();
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem functions = expandTo(bot, connection, "Access control",
+		                                                                         "Virtual catalogs", "sales", "Functions");
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				return functions.getNodes().contains("orders_over");
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "no function orders_over: " + functions.getNodes();
+			}
+		}, 30_000);
+		functions.getNode("orders_over").doubleClick();
+		org.eclipse.swtbot.eclipse.finder.widgets.SWTBotEditor editor = waitForEditor(bot);
+		org.eclipse.ui.IEditorPart part = UIThreadRunnable.syncExec(() -> editor.getReference().getEditor(true));
+		org.jkiss.dbeaver.ui.editors.entity.EntityEditor entity = (org.jkiss.dbeaver.ui.editors.entity.EntityEditor) part;
+		UIThreadRunnable.syncExec(() -> entity.switchFolder("io.github.hugrlab.acl.function.definition"));
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				String all = editorTexts(entity);
+				return all.contains("threshold INTEGER") && all.contains("amount >= acl_arg(1)");
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "the Definition tab shows no parameters or no template: " + editorTexts(entity);
+			}
+		}, 30_000);
+		UIThreadRunnable.syncExec(() -> part.getSite().getPage().closeEditor(part, false));
+	}
+
 	private static String editorTexts(org.eclipse.ui.IEditorPart part) {
 		return UIThreadRunnable.syncExec(() -> {
 			StringBuilder out = new StringBuilder();

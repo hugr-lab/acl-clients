@@ -1,5 +1,7 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import org.jkiss.dbeaver.DBException;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -126,7 +128,8 @@ public class AclCatalogGrant extends AclGrantObject implements AclPolicyGrant {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
+		required(getName(), "the catalog");
 		StringBuilder sql = new StringBuilder("GRANT CATALOG ").append(target()).append(AclGrammar.grantCaps(caps()));
 		if (isMain()) {
 			sql.append(" MAIN");

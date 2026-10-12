@@ -352,3 +352,21 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
 - **Tests**: unit `EditStatementsTest.nodeAndCluster`; live `LiveOperateTest` (ops1: analyst2's session found by its
   appearance, its audit and profile levels set, killed; drain then resume; on a cluster node an item made, read back,
   dropped through the editor's path, and the drift's statement into the profile).
+
+### Review fixes (2026-10-12, the owner on the stand)
+
+- **A function's Definition tab** (`FunctionDefinitionPage`): parameters and result (written at Create - no ALTER
+  changes them; the node's `functions` view does not hold the result, so a stored one's is `duckdb_functions()`'s),
+  the template in an editor of its own (`SET MACRO`), an alias's physical function (`SET ALIAS OF`); the four leave
+  the Properties grid.
+- **Columns of a record that declares none** (an expansion's `raw.events`, an alias): the navigator's Columns folder
+  shows the source's columns with their types (`AclRelation.getExposedColumns`), the declared list otherwise. A live
+  schema alias's objects have no records and stay unlisted in the tree (its source is under `platform.attached`).
+- **Choosing instead of typing**: a reference's From / To offer the catalog's tables, views and table functions; a
+  mapping's scope name offers the clients or the issuers (as its scope kind says), its role the roles. Typed names
+  still go.
+- **A missing required property says which** (`AclPlatformObject.required`): `duckdb-acl: the scope name (a client
+  or an issuer) is required` where DBeaver said "Couldn't generate alter script" over an NPE - mappings, relations,
+  schemas, functions, references and grants.
+- Tests: `LiveConsoleTest.aFunctionsDefinitionTab`; `LiveEditTest` - an expansion record's columns, a mapping without
+  its scope refused by name.

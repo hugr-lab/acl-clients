@@ -90,7 +90,7 @@ public class AclRole extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		String role = AclGrammar.ident(getName());
 		List<String> out = new ArrayList<>();
 		String claims = edited("defaultClaims", "");

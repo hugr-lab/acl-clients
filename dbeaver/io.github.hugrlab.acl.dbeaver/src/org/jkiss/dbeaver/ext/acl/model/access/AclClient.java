@@ -1,5 +1,7 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import org.jkiss.dbeaver.DBException;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -301,7 +303,7 @@ public class AclClient extends AclPlatformObject {
 	                                                  "unmapped", "attributes", "subject", "tokenType", "clientId", "flows");
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		StringBuilder sql = new StringBuilder("CREATE CLIENT ").append(AclGrammar.ident(getName())).append(" ISSUER ")
 		    .append(AclGrammar.ident(issuer()));
 		for (String id : ORDER) {

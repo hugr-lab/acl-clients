@@ -1,5 +1,7 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import org.jkiss.dbeaver.DBException;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +44,7 @@ public class AclReferenceEntry extends AclPlatformObject {
 		return catalog;
 	}
 
-	@Property(viewable = true, editable = true, order = 2, name = "From object")
+	@Property(viewable = true, editable = true, order = 2, name = "From object", listProvider = AclObjectNames.class)
 	public String getFromObject() {
 		return edited("fromObject", text("from_object"));
 	}
@@ -51,7 +53,7 @@ public class AclReferenceEntry extends AclPlatformObject {
 		edit("fromObject", value);
 	}
 
-	@Property(viewable = true, editable = true, order = 3, name = "To object")
+	@Property(viewable = true, editable = true, order = 3, name = "To object", listProvider = AclObjectNames.class)
 	public String getToObject() {
 		return edited("toObject", text("to_object"));
 	}
@@ -177,11 +179,11 @@ public class AclReferenceEntry extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		boolean function = "function".equals(getToKind());
 		StringBuilder sql = new StringBuilder("CREATE VIRTUAL REFERENCE ").append(target()).append(" FROM ")
-		    .append(AclGrammar.path(blank(getFromObject()))).append(" TO ").append(function ? "FUNCTION " : "")
-		    .append(AclGrammar.path(blank(getToObject())));
+		    .append(AclGrammar.path(required(getFromObject(), "the From object"))).append(" TO ").append(function ? "FUNCTION " : "")
+		    .append(AclGrammar.path(required(getToObject(), "the To object")));
 		if (function && !AclGrammar.isBlank(getArguments())) {
 			sql.append('(').append(getArguments().trim()).append(')');
 		}

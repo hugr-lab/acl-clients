@@ -188,7 +188,7 @@ public class AclResourceGroup extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		String limits;
 		try {
 			limits = limits(null);

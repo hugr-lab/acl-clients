@@ -102,7 +102,7 @@
 							<folder id="acl_relations" type="org.jkiss.dbeaver.ext.acl.model.access.AclRelation" label="Relations" icon="#folder_table" visibleIf="object.dataSource.shows('relations')">
 								<items label="Relation" path="accessRelation" property="relations" icon="#table">
 									<folder id="acl_columns_3" label="Columns" icon="#columns" visibleIf="object.dataSource.shows('relation_columns')">
-										<items label="Column" path="relationColumn" property="columns" icon="#column"/>
+										<items label="Column" path="relationColumn" property="exposedColumns" icon="#column"/>
 									</folder>
 									<folder id="acl_keys_2" label="Keys" icon="#constraints" visibleIf="object.dataSource.shows('keys')">
 										<items label="Column" path="keyColumn" property="keyColumns" icon="#unique-key"/>
@@ -254,6 +254,12 @@
 		        position="additions_end" icon="#columns" type="folder">
 			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant"/>
 			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant"/>
+		</editor>
+		<!-- spec 008.2: a virtual function's parameters, result and template (the owner's ask) -->
+		<editor id="io.github.hugrlab.acl.function.definition" class="org.jkiss.dbeaver.ext.acl.ui.grant.FunctionDefinitionPage"
+		        main="false" label="Definition" description="Parameters, result and template" position="additions_end"
+		        icon="#sql_text" type="folder">
+			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionEntry"/>
 		</editor>
 		<!-- spec 008.2: a virtual table's own row filter and column list -->
 		<editor id="io.github.hugrlab.acl.relation.rowfilter" class="org.jkiss.dbeaver.ext.acl.ui.grant.RelationRowFilterPage"

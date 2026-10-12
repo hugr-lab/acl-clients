@@ -72,7 +72,7 @@ public class AclFunctionCategory extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		String comment = getComment();
 		return List.of("CREATE FUNCTION CATEGORY " + AclGrammar.ident(getName())
 		               + (AclGrammar.isBlank(comment) ? "" : " COMMENT " + AclGrammar.literal(comment)));

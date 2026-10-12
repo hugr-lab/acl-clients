@@ -99,7 +99,7 @@ public class AclIssuer extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		StringBuilder sql = new StringBuilder("CREATE ISSUER ").append(AclGrammar.ident(getName()));
 		if (!AclGrammar.isBlank(getUrl())) {
 			sql.append(" URL ").append(AclGrammar.literal(getUrl().trim()));

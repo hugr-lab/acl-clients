@@ -1,5 +1,7 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import org.jkiss.dbeaver.DBException;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,7 +31,11 @@ public class AclRoleMapping extends AclPlatformObject {
 	@Property(viewable = true, order = 1)
 	public String getName() {
 		String value = getExternalValue();
-		return value == null ? "" : value + " → " + getRole() + " (" + getScopeKind() + " " + getScopeName() + ")";
+		if (value == null) {
+			return "";
+		}
+		return value + " → " + (getRole() == null ? "?" : getRole()) + " (" + getScopeKind() + " "
+		       + (getScopeName() == null ? "?" : getScopeName()) + ")";
 	}
 
 	@Property(viewable = true, editable = true, order = 2, name = "Source", listProvider = Sources.class,
@@ -61,7 +67,8 @@ public class AclRoleMapping extends AclPlatformObject {
 		edit("scopeKind", value);
 	}
 
-	@Property(viewable = true, editable = true, order = 5, name = "Scope name", description = "The client's or issuer's name")
+	@Property(viewable = true, editable = true, order = 5, name = "Scope name", listProvider = ScopeNames.class,
+	          description = "The client's or issuer's name")
 	public String getScopeName() {
 		return edited("scopeName", text("scope_name"));
 	}
@@ -70,7 +77,7 @@ public class AclRoleMapping extends AclPlatformObject {
 		edit("scopeName", value);
 	}
 
-	@Property(viewable = true, editable = true, order = 6, name = "Role")
+	@Property(viewable = true, editable = true, order = 6, name = "Role", listProvider = AclRoleNames.class)
 	public String getRole() {
 		return edited("role", text("role"));
 	}
@@ -93,20 +100,54 @@ public class AclRoleMapping extends AclPlatformObject {
 		};
 	}
 
-	private String mapping() {
-		return ("group".equals(getSource()) ? "GROUP " : "CLAIM ") + AclGrammar.literal(getExternalValue()) + " FROM "
-		       + ("issuer".equals(getScopeKind()) ? "ISSUER " : "CLIENT ") + AclGrammar.ident(getScopeName()) + " TO ROLE "
-		       + AclGrammar.ident(getRole());
+	private String mapping() throws DBException {
+		return ("group".equals(getSource()) ? "GROUP " : "CLAIM ")
+		       + AclGrammar.literal(required(getExternalValue(), "the external value")) + " FROM "
+		       + ("issuer".equals(getScopeKind()) ? "ISSUER " : "CLIENT ")
+		       + AclGrammar.ident(required(getScopeName(), "the scope name (a client or an issuer)")) + " TO ROLE "
+		       + AclGrammar.ident(required(getRole(), "the role"));
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		return List.of("MAP " + mapping());
 	}
 
 	@Override
 	public List<String> dropStatements() {
-		return List.of("DROP MAP " + mapping());
+		try {
+			return List.of("DROP MAP " + mapping());
+		} catch (DBException e) {
+			return List.of(); // a stored mapping has its key
+		}
+	}
+
+	/** The clients or the issuers, as the scope kind says. */
+	public static class ScopeNames implements IPropertyValueListProvider<AclRoleMapping> {
+		@Override
+		public boolean allowCustomValue() {
+			return true;
+		}
+
+		@Override
+		public Object[] getPossibleValues(AclRoleMapping object) {
+			java.util.List<String> names = new java.util.ArrayList<>();
+			try {
+				org.jkiss.dbeaver.model.runtime.VoidProgressMonitor monitor = new org.jkiss.dbeaver.model.runtime.VoidProgressMonitor();
+				for (AclIssuer issuer : object.getDataSource().getAccessIssuers(monitor)) {
+					if ("issuer".equals(object.getScopeKind())) {
+						names.add(issuer.getName());
+					} else {
+						for (AclClient client : issuer.getClients(monitor)) {
+							names.add(client.getName());
+						}
+					}
+				}
+			} catch (Exception e) {
+				// typed instead
+			}
+			return names.toArray();
+		}
 	}
 
 	public static class Sources implements IPropertyValueListProvider<AclRoleMapping> {

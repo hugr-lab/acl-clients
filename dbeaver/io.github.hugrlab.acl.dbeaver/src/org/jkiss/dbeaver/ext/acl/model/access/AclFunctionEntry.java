@@ -1,5 +1,7 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import org.jkiss.dbeaver.DBException;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -72,7 +74,7 @@ public class AclFunctionEntry extends AclPlatformObject {
 		return "alias".equals(getForm());
 	}
 
-	@Property(viewable = true, editable = true, order = 4, name = "Params",
+	@Property(viewable = true, editable = true, hidden = true, order = 4, name = "Params",
 	          description = "The parameter list: threshold INTEGER, tenant VARCHAR (types the probe)")
 	public String getParams() {
 		return edited("params", text("params"));
@@ -82,7 +84,7 @@ public class AclFunctionEntry extends AclPlatformObject {
 		edit("params", params);
 	}
 
-	@Property(viewable = true, editable = true, order = 5, name = "Returns",
+	@Property(viewable = true, editable = true, hidden = true, order = 5, name = "Returns",
 	          description = "A table function's result columns (id INTEGER, amount INTEGER) or a scalar's type; empty = probed")
 	public String getReturns() {
 		return edited("returns", "");
@@ -92,7 +94,7 @@ public class AclFunctionEntry extends AclPlatformObject {
 		edit("returns", returns);
 	}
 
-	@Property(viewable = true, editable = true, updatable = true, order = 6, name = "Target",
+	@Property(viewable = true, editable = true, updatable = true, hidden = true, order = 6, name = "Target",
 	          description = "An alias's physical function")
 	public String getTarget() {
 		return edited("target", text("target"));
@@ -147,7 +149,7 @@ public class AclFunctionEntry extends AclPlatformObject {
 		return text("created_by");
 	}
 
-	@Property(viewable = true, editable = true, updatable = true, order = 50, name = "Template", length = PropertyLength.MULTILINE,
+	@Property(viewable = true, editable = true, updatable = true, hidden = true, order = 50, name = "Template", length = PropertyLength.MULTILINE,
 	          description = "A macro's body: a SELECT (table function) or an expression (scalar), in physical names")
 	public String getTemplate() {
 		return edited("template", text("template"));
@@ -201,11 +203,11 @@ public class AclFunctionEntry extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		StringBuilder sql = new StringBuilder("CREATE VIRTUAL ").append(kindWord()).append(' ').append(target());
 		String comment = getComment();
 		if (isAlias()) {
-			sql.append(" ALIAS OF ").append(AclGrammar.path(getTarget() == null ? "" : getTarget().trim()));
+			sql.append(" ALIAS OF ").append(AclGrammar.path(required(getTarget(), "an alias's physical function (Target)")));
 			if (!AclGrammar.isBlank(comment)) {
 				sql.append(" COMMENT ").append(AclGrammar.literal(comment));
 			}
@@ -224,7 +226,7 @@ public class AclFunctionEntry extends AclPlatformObject {
 		if (!AclGrammar.isBlank(comment)) {
 			sql.append(" COMMENT ").append(AclGrammar.literal(comment));
 		}
-		sql.append(" AS ").append(getTemplate() == null ? "" : getTemplate().trim());
+		sql.append(" AS ").append(required(getTemplate(), "a macro's template"));
 		return List.of(sql.toString());
 	}
 

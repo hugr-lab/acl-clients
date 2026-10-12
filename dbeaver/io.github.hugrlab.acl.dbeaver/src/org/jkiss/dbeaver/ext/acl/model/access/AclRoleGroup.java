@@ -1,5 +1,7 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import org.jkiss.dbeaver.DBException;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,7 +50,7 @@ public class AclRoleGroup extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		return List.of("GRANT RESOURCE GROUP " + AclGrammar.ident(getName()) + " TO ROLE " + AclGrammar.ident(role()));
 	}
 

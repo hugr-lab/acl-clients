@@ -1,5 +1,7 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import org.jkiss.dbeaver.DBException;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -125,10 +127,10 @@ public class AclVirtualSchema extends AclPlatformObject implements Operable {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		String comment = getComment();
 		return List.of("CREATE VIRTUAL SCHEMA " + target() + (isExpansion() ? " FROM " : " AS ")
-		               + AclGrammar.path(getPhysPath() == null ? "" : getPhysPath().trim())
+		               + AclGrammar.path(required(getPhysPath(), "the physical schema (Phys path)"))
 		               + (AclGrammar.isBlank(comment) ? "" : " COMMENT " + AclGrammar.literal(comment)));
 	}
 

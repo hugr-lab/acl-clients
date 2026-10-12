@@ -265,7 +265,7 @@ public class AclRelation extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		List<String> out = new ArrayList<>();
 		String key = edited("primaryKey", "");
 		String comment = getComment();
@@ -277,9 +277,9 @@ public class AclRelation extends AclPlatformObject {
 			if (!AclGrammar.isBlank(comment)) {
 				sql.append(" COMMENT ").append(AclGrammar.literal(comment));
 			}
-			sql.append(" AS ").append(getViewSql() == null ? "" : getViewSql().trim());
+			sql.append(" AS ").append(required(getViewSql(), "a view's SELECT"));
 		} else {
-			sql.append(" AS ").append(getPhys() == null ? "" : AclGrammar.path(getPhys().trim()));
+			sql.append(" AS ").append(AclGrammar.path(required(getPhys(), "the physical object (Phys)")));
 			String columns = edited("declaredColumns", "");
 			if (!AclGrammar.isBlank(columns)) {
 				sql.append(" COLUMNS (").append(columns.trim()).append(')');
@@ -354,6 +354,30 @@ public class AclRelation extends AclPlatformObject {
 			out.add(new String[] {PlatformValues.text(row.get("column_name")), PlatformValues.text(row.get("data_type"))});
 		}
 		return out;
+	}
+
+	/**
+	 * What the navigator shows under Columns: the declared list, or - a relation that declares none (an alias, an
+	 * expansion's record) - its source's columns with their types, as the node lists its attached sources.
+	 */
+	@Association
+	public List<AclRelationColumn> getExposedColumns(DBRProgressMonitor monitor) throws DBException {
+		List<AclRelationColumn> declared = getColumns(monitor);
+		if (!declared.isEmpty() || isView()) {
+			return declared;
+		}
+		return childrenOf("SourceColumns", () -> {
+			List<AclRelationColumn> out = new ArrayList<>();
+			int pos = 0;
+			for (String[] column : physicalColumns(monitor)) {
+				Map<String, Object> made = new java.util.HashMap<>();
+				made.put("name", column[0]);
+				made.put("type", column[1]);
+				made.put("pos", pos++);
+				out.add(new AclRelationColumn(dataSource, this, made));
+			}
+			return out;
+		});
 	}
 
 	@Association

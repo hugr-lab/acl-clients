@@ -1,5 +1,7 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import org.jkiss.dbeaver.DBException;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -236,7 +238,7 @@ public class AclClusterItem extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		return switch (getKind()) {
 			case "source" -> List.of(attach());
 			case "extension" -> List.of("CLUSTER INSTALL EXTENSION " + AclGrammar.ident(getName()) + " VERSION "
@@ -248,7 +250,7 @@ public class AclClusterItem extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) {
+	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) throws DBException {
 		if (changed.isEmpty()) {
 			return List.of();
 		}

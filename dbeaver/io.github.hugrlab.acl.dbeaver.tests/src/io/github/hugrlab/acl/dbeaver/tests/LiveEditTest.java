@@ -442,6 +442,10 @@ public class LiveEditTest {
 		assertEquals("one record per object of the source", 1,
 		             rows(acl, PlatformSql.view("relations", "catalog", "t008b", "name", "cur.events")).size());
 		run(acl, expansion.refreshStatement(true)); // what Refresh from the source… runs
+		// a record that declares no list shows its source's columns under Columns (the owner's raw.events)
+		AclRelation events = new AclRelation(acl, catalog, rows(acl, PlatformSql.view("relations", "catalog", "t008b", "name", "cur.events")).get(0));
+		assertFalse("the source's columns", events.getExposedColumns(MONITOR).isEmpty());
+		assertNotNull(events.getExposedColumns(MONITOR).get(0).getType());
 
 		DBECommandContext functions = context(acl);
 		AclFunctionEntry macro = create(functions, AclFunctionEntry.class, catalog);
@@ -534,6 +538,16 @@ public class LiveEditTest {
 		Map<String, Object> stored = rows(acl, PlatformSql.view("clients", "name", "t008_client")).get(0);
 		assertEquals("as_role", stored.get("unmapped"));
 
+		DBECommandContext half = context(acl); // a mapping missing its scope says so - never an NPE
+		AclRoleMapping unnamed = create(half, AclRoleMapping.class, acl);
+		set(half, unnamed, "externalValue", "t008");
+		set(half, unnamed, "role", "t008_mapped");
+		try {
+			script(half);
+			fail("a mapping without its client or issuer");
+		} catch (DBException e) {
+			assertTrue(e.getMessage(), e.getMessage().contains("the scope name (a client or an issuer) is required"));
+		}
 		DBECommandContext map = context(acl);
 		AclRoleMapping mapping = create(map, AclRoleMapping.class, acl);
 		set(map, mapping, "externalValue", "t008");

@@ -1,5 +1,7 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import org.jkiss.dbeaver.DBException;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -98,12 +100,12 @@ public class AclFunctionGrant extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		return List.of((isAllowed() ? "GRANT " : "DENY ") + subject() + " " + who("TO"));
 	}
 
 	@Override
-	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) {
+	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) throws DBException {
 		return changed.contains("allowed") ? createStatements() : List.of();
 	}
 

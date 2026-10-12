@@ -1,5 +1,7 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import org.jkiss.dbeaver.DBException;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -93,7 +95,7 @@ public class AclPlatformGrant extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		if ("source".equals(getKind())) {
 			return List.of("GRANT " + subject() + " TO ROLE " + AclGrammar.ident(role()));
 		}
@@ -101,7 +103,7 @@ public class AclPlatformGrant extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) {
+	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) throws DBException {
 		return changed.contains("allowed") && !"source".equals(getKind()) ? createStatements() : List.of();
 	}
 
