@@ -4,6 +4,7 @@ Bundle-Name: duckdb-acl for DBeaver
 Bundle-SymbolicName: io.github.hugrlab.acl.dbeaver;singleton:=true
 Bundle-Version: 0.1.0.qualifier
 Bundle-Vendor: hugr-lab
+Bundle-Localization: OSGI-INF/l10n/bundle
 Bundle-RequiredExecutionEnvironment: JavaSE-21
 Bundle-ActivationPolicy: lazy
 Require-Bundle: org.jkiss.dbeaver.model,

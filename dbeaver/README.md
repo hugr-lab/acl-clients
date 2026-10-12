@@ -25,7 +25,7 @@ Built against DBeaver CE 26.2.2 (Java 21).
 - The node's tree as the signed-in principal sees it: catalogs, schemas nested by their path (`raw` → `eu`),
   tables (columns, declared keys and references), views, table functions and scalars (parameters, result columns).
 - The ACL management words highlighted in the SQL editor.
-- For an administrator, **duckdb-acl ▸** on a connection (right-click in the navigator) - each item shown only when
+- For an administrator, **Access control ▸** on a connection (right-click in the navigator) - each item shown only when
   the node's `platform.console_info()` says it works for you (the node judges again anyway):
   - **Management console** - an SQL editor where every statement is management (`CREATE VIRTUAL …`, `GRANT …`,
     `CHECK VIRTUAL CATALOG …`): the bundles `policy`, a catalog's `manage`, any platform view.
@@ -44,12 +44,28 @@ Built against DBeaver CE 26.2.2 (Java 21).
   connection). Asked again, the same copy is reused. A console does not run your connection's bootstrap
   statements (they would be prefixed).
 
-- For an administrator, an **Access control** folder beside the catalogs (read only): roles with their grants and
+- For an administrator, an **Access control** folder beside the catalogs: roles with their grants and
   **effective rights** per catalog (what the role reads of each object and why), virtual catalogs with their objects
   and the **check** (findings with the repair statement to copy), sources with their **exposures** (who reads what),
   identity (issuers, clients, role mappings), function categories, resource groups, and - for the node's operators -
   its sessions, load and doors and the cluster profile. Each part shows only what your scopes read; a part is read
   when you open it and kept - refresh the connection (F5 on it) to read the branch again.
+- **Editing the policy** (roles, virtual catalogs, virtual tables and views, catalog / schema / object grants) with
+  DBeaver's own actions: **Create New …** on a folder, the object's editor (double-click) for its properties, **Delete**.
+  **Save** shows the statements first - the node's management grammar (`GRANT CATALOG sales TO ROLE analyst WITH
+  (select) MAIN`), exactly what runs; **Open Editor** there puts them in an SQL editor to change by hand.
+  - A change writes only the properties you changed, one statement each (`ALTER GRANT CATALOG … SET CAPS …`); a
+    schema or object grant is written again whole (the grammar has no ALTER for it - a GRANT replaces it).
+  - Capabilities are boxes: **Unstated** (the grant names none - every data capability for a catalog grant, the
+    catalog grant's for a schema or object grant) or each one ticked.
+  - Before a save, the plugin reads the object again: a property someone changed meanwhile is shown and you are asked
+    whether to save over it.
+  - Statements run one by one; when the node refuses one, the error lists those that ran before it (a management
+    batch is not atomic, and it is not part of a transaction of yours - a ROLLBACK does not undo it).
+  - What you are offered follows what the node lets you do (console_info); the node judges every statement anyway.
+    A view-as connection edits nothing.
+- **View as this role** on a role of the branch: the same view-as connection, for that role.
+- SQL editor templates for the main forms (`aclgrant`, `acltable`, `aclrole`, … - Ctrl+Space).
 
 ## Develop
 

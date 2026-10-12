@@ -27,6 +27,18 @@ public class PluginLoadedTest {
 		assertEquals("io.github.hugrlab.acl.jdbc.AclDriver", driver.getDriverClassName());
 	}
 
+	/** Spec 008.1: the grammar's templates are in DBeaver's store, for this connection type. */
+	@Test
+	public void theGrammarTemplatesAreLoaded() {
+		org.eclipse.jface.text.templates.persistence.TemplateStore store =
+		    org.jkiss.dbeaver.ui.editors.sql.templates.SQLTemplatesRegistry.getInstance().getTemplateStore();
+		org.eclipse.jface.text.templates.Template grant = store.findTemplateById("io.github.hugrlab.acl.templates.grant_catalog");
+		assertNotNull("the GRANT CATALOG template", grant);
+		assertEquals("sql_duckdb_acl_duckdb_acl_jdbc", grant.getContextTypeId());
+		assertEquals(9, java.util.Arrays.stream(store.getTemplates())
+		                    .filter(t -> t.getContextTypeId().equals("sql_duckdb_acl_duckdb_acl_jdbc")).count());
+	}
+
 	@Test
 	public void theWorkbenchIsUp() {
 		Workbench.waitUp();

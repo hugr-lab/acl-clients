@@ -17,6 +17,26 @@ public record ConsoleInfo(Set<String> bundles, Set<String> adminCatalogs, Set<St
 		};
 	}
 
+	/**
+	 * Whether an editor's statement can work (spec 008.1): the principal calls the platform function its grammar
+	 * compiles to, and - a catalog's administrator without the policy bundle - the catalog is one it administers
+	 * (null: the statement belongs to no catalog). Convenience only: the node judges every statement.
+	 */
+	public boolean mayCall(String function, String catalog) {
+		if (!myFunctions.contains(function)) {
+			return false;
+		}
+		if (catalog == null || bundles.contains("policy") || bundles.contains("passthrough") || adminCatalogs.isEmpty()) {
+			return true;
+		}
+		for (String administered : adminCatalogs) {
+			if (administered.equalsIgnoreCase(catalog)) { // catalog names fold ASCII, as the node's (spec 116)
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public boolean offersAny() {
 		for (ConsoleKind kind : ConsoleKind.values()) {
 			if (offers(kind)) {

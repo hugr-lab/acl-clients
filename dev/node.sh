@@ -122,6 +122,12 @@ ACL ADMIN MAP CLAIM 'steward' FROM CLIENT '$KC_REALM' TO ROLE steward;
 ACL ADMIN CREATE ROLE operator;
 ACL ADMIN GRANT ADMIN cluster TO ROLE operator;
 ACL ADMIN MAP CLAIM 'operator' FROM CLIENT '$KC_REALM' TO ROLE operator;
+-- spec 008.1: a catalog's administrator - manage on scratch only, its sources memory.main (duckdb-acl 118.3)
+ACL ADMIN CREATE VIRTUAL CATALOG scratch COMMENT 'a catalog its curator administers';
+ACL ADMIN CREATE ROLE curator;
+ACL ADMIN GRANT CATALOG scratch TO ROLE curator CAPS '{"manage": true}';
+ACL ADMIN GRANT SOURCE memory.main TO ROLE curator;
+ACL ADMIN MAP CLAIM 'curator' FROM CLIENT '$KC_REALM' TO ROLE curator;
 SET GLOBAL acl_allow_anonymous_admin = false;
 $PIPELINES
 $METADATA

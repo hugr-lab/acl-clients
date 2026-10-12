@@ -2,7 +2,8 @@
 # The dev IdP for these clients: duckdb-acl's standing realm `acl-dev` (users analyst1/acme,
 # analyst2/globex, viewer1 - see duckdb-acl test/live/keycloak_realm.sh), an administrator steward1 (the
 # realm role `steward`, the node's policy bundle - spec 007.2's consoles and view-as), an operator ops1 (`operator`,
-# the cluster bundle - spec 007.3's node and cluster folders) plus one public client,
+# the cluster bundle - spec 007.3's node and cluster folders), a catalog administrator curator1 (`curator`, manage on
+# the catalog scratch - spec 008.1's editors) plus one public client,
 # `acl-desktop`, that speaks every flow the driver offers: auth code + PKCE (a loopback redirect on
 # 127.0.0.1), device, password, refresh. The node advertises it through `discover-auth`, so a client
 # needs nothing but the node's address. Idempotent.
@@ -64,3 +65,19 @@ rid=$(curl -sf "$KC/admin/realms/$REALM/roles/operator" -H "$AUTH" | python3 -c 
 curl -s -o /dev/null -X POST "$KC/admin/realms/$REALM/users/$uid/role-mappings/realm" -H "$AUTH" \
 	-H "Content-Type: application/json" -d "[{\"id\":\"$rid\",\"name\":\"operator\"}]"
 echo "  user ops1 (role operator): $([ "$created" = 201 ] && echo created || echo converged)"
+# spec 008.1: a catalog's administrator - the realm role `curator`, which dev/node.sh maps to `manage` on the catalog
+# `scratch` only (the editors' live tests: its own catalog edits, another's is refused)
+code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$KC/admin/realms/$REALM/roles" -H "$AUTH" \
+	-H "Content-Type: application/json" -d '{"name":"curator"}')
+body='{"username":"curator1","enabled":true,"emailVerified":true,"email":"curator1@'"$REALM"'.local",
+	"firstName":"curator1","lastName":"user","requiredActions":[],"attributes":{"tenant":["acme"]}}'
+created=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$KC/admin/realms/$REALM/users" -H "$AUTH" \
+	-H "Content-Type: application/json" -d "$body")
+uid=$(curl -sf "$KC/admin/realms/$REALM/users?username=curator1&exact=true" -H "$AUTH" \
+	| python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["id"])')
+curl -sf -o /dev/null -X PUT "$KC/admin/realms/$REALM/users/$uid/reset-password" -H "$AUTH" \
+	-H "Content-Type: application/json" -d "{\"type\":\"password\",\"value\":\"${ACL_KC_CURATOR1_PASS:-curator1-pass}\",\"temporary\":false}"
+rid=$(curl -sf "$KC/admin/realms/$REALM/roles/curator" -H "$AUTH" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+curl -s -o /dev/null -X POST "$KC/admin/realms/$REALM/users/$uid/role-mappings/realm" -H "$AUTH" \
+	-H "Content-Type: application/json" -d "[{\"id\":\"$rid\",\"name\":\"curator\"}]"
+echo "  user curator1 (role curator): $([ "$created" = 201 ] && echo created || echo converged)"
