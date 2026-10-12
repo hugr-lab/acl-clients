@@ -78,6 +78,10 @@ Built against DBeaver CE 26.2.2 (Java 21).
     with their members, function grants (a role or every role, grant or deny), resource groups (limits, default) and a
     role's groups; a role's administration bundles and its grants on `platform` and on sources (passthrough's). No
     field anywhere takes a key, a password or a client secret: those are the secrets service's, named.
+  - The node (operate, cluster): a session's **Kill session…**, **Audit level…**, **Profile level…**; **Drain the node…**
+    / **Resume the node…** on its Load row; the cluster profile's items (settings, sources, extensions - per group) on a
+    cluster node, and **Add to the cluster profile…** on a drift entry (the places the node cannot know - a source's
+    type and secret - left to fill).
 - **View as this role** on a role of the branch: the same view-as connection, for that role.
 - SQL editor templates for the main forms (`aclgrant`, `acltable`, `aclrole`, … - Ctrl+Space).
 

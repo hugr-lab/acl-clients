@@ -4,6 +4,7 @@ import java.util.Map;
 
 import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant;
+import org.jkiss.dbeaver.ext.acl.model.access.AclClusterItem;
 import org.jkiss.dbeaver.ext.acl.model.access.AclPlatformGrant;
 import org.jkiss.dbeaver.ext.acl.model.access.AclAdminScope;
 import org.jkiss.dbeaver.ext.acl.model.access.AclRoleGroup;
@@ -155,6 +156,13 @@ final class AclManagers {
 		@Override
 		protected AclPlatformGrant make(DBSObject container) {
 			return new AclPlatformGrant(dataSource(container), container, Map.of());
+		}
+	}
+
+	public static class ClusterItems extends AclObjectManager<AclClusterItem> {
+		@Override
+		protected AclClusterItem make(DBSObject container) {
+			return new AclClusterItem(dataSource(container), container, Map.of());
 		}
 	}
 }

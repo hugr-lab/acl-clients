@@ -167,7 +167,7 @@
 						</folder>
 					</folder>
 					<folder id="acl_cluster" label="Cluster" icon="#folder" visibleIf="object.shows('cluster_items') || object.shows('drift')">
-						<folder id="acl_profile" label="Profile" icon="#folder" visibleIf="object.shows('cluster_items')">
+						<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclClusterItem" id="acl_profile" label="Profile" icon="#folder" visibleIf="object.shows('cluster_items')">
 							<items label="Item" path="accessClusterItem" property="accessClusterItems" icon="#info"/>
 						</folder>
 						<folder id="acl_applied_here" label="Applied here" icon="#folder" visibleIf="object.shows('cluster_effective')">
@@ -237,6 +237,7 @@
 		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$RoleGroups" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclRoleGroup"/>
 		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$AdminScopes" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclAdminScope"/>
 		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$PlatformGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclPlatformGrant"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$ClusterItems" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclClusterItem"/>
 	</extension>
 
 	<!-- spec 008.1 addendum: a grant's row filter and column list in tabs of their own, each with Check (the node's
@@ -358,7 +359,7 @@
 				</command>
 			</menu>
 		</menuContribution>
-		<!-- spec 008.2: a finding's repair, an expanded schema's refresh -->
+		<!-- spec 008.2 / 008.3: an object's operations (Operable) - shown, completed, then run -->
 		<menuContribution locationURI="popup:org.eclipse.ui.popup.any?after=additions">
 			<command commandId="io.github.hugrlab.acl.run" label="Repair…" tooltip="The node's repair for this finding - shown, completed, then run" style="push">
 				<parameter name="io.github.hugrlab.acl.run.kind" value="repair"/>
@@ -383,6 +384,90 @@
 							<and>
 								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
 								<test property="io.github.hugrlab.acl.run" args="refresh" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
+			<command commandId="io.github.hugrlab.acl.run" label="Kill session…" tooltip="End this session" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="kill"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="kill" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
+			<command commandId="io.github.hugrlab.acl.run" label="Audit level…" tooltip="The operator's audit level on this session" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="audit"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="audit" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
+			<command commandId="io.github.hugrlab.acl.run" label="Profile level…" tooltip="The execution profile level on this session" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="profile"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="profile" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
+			<command commandId="io.github.hugrlab.acl.run" label="Drain the node…" tooltip="Stop seating new clients on this node" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="drain"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="drain" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
+			<command commandId="io.github.hugrlab.acl.run" label="Resume the node…" tooltip="Seat new clients again" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="resume"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="resume" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
+			<command commandId="io.github.hugrlab.acl.run" label="Add to the cluster profile…" tooltip="Write what this node has into the cluster profile" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="into_profile"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="into_profile" forcePluginActivation="true"/>
 							</and>
 						</iterate>
 					</with>

@@ -1,6 +1,6 @@
 # Spec 008: editors in the DBeaver plugin - a form, our statement, then the node
 
-- **Status**: accepted (by the owner 2026-10-12, with the recommended answers to the questions below)
+- **Status**: implemented (008.1 - 008.3; accepted by the owner 2026-10-12, with the recommended answers to the questions below)
 - **Date**: 2026-10-12
 - **Node side**: duckdb-acl specs 117 (the `platform` catalog: views, `console_info`, the one authorizer, management
   without a marker under a principal), 118 (node and cluster), 120 (the missing ALTER / REVOKE forms,
@@ -328,3 +328,27 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
   tabs and the tests set by descriptor (008.1 addendum).
 - **Not here**: 008.3 (node, cluster); a stored reference's pairs / arguments shown (they are `reference_columns`;
   only a new one's are written); a Check for a virtual table's definition (duckdb-acl would add `check_relation`).
+
+### 008.3 (2026-10-12) - the node and the cluster
+- **Operations** (`Operable`: an object says which statements an operation offers, its title and explanation, and the
+  platform function it compiles to; one command `io.github.hugrlab.acl.run` with the kind, one dialog -
+  `StatementDialog`: the alternatives, the statement editable, Execute once no `<…>` place is left; offered where the
+  function is callable): a **session**'s Kill session… (`KILL SESSION '<id>'`), Audit level… (`SET SESSION '<id>' AUDIT
+  LEVEL ALL | DECISIONS | DENIED | OFF | DEFAULT`), Profile level… (`PROFILE SESSION '<id>' ON | SAMPLED | OFF`); the
+  **node** (its Load row) Drain the node… / Resume the node… (`DRAIN NODE` / `RESUME NODE` - this node, never the
+  fleet); a **drift** entry's Add to the cluster profile… (what the node has, as the CLUSTER statement that makes it the
+  profile's: `CLUSTER SET threads = 16`; a source `CLUSTER ATTACH '<path>' AS a (TYPE <type>, SECRET <secret>)` - the
+  places the node cannot know left to fill, never a credential; an extension `… VERSION '<version>' FROM
+  <repository>`); 008.2's repair and refresh are operations too.
+- **The cluster profile's items** (a cluster node's, the cluster bundle's): Create (Kind setting | source | extension,
+  Name, Group = `IN GROUP`, and per kind Value; Path, Type, Secret, Options, Lineage, Depends on; Version, Repository;
+  Comment) → `CLUSTER SET` / `CLUSTER ATTACH` / `CLUSTER INSTALL EXTENSION`; a change is the SET again, the ATTACH again
+  (a re-point), `CLUSTER UPDATE EXTENSION … VERSION`; the drop `RESET` / `DETACH` / `REMOVE EXTENSION`. The stored spec
+  (a MAP) reads back into the properties; a source's options (JSON) as ATTACH writes them. "Applied here" lists the
+  effective items, read only (`AclClusterEffective`). The answer a CLUSTER statement gives (class, applied here, note)
+  is not shown yet - the items' Class column says how a change reaches the nodes.
+- **Dev**: `ACL_CLUSTER=1 dev/node.sh` makes a cluster node (`acl_deployment = 'cluster'`); ops1 holds the cluster
+  bundle.
+- **Tests**: unit `EditStatementsTest.nodeAndCluster`; live `LiveOperateTest` (ops1: analyst2's session found by its
+  appearance, its audit and profile levels set, killed; drain then resume; on a cluster node an item made, read back,
+  dropped through the editor's path, and the drift's statement into the profile).

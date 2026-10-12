@@ -393,4 +393,51 @@ public class EditStatementsTest {
 		AclPlatformGrant source = new AclPlatformGrant(null, role, row("role", "auditor", "kind", "source", "object", "memory.main"));
 		assertEquals(List.of("REVOKE SOURCE memory.main FROM ROLE auditor"), source.dropStatements());
 	}
+
+	@Test
+	public void nodeAndCluster() throws Exception {
+		AclSession session = new AclSession(null, null, row("id", "62F31C2A7615", "subject", "analyst1"));
+		assertEquals(List.of("KILL SESSION '62F31C2A7615'"), session.operation("kill"));
+		assertEquals("SET SESSION '62F31C2A7615' AUDIT LEVEL ALL", session.operation("audit").get(0));
+		assertEquals("SET SESSION '62F31C2A7615' AUDIT LEVEL DEFAULT", session.operation("audit").get(4));
+		assertEquals("PROFILE SESSION '62F31C2A7615' SAMPLED", session.operation("profile").get(1));
+		AclNodeLoad node = new AclNodeLoad(null, null, row("draining", false));
+		assertEquals(List.of("DRAIN NODE"), node.operation("drain"));
+		assertEquals(List.of("RESUME NODE"), node.operation("resume"));
+
+		AclDriftEntry setting = new AclDriftEntry(null, null, row("kind", "setting", "name", "threads", "state", "differs",
+		                                                          "node_value", "16"));
+		assertEquals(List.of("CLUSTER SET threads = 16"), setting.operation("into_profile"));
+		AclDriftEntry database = new AclDriftEntry(null, null, row("kind", "database", "name", "pg", "state", "node_only",
+		                                                           "node_value", "host=db dbname=x"));
+		assertEquals("CLUSTER ATTACH 'host=db dbname=x' AS pg (TYPE <type>, SECRET <secret>)", database.operation("into_profile").get(0));
+		assertTrue(RepairStatements.hasPlaces(database.operation("into_profile").get(0)));
+		AclDriftEntry same = new AclDriftEntry(null, null, row("kind", "setting", "name", "x", "state", "same"));
+		assertEquals("nothing to add", List.of(), same.operation("into_profile"));
+
+		AclClusterItem threads = new AclClusterItem(null, null, Map.of());
+		threads.setName("threads");
+		threads.setValue("4");
+		assertEquals(List.of("CLUSTER SET threads = 4"), threads.createStatements());
+		threads.setScope("g1");
+		threads.setValue("2GB");
+		assertEquals(List.of("CLUSTER SET threads = '2GB' IN GROUP g1"), threads.createStatements());
+		assertEquals(List.of("CLUSTER RESET threads IN GROUP g1"), threads.dropStatements());
+		AclClusterItem source = new AclClusterItem(null, null, Map.of());
+		source.setKind("source");
+		source.setName("pg");
+		source.setPath("host=db dbname=x");
+		source.setType("postgres");
+		source.setSecret("pg_secret");
+		source.setLineage("postgres://db:5432/x");
+		assertEquals(List.of("CLUSTER ATTACH 'host=db dbname=x' AS pg (TYPE postgres, SECRET pg_secret) LINEAGE "
+		                     + "'postgres://db:5432/x'"), source.createStatements());
+		assertEquals(List.of("CLUSTER DETACH pg"), source.dropStatements());
+		AclClusterItem extension = new AclClusterItem(null, null, row("kind", "extension", "name", "spatial",
+		                                                              "spec", Map.of("version", "1.2", "repository", "hugr")));
+		extension.setVersion("1.3");
+		assertEquals(List.of("CLUSTER UPDATE EXTENSION spatial VERSION '1.3'"), extension.alterStatements(null, Set.of("version")));
+		assertEquals(List.of("CLUSTER REMOVE EXTENSION spatial"), extension.dropStatements());
+		assertEquals("READ_ONLY, SCHEMA 'x'", AclClusterItem.options("{\"READ_ONLY\": true, \"SCHEMA\": \"x\"}"));
+	}
 }

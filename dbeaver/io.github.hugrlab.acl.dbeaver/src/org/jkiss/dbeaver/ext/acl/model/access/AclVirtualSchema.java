@@ -18,7 +18,7 @@ import org.jkiss.dbeaver.model.struct.DBSObject;
  * `DROP VIRTUAL SCHEMA c.path` - without CASCADE: an expansion's records stay unless the node is told otherwise.
  * Refresh (an expansion re-read from its source) is an action of its own.
  */
-public class AclVirtualSchema extends AclPlatformObject {
+public class AclVirtualSchema extends AclPlatformObject implements Operable {
 	public AclVirtualSchema(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
 	}
@@ -152,6 +152,27 @@ public class AclVirtualSchema extends AclPlatformObject {
 	/** An expansion read again from its source (`PRUNE`: its records whose object is gone removed too). */
 	public String refreshStatement(boolean prune) {
 		return "ALTER VIRTUAL SCHEMA " + target() + " REFRESH" + (prune ? " PRUNE" : "");
+	}
+
+	@Override
+	public List<String> operation(String kind) {
+		return "refresh".equals(kind) && isExpansion() ? List.of(refreshStatement(false), refreshStatement(true)) : List.of();
+	}
+
+	@Override
+	public String operationTitle(String kind) {
+		return "Refresh from the source";
+	}
+
+	@Override
+	public String operationExplanation(String kind) {
+		return "Read the expansion's source again: a record for each object that appeared. PRUNE also removes the records "
+		       + "whose object is gone (only the ones the expansion made).";
+	}
+
+	@Override
+	public String operationFunction(String kind) {
+		return "refresh_schema";
 	}
 
 	public static class Kinds implements IPropertyValueListProvider<AclVirtualSchema> {

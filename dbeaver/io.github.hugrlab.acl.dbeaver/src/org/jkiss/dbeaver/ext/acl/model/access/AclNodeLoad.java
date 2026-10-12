@@ -1,12 +1,13 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import java.util.List;
 import java.util.Map;
 import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
 /** The node's load report (platform.node_load, spec 079). One property per column of its view, the parent's key aside (spec 007.3). */
-public class AclNodeLoad extends AclPlatformObject {
+public class AclNodeLoad extends AclPlatformObject implements Operable {
 	public AclNodeLoad(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
 	}
@@ -80,5 +81,32 @@ public class AclNodeLoad extends AclPlatformObject {
 	@Property(viewable = true, order = 51, name = "Group known")
 	public String getGroupKnown() {
 		return text("group_known");
+	}
+
+	@Override
+	public List<String> operation(String kind) {
+		return switch (kind) {
+			case "drain" -> List.of("DRAIN NODE");
+			case "resume" -> List.of("RESUME NODE");
+			default -> List.of();
+		};
+	}
+
+	@Override
+	public String operationTitle(String kind) {
+		return "drain".equals(kind) ? "Drain the node" : "Resume the node";
+	}
+
+	@Override
+	public String operationExplanation(String kind) {
+		return "drain".equals(kind)
+		           ? "Stop seating new clients on this node (this node, never the fleet); established sessions keep working. "
+		             + "It answers how many remain - repeat it to watch them go; RESUME NODE seats clients again."
+		           : "Seat new clients on this node again.";
+	}
+
+	@Override
+	public String operationFunction(String kind) {
+		return kind;
 	}
 }

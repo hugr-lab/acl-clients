@@ -1,12 +1,13 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import java.util.List;
 import java.util.Map;
 import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
 /** A finding of the catalog check (platform.check_catalog, spec 039). One property per column of its view, the parent's key aside (spec 007.3). */
-public class AclFinding extends AclPlatformObject {
+public class AclFinding extends AclPlatformObject implements Operable {
 	public AclFinding(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
 	}
@@ -59,5 +60,26 @@ public class AclFinding extends AclPlatformObject {
 		String object = text("object");
 		return RepairStatements.alternatives(getRepair(), vcat == null || object == null ? null
 		                                                                                  : AclGrammar.inCatalog(vcat, object));
+	}
+
+	@Override
+	public List<String> operation(String kind) {
+		return "repair".equals(kind) ? repairs() : List.of();
+	}
+
+	@Override
+	public String operationTitle(String kind) {
+		return "Repair";
+	}
+
+	@Override
+	public String operationExplanation(String kind) {
+		return "The node's repair for " + getName() + ". Choose one, fill in what is in <…>, and run it: it changes the "
+		       + "policy (the finding is checked again after).";
+	}
+
+	@Override
+	public String operationFunction(String kind) {
+		return null; // the repair is any of the grammar's statements: the node judges it
 	}
 }
