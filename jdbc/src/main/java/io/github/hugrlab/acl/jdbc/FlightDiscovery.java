@@ -69,6 +69,9 @@ final class FlightDiscovery implements Discovery {
 		} catch (IOException e) {
 			throw e;
 		} catch (RuntimeException e) {
+			if (UntrustedDoorException.isCertificateFailure(e)) {
+				throw new UntrustedDoorException(config.host, config.port, e);
+			}
 			throw new IOException("the door at " + config.host + ":" + config.port + " did not answer discovery: "
 			                          + e.getMessage(),
 			    e);

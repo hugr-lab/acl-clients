@@ -43,3 +43,15 @@ with `FLOWS (password, authcode, device)`: the door's password handshake runs as
   to set `clientId`.
 - e2e (`dev/jdbc-e2e.sh all`) against the dev node and Keycloak: all five live cases; the Python
   example through the door's password handshake.
+
+## Addendum 2026-10-12 - an untrusted door is said as such
+
+A door whose certificate the machine does not trust (the dev node's self-signed one, a private CA) failed the
+discovery handshake, and the driver answered "could not ask the door which issuer to sign in with … - set the issuer
+and clientId properties": the owner, connecting DBeaver to the dev node, was sent to two properties that cannot
+help. A certificate failure in the causes (`SSLHandshakeException`, a certificate path exception) is now
+`UntrustedDoorException`: "the door at h:p presented a certificate this machine does not trust (<the root cause>) -
+add the CA that signed it to the trust store or name it with tlsRootCerts=<PEM file>; disableCertificateVerification=
+true is for a development node only", and it fails the connect whether or not an issuer is named. Tests: unit
+`TokenProviderTest` (the message, a named issuer does not get past it, the cause chain), live `LiveDoorE2ETest`
+(the dev node with verification on).

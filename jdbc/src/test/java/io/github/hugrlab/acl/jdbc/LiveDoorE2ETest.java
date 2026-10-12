@@ -54,6 +54,17 @@ class LiveDoorE2ETest {
 		    new TokenProvider(new FlightDiscovery(), interaction));
 	}
 
+	/** The dev node's certificate is self-signed: without the development switch the driver says so (spec 003 addendum). */
+	@Test
+	void anUntrustedDoorIsNamedAsSuch() {
+		String strict = URL.replace("disableCertificateVerification=true", "disableCertificateVerification=false");
+		SQLException e = assertThrows(SQLException.class,
+		    () -> driver(new TestInteraction()).connect(strict, props("user", "analyst2", "password", "analyst2-pass")));
+		assertTrue(e.getMessage().contains("certificate this machine does not trust"), e.getMessage());
+		assertTrue(e.getMessage().contains("tlsRootCerts"), e.getMessage());
+		assertTrue(!e.getMessage().contains("set the issuer and clientId"), e.getMessage());
+	}
+
 	@Test
 	void passwordThroughTheDoorsDiscovery() throws SQLException {
 		try (Connection conn = driver(new TestInteraction()).connect(URL, props("user", "analyst2", "password", "analyst2-pass"))) {
