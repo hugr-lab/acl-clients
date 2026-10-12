@@ -430,16 +430,65 @@ public class LiveConsoleTest {
 		}, 30_000);
 		// an edit of the predicate there: Save previews the grant's statement with it (cancelled - the dev policy stays)
 		UIThreadRunnable.syncExec(() -> entity.switchFolder("io.github.hugrlab.acl.grant.rowfilter"));
-		UIThreadRunnable.syncExec(() -> {
-			org.eclipse.swt.custom.StyledText text = predicateEditor(entity, "tenant = acl_claim('tenant')");
-			text.setText("tenant = acl_claim('tenant') AND amount > 0");
-		});
+		// typed at its end, a key at a time: each keystroke is a command, and the text must stay where it is typed
+		org.eclipse.swt.custom.StyledText field = UIThreadRunnable.syncExec(() -> predicateEditor(entity, "tenant = acl_claim('tenant')"));
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotStyledText typed = new org.eclipse.swtbot.swt.finder.widgets.SWTBotStyledText(field);
+		UIThreadRunnable.syncExec(() -> field.setCaretOffset(field.getCharCount()));
+		for (char c : " AND amount > 0".toCharArray()) {
+			UIThreadRunnable.syncExec(() -> {
+				int at = field.getCaretOffset();
+				field.replaceTextRange(at, 0, String.valueOf(c)); // what a key does: insert at the caret, then move it
+				field.setCaretOffset(at + 1);
+			});
+			Thread.sleep(30); // let the command's refresh run between keys, as it does between a person's keys
+		}
+		assertEquals("tenant = acl_claim('tenant') AND amount > 0", typed.getText());
 		UIThreadRunnable.asyncExec(() -> part.doSave(new org.eclipse.core.runtime.NullProgressMonitor()));
 		org.eclipse.swtbot.swt.finder.widgets.SWTBotShell persist = bot.shell("sales.orders - Persist Changes");
 		String preview = textsOf(persist);
 		assertTrue(preview, preview.contains("GRANT OBJECT sales.orders TO ROLE analyst WITH (select) RLS (tenant = "
 		                                     + "acl_claim('tenant') AND amount > 0)"));
 		persist.bot().button("Cancel").click();
+		UIThreadRunnable.syncExec(() -> part.getSite().getPage().closeEditor(part, false));
+	}
+
+	/** Spec 008.2: a virtual function's parameters, result and template are on its Definition tab (the owner's ask). */
+	@Test
+	public void aFunctionsDefinitionTab() throws Exception {
+		LiveTreeTest.assumeNode();
+		SWTWorkbenchBot bot = new SWTWorkbenchBot();
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem connection = bot.viewById(NAVIGATOR).bot().tree()
+		    .getTreeItem(steward().getName()).expand();
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem functions = expandTo(bot, connection, "Access control",
+		                                                                         "Virtual catalogs", "sales", "Functions");
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				return functions.getNodes().contains("orders_over");
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "no function orders_over: " + functions.getNodes();
+			}
+		}, 30_000);
+		functions.getNode("orders_over").doubleClick();
+		org.eclipse.swtbot.eclipse.finder.widgets.SWTBotEditor editor = waitForEditor(bot);
+		org.eclipse.ui.IEditorPart part = UIThreadRunnable.syncExec(() -> editor.getReference().getEditor(true));
+		org.jkiss.dbeaver.ui.editors.entity.EntityEditor entity = (org.jkiss.dbeaver.ui.editors.entity.EntityEditor) part;
+		UIThreadRunnable.syncExec(() -> entity.switchFolder("io.github.hugrlab.acl.function.definition"));
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				String all = editorTexts(entity);
+				return all.contains("threshold INTEGER") && all.contains("amount >= acl_arg(1)");
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "the Definition tab shows no parameters or no template: " + editorTexts(entity);
+			}
+		}, 30_000);
 		UIThreadRunnable.syncExec(() -> part.getSite().getPage().closeEditor(part, false));
 	}
 
@@ -513,6 +562,87 @@ public class LiveConsoleTest {
 			}
 			throw new AssertionError("no button " + label);
 		});
+	}
+
+	/** Spec 008.2: a virtual table's Column list tab, and Repair… on a finding of Check through its dialog. */
+	@Test
+	public void aTablesColumnListAndARepair() throws Exception {
+		LiveTreeTest.assumeNode();
+		SWTWorkbenchBot bot = new SWTWorkbenchBot();
+		runAsSteward("DROP VIRTUAL CATALOG IF EXISTS t008ui CASCADE");
+		runAsSteward("CREATE VIRTUAL CATALOG t008ui");
+		runAsSteward("CREATE VIRTUAL TABLE t008ui.o AS memory.main.orders");
+		runAsSteward("CREATE VIRTUAL TABLE t008ui.ghost AS memory.main.t008_none");
+		try {
+			org.jkiss.dbeaver.model.navigator.DBNDatabaseNode root = DBWorkbench.getPlatform().getNavigatorModel()
+			    .getNodeByObject(steward().getDataSource());
+			root.refreshNode(new org.jkiss.dbeaver.model.runtime.VoidProgressMonitor(), this);
+			org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem connection = bot.viewById(NAVIGATOR).bot().tree()
+			    .getTreeItem(steward().getName()).expand();
+			org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem relations = expandTo(bot, connection, "Access control",
+			                                                                         "Virtual catalogs", "t008ui", "Relations");
+			bot.waitUntil(new DefaultCondition() {
+				@Override
+				public boolean test() {
+					return relations.getNodes().contains("o");
+				}
+
+				@Override
+				public String getFailureMessage() {
+					return "no relation o: " + relations.getNodes();
+				}
+			}, 30_000);
+			relations.getNode("o").doubleClick();
+			org.eclipse.swtbot.eclipse.finder.widgets.SWTBotEditor editor = waitForEditor(bot);
+			org.eclipse.ui.IEditorPart part = UIThreadRunnable.syncExec(() -> editor.getReference().getEditor(true));
+			org.jkiss.dbeaver.ui.editors.entity.EntityEditor entity = (org.jkiss.dbeaver.ui.editors.entity.EntityEditor) part;
+			UIThreadRunnable.syncExec(() -> entity.switchFolder("io.github.hugrlab.acl.relation.columns"));
+			bot.waitUntil(new DefaultCondition() {
+				@Override
+				public boolean test() {
+					String all = editorTexts(entity);
+					return all.contains("(none - every column as it is)") && all.contains("yes");
+				}
+
+				@Override
+				public String getFailureMessage() {
+					return "the Column list tab shows no source columns: " + editorTexts(entity);
+				}
+			}, 30_000);
+			UIThreadRunnable.syncExec(() -> part.getSite().getPage().closeEditor(part, false));
+
+			org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem check = expandTo(bot, connection, "Access control",
+			                                                                     "Virtual catalogs", "t008ui", "Check");
+			bot.waitUntil(new DefaultCondition() {
+				@Override
+				public boolean test() {
+					return check.getNodes().stream().anyMatch(n -> n.contains("ghost"));
+				}
+
+				@Override
+				public String getFailureMessage() {
+					return "no finding on ghost: " + check.getNodes();
+				}
+			}, 30_000);
+			String finding = check.getNodes().stream().filter(n -> n.contains("ghost")).findFirst().orElseThrow();
+			check.getNode(finding).select().contextMenu("Repair…").click();
+			org.eclipse.swtbot.swt.finder.widgets.SWTBotShell repair = bot.shell("Repair");
+			repair.bot().radio("DROP VIRTUAL TABLE t008ui.ghost").click();
+			repair.bot().button("Execute").click();
+			org.jkiss.dbeaver.ext.acl.model.AclDataSource acl = (org.jkiss.dbeaver.ext.acl.model.AclDataSource) steward().getDataSource();
+			waitForRows(bot, acl, org.jkiss.dbeaver.ext.acl.model.access.PlatformSql.view("relations", "catalog", "t008ui", "name", "ghost"), 0);
+		} finally {
+			runAsSteward("DROP VIRTUAL CATALOG IF EXISTS t008ui CASCADE");
+		}
+	}
+
+	private static void runAsSteward(String sql) throws Exception {
+		org.jkiss.dbeaver.ext.acl.model.AclDataSource acl = (org.jkiss.dbeaver.ext.acl.model.AclDataSource) steward().getDataSource();
+		try (org.jkiss.dbeaver.model.exec.jdbc.JDBCSession session = org.jkiss.dbeaver.model.DBUtils.openUtilSession(
+		         new org.jkiss.dbeaver.model.runtime.VoidProgressMonitor(), acl, "t008");
+		     org.jkiss.dbeaver.model.exec.jdbc.JDBCStatement statement = session.createStatement()) {
+			statement.execute(sql);
+		}
 	}
 
 	/** Expand a path of the navigator, waiting at each level for its children (DBeaver loads them in the background). */

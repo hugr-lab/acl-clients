@@ -71,7 +71,7 @@ public class AclVirtualCatalog extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		String comment = getComment();
 		return List.of("CREATE VIRTUAL CATALOG " + AclGrammar.path(getName())
 		               + (AclGrammar.isBlank(comment) ? "" : " COMMENT " + AclGrammar.literal(comment)));

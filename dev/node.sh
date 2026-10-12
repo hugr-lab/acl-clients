@@ -8,6 +8,8 @@
 #   ACL_PIPELINES=1 dev/node.sh                    # + the pipeline recipes' objects (spec 004): writable
 #       tables, a dbt schema, the quack door on :31900, lineage on - sent to Marquez (dev/marquez.sh)
 #       by acl-otel when ACL_OTEL names its built extension
+#   ACL_CLUSTER=1 dev/node.sh                      # a cluster node (acl_deployment = 'cluster'): the profile's
+#       CLUSTER writes and its drift (the DBeaver plugin's 008.3 - ops1 holds the cluster bundle)
 #   ACL_METADATA=1 dev/node.sh                     # + what a tool's tree shows (spec 006): nested types with a
 #       COMMENT (a STRUCT in a LIST too), a view, table functions, a nested schema sales.raw.eu, a second
 #       catalog, a masked column
@@ -28,6 +30,8 @@ if [ ! -f "$WORK/node.crt" ] || ! openssl x509 -in "$WORK/node.crt" -noout -text
 		-addext "subjectAltName=DNS:localhost,DNS:host.docker.internal,IP:127.0.0.1" \
 		-keyout "$WORK/node.key" -out "$WORK/node.crt" 2>/dev/null
 fi
+CLUSTER=""
+[ -n "${ACL_CLUSTER:-}" ] && CLUSTER="SET GLOBAL acl_deployment = 'cluster';"
 PIPELINES=""
 PIPELINES_SERVE=""
 OTEL=""
@@ -104,6 +108,7 @@ CREATE TABLE orders AS
     FROM range(10) t(i);
 ATTACH ':memory:' AS store;
 SELECT acl_use_db('store', 'acl', true);
+$CLUSTER
 SET GLOBAL acl_allow_anonymous_admin = true;
 ACL ADMIN CREATE VIRTUAL CATALOG sales;
 ACL ADMIN CREATE VIRTUAL TABLE sales.orders AS memory.main.orders;

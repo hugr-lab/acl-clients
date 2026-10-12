@@ -19,7 +19,7 @@ import org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant;
  * Row filter (spec 008.1 addendum): the grant's predicate in an editor of its own, beside the columns it can name, and
  * Check. A catalog grant's predicate is AND-ed onto every object of the catalog.
  */
-public class GrantRowFilterPage extends GrantPage {
+public class GrantRowFilterPage extends PolicyPage {
 	private StyledText predicate;
 	private Table columns;
 	private Label hint;
@@ -70,7 +70,7 @@ public class GrantRowFilterPage extends GrantPage {
 		predicate.setEditable(editable());
 		filling = true;
 		String rls = grant().getRls();
-		predicate.setText(rls == null ? "" : rls);
+		fill(predicate, rls);
 		filling = false;
 		columns.removeAll();
 		if (!(getDatabaseObject() instanceof AclObjectGrant)) {

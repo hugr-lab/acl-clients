@@ -23,7 +23,7 @@ final class CheckPanel {
 	private final Table table;
 
 	/** `values` = the RLS and the column list to check, as the tabs hold them now. */
-	CheckPanel(Composite parent, GrantPage page, Supplier<String[]> values) {
+	CheckPanel(Composite parent, PolicyPage page, Supplier<String[]> values) {
 		Composite panel = new Composite(parent, SWT.NONE);
 		panel.setLayout(new GridLayout(2, false));
 		panel.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
@@ -63,10 +63,10 @@ final class CheckPanel {
 		for (Map<String, Object> row : rows) {
 			TableItem item = new TableItem(table, SWT.NONE);
 			for (int i = 0; i < 5; i++) {
-				String value = GrantPage.text(row, new String[] {"item", "name", "type", "status", "message"}[i]);
+				String value = PolicyPage.text(row, new String[] {"item", "name", "type", "status", "message"}[i]);
 				item.setText(i, value == null ? "" : value);
 			}
-			if ("refused".equals(GrantPage.text(row, "status"))) {
+			if ("refused".equals(PolicyPage.text(row, "status"))) {
 				refused = true;
 				item.setForeground(table.getDisplay().getSystemColor(SWT.COLOR_RED));
 			}

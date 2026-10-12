@@ -1,6 +1,6 @@
 # Spec 008: editors in the DBeaver plugin - a form, our statement, then the node
 
-- **Status**: accepted (by the owner 2026-10-12, with the recommended answers to the questions below)
+- **Status**: implemented (008.1 - 008.3; accepted by the owner 2026-10-12, with the recommended answers to the questions below)
 - **Date**: 2026-10-12
 - **Node side**: duckdb-acl specs 117 (the `platform` catalog: views, `console_info`, the one authorizer, management
   without a marker under a principal), 118 (node and cluster), 120 (the missing ALTER / REVOKE forms,
@@ -263,3 +263,110 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
 - The tabs are read-only where the object manager refuses the edit (a catalog admin reading a grant); a new grant's
   columns are read again each time its tab is shown (its object is chosen on Properties).
 - **Not here**: the same tabs for a virtual table's own COLUMNS / RLS (008.2).
+
+### 008.2a (2026-10-12) - a table's own columns and filter, schemas, functions, references, repair
+- **A virtual table's Row filter and Column list** (`RelationRowFilterPage`, `RelationColumnsPage`; the navigator
+  already has a "Columns" folder, hence "Column list"): the predicate over the source's physical columns in its own
+  editor; the source's columns (read from the node's attached tree, `platform.attached.<db>.<schema>` -
+  `AclRelation.physicalColumns`) each Exposed or not, under a name of the table's (a rename), through an expression (a
+  mask), with NOT NULL / NULL - and computed columns the source lacks (added and removed); the `COLUMNS (…)` it
+  writes under the table, nothing changed = the alias form. The model is `RelationColumns` (pure; a field path kept as
+  written). A view's columns are its SELECT's: the tabs say so. The two properties left the top grid (`hidden`). No
+  Check yet (the node binds the definition where it is written; a `check_relation` would be duckdb-acl's).
+- **Virtual schemas**: Create (Kind alias | expansion, Phys path, Comment) → `CREATE VIRTUAL SCHEMA c.path AS | FROM
+  <phys>`; `ALTER … SET PHYS` (an alias), `COMMENT ON VIRTUAL SCHEMA`; `DROP VIRTUAL SCHEMA` (no CASCADE); **Refresh
+  from the source…** on an expansion → `ALTER VIRTUAL SCHEMA c.path REFRESH [PRUNE]` (chosen in the dialog).
+- **Functions**: Create (Kind table | scalar, Form macro | alias, Params, Returns, Primary key, Template / Target,
+  Comment) → `CREATE VIRTUAL TABLE FUNCTION | SCALAR …`; `SET MACRO` / `SET ALIAS OF`, `SET | DROP PRIMARY KEY` (a
+  table function; the key read from `keys`), `COMMENT ON VIRTUAL …`; parameters and result have no ALTER; `DROP
+  VIRTUAL TABLE FUNCTION | SCALAR`.
+- **References**: Create (From, To, To kind relation | function, On pairs, Arguments, Expression, Cardinality,
+  Optional, Join method, Comment) → `CREATE VIRTUAL REFERENCE …`; `ALTER VIRTUAL REFERENCE … SET CARDINALITY |
+  OPTIONAL | COMMENT` (spec 120); its ends and condition by a re-create; `DROP VIRTUAL REFERENCE`.
+- **Check → Repair…** on a finding: the node's repair is often a template with alternatives (`REPAIR VIRTUAL TABLE c.a
+  REMAP (gone = <column>)  -- or DROP MISSING COLUMNS`) - `RepairStatements` splits it into whole statements (a tail
+  alternative joined to the first's object), the dialog (`StatementDialog`) offers them, the statement editable, and
+  Execute only once no `<…>` place is left; it runs on the connection and the catalog is read again.
+- Offered as in 008.1 - each action's platform function (`add_schema_alias`, `alter_function`, `add_reference`, …) in
+  `my_functions`, a catalog admin in its catalogs.
+- **Tests**: unit `RelationColumnsTest`, `RepairStatementsTest`, `EditStatementsTest.schemasFunctionsAndReferences`;
+  live `LiveEditTest.schemasFunctionsReferencesAndARepair` (an alias and an expansion with its refresh, a macro
+  edited, a reference and its hint, a table's source columns, a finding repaired by its alternative); UI
+  `LiveConsoleTest.aTablesColumnListAndARepair` (the Column list tab, Repair… through the dialog).
+
+### 008.2b (2026-10-12) - identity, functions, resource groups, administration
+- **Issuers**: Create (Name, Url, Secret, Secret service) → `CREATE ISSUER n URL '…' [FROM SECRET s [IN c]]`; `ALTER
+  ISSUER n SET URL`, `SET FROM SECRET` / `DROP FROM SECRET`; `DROP ISSUER`. **Clients** (under their issuer): each
+  clause a property in the grammar's own syntax - Audiences, Azp, Require (`tier = 'gold', 'x' IN groups, region IN
+  ('eu'), mail LIKE '%@x'`), Roles from, Roles constant, Unmapped (ignore | as_role), Attributes (`tenant = 'tenant',
+  units = ('a', 'b'), fixed = CONSTANT 'v'`), Subject, Token type, Client id, Flows, Secret; read back from the view's
+  typed columns (REQUIRE's `path / op / values`, ATTRIBUTES' `name / paths / constant`); `CREATE CLIENT n ISSUER i …`,
+  one `ALTER CLIENT n SET <clause>` per changed clause - a cleared list `X ()`, a cleared text `TOKEN TYPE ''` /
+  `CLIENT ID ''` (checked on the node) - and the implicit client of a short-form issuer through `ALTER ISSUER i SET …`
+  (the node refuses ALTER CLIENT on it; its secret as `SET CLIENT FROM SECRET` / `DROP CLIENT FROM SECRET` - not
+  exercised here, it needs a secrets service). No field for a key or a credential. **Role mappings**: Create (Source
+  claim-value | group, External value, Scope kind client | issuer, Scope name, Role) → `MAP …`; `DROP MAP …`; no edit
+  (a mapping is its key).
+- **Function categories**: Create (Name, Comment) → `CREATE FUNCTION CATEGORY`; `SET COMMENT`; `DROP`; **members**
+  (`ALTER FUNCTION CATEGORY c ADD (lower)` / `DROP (system.main.upper)`, `TABLE` after a table function). **Function
+  grants**: Role (empty = every role), Category or Function, Allowed → `GRANT | DENY FUNCTION [CATEGORY] x TO ROLE r |
+  TO ALL ROLES`; Allowed changed = the GRANT / DENY again; `REVOKE … FROM …`.
+- **Resource groups**: the six limits as properties (`window_start` … `max_sessions`, a size like `'32MiB'` quoted),
+  Default, Comment → `CREATE RESOURCE GROUP g (…) [DEFAULT] [COMMENT]`; `SET (only the changed limits)`, `SET | DROP
+  DEFAULT`, `SET COMMENT`; a limit is set or changed, never unset - the node refuses NULL, and the plugin says so
+  before it; `DROP`. A role's group: `GRANT | REVOKE RESOURCE GROUP g TO | FROM ROLE r`.
+- **Administration** (a role's bundles) and **Platform grants** (views, functions, sources): `GRANT ADMIN <bundle>` /
+  `REVOKE ADMIN <bundle>`; `GRANT | DENY VIEW | FUNCTION platform.x`, `GRANT SOURCE db[.schema]`, `REVOKE …` -
+  passthrough's alone: offered where `grant_admin` / `grant_platform` / `grant_source` are callable, refused by the
+  node otherwise. A catalog's `manage` row is its catalog grant's caps (not dropped here).
+- **Tests**: unit `EditStatementsTest.identity` (an issuer, a client created and read back, cleared clauses, the
+  implicit client through its issuer, mappings), `.functionsGroupsAndAdministration`; live
+  `LiveEditTest.identityFunctionsAndGroups` (an issuer, its client created, read back in the grammar's syntax and
+  edited; a mapping made and dropped; a category with a member and its grant; a group with a limit changed and bound
+  to a role; GRANT ADMIN not offered to policy and refused by the node).
+- **Found**: DBeaver collects only the properties its panel shows - a hidden property set by its id did nothing; the
+  tabs and the tests set by descriptor (008.1 addendum).
+- **Not here**: 008.3 (node, cluster); a stored reference's pairs / arguments shown (they are `reference_columns`;
+  only a new one's are written); a Check for a virtual table's definition (duckdb-acl would add `check_relation`).
+
+### 008.3 (2026-10-12) - the node and the cluster
+- **Operations** (`Operable`: an object says which statements an operation offers, its title and explanation, and the
+  platform function it compiles to; one command `io.github.hugrlab.acl.run` with the kind, one dialog -
+  `StatementDialog`: the alternatives, the statement editable, Execute once no `<…>` place is left; offered where the
+  function is callable): a **session**'s Kill session… (`KILL SESSION '<id>'`), Audit level… (`SET SESSION '<id>' AUDIT
+  LEVEL ALL | DECISIONS | DENIED | OFF | DEFAULT`), Profile level… (`PROFILE SESSION '<id>' ON | SAMPLED | OFF`); the
+  **node** (its Load row) Drain the node… / Resume the node… (`DRAIN NODE` / `RESUME NODE` - this node, never the
+  fleet); a **drift** entry's Add to the cluster profile… (what the node has, as the CLUSTER statement that makes it the
+  profile's: `CLUSTER SET threads = 16`; a source `CLUSTER ATTACH '<path>' AS a (TYPE <type>, SECRET <secret>)` - the
+  places the node cannot know left to fill, never a credential; an extension `… VERSION '<version>' FROM
+  <repository>`); 008.2's repair and refresh are operations too.
+- **The cluster profile's items** (a cluster node's, the cluster bundle's): Create (Kind setting | source | extension,
+  Name, Group = `IN GROUP`, and per kind Value; Path, Type, Secret, Options, Lineage, Depends on; Version, Repository;
+  Comment) → `CLUSTER SET` / `CLUSTER ATTACH` / `CLUSTER INSTALL EXTENSION`; a change is the SET again, the ATTACH again
+  (a re-point), `CLUSTER UPDATE EXTENSION … VERSION`; the drop `RESET` / `DETACH` / `REMOVE EXTENSION`. The stored spec
+  (a MAP) reads back into the properties; a source's options (JSON) as ATTACH writes them. "Applied here" lists the
+  effective items, read only (`AclClusterEffective`). The answer a CLUSTER statement gives (class, applied here, note)
+  is not shown yet - the items' Class column says how a change reaches the nodes.
+- **Dev**: `ACL_CLUSTER=1 dev/node.sh` makes a cluster node (`acl_deployment = 'cluster'`); ops1 holds the cluster
+  bundle.
+- **Tests**: unit `EditStatementsTest.nodeAndCluster`; live `LiveOperateTest` (ops1: analyst2's session found by its
+  appearance, its audit and profile levels set, killed; drain then resume; on a cluster node an item made, read back,
+  dropped through the editor's path, and the drift's statement into the profile).
+
+### Review fixes (2026-10-12, the owner on the stand)
+
+- **A function's Definition tab** (`FunctionDefinitionPage`): parameters and result (written at Create - no ALTER
+  changes them; the node's `functions` view does not hold the result, so a stored one's is `duckdb_functions()`'s),
+  the template in an editor of its own (`SET MACRO`), an alias's physical function (`SET ALIAS OF`); the four leave
+  the Properties grid.
+- **Columns of a record that declares none** (an expansion's `raw.events`, an alias): the navigator's Columns folder
+  shows the source's columns with their types (`AclRelation.getExposedColumns`), the declared list otherwise. A live
+  schema alias's objects have no records and stay unlisted in the tree (its source is under `platform.attached`).
+- **Choosing instead of typing**: a reference's From / To offer the catalog's tables, views and table functions; a
+  mapping's scope name offers the clients or the issuers (as its scope kind says), its role the roles. Typed names
+  still go.
+- **A missing required property says which** (`AclPlatformObject.required`): `duckdb-acl: the scope name (a client
+  or an issuer) is required` where DBeaver said "Couldn't generate alter script" over an NPE - mappings, relations,
+  schemas, functions, references and grants.
+- Tests: `LiveConsoleTest.aFunctionsDefinitionTab`; `LiveEditTest` - an expansion record's columns, a mapping without
+  its scope refused by name.

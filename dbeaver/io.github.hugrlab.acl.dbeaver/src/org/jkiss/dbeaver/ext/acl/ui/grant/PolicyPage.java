@@ -8,7 +8,7 @@ import java.util.function.Consumer;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
 import org.jkiss.code.NotNull;
-import org.jkiss.dbeaver.ext.acl.model.access.AclGrantObject;
+import org.jkiss.dbeaver.ext.acl.model.access.AclPlatformObject;
 import org.jkiss.dbeaver.ext.acl.model.access.AclPolicyGrant;
 import org.jkiss.dbeaver.ext.acl.model.access.PlatformValues;
 import org.jkiss.dbeaver.model.runtime.AbstractJob;
@@ -19,11 +19,11 @@ import org.jkiss.dbeaver.ui.UIUtils;
 import org.jkiss.dbeaver.ui.editors.AbstractDatabaseObjectEditor;
 
 /**
- * A tab of a grant's editor (spec 008.1 addendum: Row filter, Columns): it edits the grant's property through the
- * editor's own command context - what the properties panel does, so Save previews and writes it - and asks the node
- * (`platform.check_grant`, duckdb-acl spec 122) off the UI thread.
+ * A tab of a policy object's editor - a grant's (spec 008.1 addendum) or a virtual table's (spec 008.2) Row filter and
+ * Columns: it edits the object's property through the editor's own command context - what the properties panel does,
+ * so Save previews and writes it - and reads the node off the UI thread.
  */
-public abstract class GrantPage extends AbstractDatabaseObjectEditor<AclGrantObject> {
+public abstract class PolicyPage extends AbstractDatabaseObjectEditor<AclPlatformObject> {
 	private PropertySourceEditable source;
 	protected boolean loaded;
 
@@ -85,6 +85,27 @@ public abstract class GrantPage extends AbstractDatabaseObjectEditor<AclGrantObj
 		}, failed);
 	}
 
+	/** Something read from the node in the background; the answer (or the failure's text) on the UI thread. */
+	protected <T> void inBackground(String title, Read<T> read, Consumer<T> then, Consumer<String> failed) {
+		new AbstractJob(title) {
+			@NotNull
+			@Override
+			protected IStatus run(@NotNull DBRProgressMonitor monitor) {
+				try {
+					T value = read.read(monitor);
+					UIUtils.asyncExec(() -> then.accept(value));
+				} catch (Exception e) {
+					UIUtils.asyncExec(() -> failed.accept(e.getMessage()));
+				}
+				return Status.OK_STATUS;
+			}
+		}.schedule();
+	}
+
+	public interface Read<T> {
+		T read(DBRProgressMonitor monitor) throws Exception;
+	}
+
 	/** platform.check_grant with these values, in the background; the answer on the UI thread. */
 	protected void ask(String title, String rls, String columns, Consumer<List<Map<String, Object>>> then,
 	                   Consumer<String> failed) {
@@ -114,7 +135,7 @@ public abstract class GrantPage extends AbstractDatabaseObjectEditor<AclGrantObj
 	/** Whether this principal may change the grant (its object manager's answer - the node judges regardless). */
 	@SuppressWarnings("unchecked")
 	protected boolean editable() {
-		org.jkiss.dbeaver.model.edit.DBEObjectEditor<AclGrantObject> manager =
+		org.jkiss.dbeaver.model.edit.DBEObjectEditor<AclPlatformObject> manager =
 		    org.jkiss.dbeaver.runtime.DBWorkbench.getPlatform().getEditorsRegistry()
 		        .getObjectManager(getDatabaseObject().getClass(), org.jkiss.dbeaver.model.edit.DBEObjectEditor.class);
 		return manager != null && manager.canEditObject(getDatabaseObject());
@@ -134,8 +155,24 @@ public abstract class GrantPage extends AbstractDatabaseObjectEditor<AclGrantObj
 
 	@Override
 	public org.jkiss.dbeaver.ui.IRefreshablePart.RefreshResult refreshPart(Object source, boolean force) {
+		// read again on a real refresh only - F5, or the node's state after a save; DBeaver also calls this for the
+		// tab's own edits (each keystroke is a command), and reading then would put the typed text back (spec 008.1:
+		// the caret jumped to the start)
+		boolean onSave = source instanceof org.jkiss.dbeaver.model.navigator.DBNEvent event
+		                 && event.getSource() == org.jkiss.dbeaver.model.navigator.DBNEvent.UPDATE_ON_SAVE;
+		if (!force && !onSave) {
+			return org.jkiss.dbeaver.ui.IRefreshablePart.RefreshResult.IGNORED;
+		}
 		loaded = false;
 		UIUtils.asyncExec(this::activatePart);
 		return org.jkiss.dbeaver.ui.IRefreshablePart.RefreshResult.REFRESHED;
+	}
+
+	/** Text put into a field the user may be typing in: untouched when it already says that (the caret stays). */
+	protected static void fill(org.eclipse.swt.custom.StyledText field, String text) {
+		String value = text == null ? "" : text;
+		if (!field.getText().equals(value)) {
+			field.setText(value);
+		}
 	}
 }

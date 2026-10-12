@@ -196,4 +196,248 @@ public class EditStatementsTest {
 		assertEquals(List.of("ALTER VIRTUAL VIEW sales.big SET AS SELECT 2"), storedView.alterStatements(null, Set.of("viewSql")));
 		assertEquals(List.of("DROP VIRTUAL VIEW sales.big"), storedView.dropStatements());
 	}
+
+	@Test
+	public void schemasFunctionsAndReferences() throws Exception {
+		AclVirtualCatalog catalog = new AclVirtualCatalog(null, null, row("catalog", "c"));
+		AclVirtualSchema alias = new AclVirtualSchema(null, catalog, Map.of());
+		alias.setName("raw.eu");
+		alias.setPhysPath("memory.raw_eu");
+		alias.setComment("eu");
+		assertEquals(List.of("CREATE VIRTUAL SCHEMA c.raw.eu AS memory.raw_eu COMMENT 'eu'"), alias.createStatements());
+		alias.setKind("expansion");
+		assertEquals(List.of("CREATE VIRTUAL SCHEMA c.raw.eu FROM memory.raw_eu COMMENT 'eu'"), alias.createStatements());
+		AclVirtualSchema stored = new AclVirtualSchema(null, catalog, row("catalog", "c", "path", "raw", "phys_path", "memory.s2"));
+		assertEquals("alias", stored.getKind());
+		stored.setPhysPath("memory.s3");
+		stored.setComment("y");
+		assertEquals(List.of("ALTER VIRTUAL SCHEMA c.raw SET PHYS memory.s3", "COMMENT ON VIRTUAL SCHEMA c.raw IS 'y'"),
+		             stored.alterStatements(null, Set.of("physPath", "comment")));
+		assertEquals(List.of("DROP VIRTUAL SCHEMA c.raw"), stored.dropStatements());
+		AclVirtualSchema expansion = new AclVirtualSchema(null, catalog, row("catalog", "c", "path", "cur", "origin", "memory.s2"));
+		assertEquals("expansion", expansion.getKind());
+		assertEquals("ALTER VIRTUAL SCHEMA c.cur REFRESH PRUNE", expansion.refreshStatement(true));
+
+		AclFunctionEntry macro = new AclFunctionEntry(null, catalog, Map.of());
+		macro.setName("perday");
+		macro.setParams("m INTEGER");
+		macro.setReturns("id INTEGER NOT NULL, amount INTEGER");
+		macro.setPrimaryKey("id");
+		macro.setTemplate("SELECT id, amount FROM memory.main.orders WHERE amount >= acl_arg(1)");
+		assertEquals(List.of("CREATE VIRTUAL TABLE FUNCTION c.perday(m INTEGER) RETURNS TABLE (id INTEGER NOT NULL, amount "
+		                     + "INTEGER) PRIMARY KEY (id) AS SELECT id, amount FROM memory.main.orders WHERE amount >= acl_arg(1)"),
+		             macro.createStatements());
+		AclFunctionEntry scalar = new AclFunctionEntry(null, catalog, Map.of());
+		scalar.setName("shout");
+		scalar.setKind("scalar");
+		scalar.setParams("text VARCHAR");
+		scalar.setReturns("VARCHAR");
+		scalar.setTemplate("upper(acl_arg(1))");
+		assertEquals(List.of("CREATE VIRTUAL SCALAR c.shout(text VARCHAR) RETURNS VARCHAR AS upper(acl_arg(1))"),
+		             scalar.createStatements());
+		AclFunctionEntry alias2 = new AclFunctionEntry(null, catalog, Map.of());
+		alias2.setName("rng");
+		alias2.setForm("alias");
+		alias2.setTarget("range");
+		assertEquals(List.of("CREATE VIRTUAL TABLE FUNCTION c.rng ALIAS OF range"), alias2.createStatements());
+		AclFunctionEntry storedFn = new AclFunctionEntry(null, catalog, row("catalog", "c", "name", "sh", "kind", "scalar",
+		                                                                   "form", "macro", "template", "upper(acl_arg(1))"));
+		storedFn.setTemplate("lower(acl_arg(1))");
+		storedFn.setComment("low");
+		assertEquals(List.of("ALTER VIRTUAL SCALAR c.sh SET MACRO lower(acl_arg(1))", "COMMENT ON VIRTUAL SCALAR c.sh IS 'low'"),
+		             storedFn.alterStatements(null, Set.of("template", "comment")));
+		assertEquals(List.of("DROP VIRTUAL SCALAR c.sh"), storedFn.dropStatements());
+
+		AclReferenceEntry reference = new AclReferenceEntry(null, catalog, Map.of());
+		reference.setName("orders_customer");
+		reference.setFromObject("orders");
+		reference.setToObject("customers");
+		reference.setPairs("customer_id = id");
+		reference.setCardinality("many_to_one");
+		reference.setComment("the customer");
+		assertEquals(List.of("CREATE VIRTUAL REFERENCE c.orders_customer FROM orders TO customers ON (customer_id = id) "
+		                     + "CARDINALITY many_to_one COMMENT 'the customer'"), reference.createStatements());
+		AclReferenceEntry toFunction = new AclReferenceEntry(null, catalog, Map.of());
+		toFunction.setName("cust_orders");
+		toFunction.setFromObject("customers");
+		toFunction.setToObject("orders_of");
+		toFunction.setToKind("function");
+		toFunction.setArguments("cust => id");
+		toFunction.setOptional(true);
+		assertEquals(List.of("CREATE VIRTUAL REFERENCE c.cust_orders FROM customers TO FUNCTION orders_of(cust => id) OPTIONAL"),
+		             toFunction.createStatements());
+		AclReferenceEntry storedRef = new AclReferenceEntry(null, catalog, row("catalog", "c", "name", "ab", "optional", false,
+		                                                                       "cardinality", "many_to_one"));
+		storedRef.setOptional(true);
+		storedRef.setCardinality("one_to_one");
+		assertEquals(List.of("ALTER VIRTUAL REFERENCE c.ab SET CARDINALITY one_to_one", "ALTER VIRTUAL REFERENCE c.ab SET OPTIONAL true"),
+		             storedRef.alterStatements(null, Set.of("optional", "cardinality")));
+		assertEquals(List.of("DROP VIRTUAL REFERENCE c.ab"), storedRef.dropStatements());
+	}
+
+	@Test
+	public void identity() throws Exception {
+		AclIssuer issuer = new AclIssuer(null, null, Map.of());
+		issuer.setName("kc");
+		issuer.setUrl("https://kc/realms/x");
+		issuer.setSecret("kc_keys");
+		issuer.setSecretService("corp");
+		assertEquals(List.of("CREATE ISSUER kc URL 'https://kc/realms/x' FROM SECRET kc_keys IN corp"), issuer.createStatements());
+		AclIssuer stored = new AclIssuer(null, null, row("name", "kc", "url", "https://a", "secret", "s"));
+		stored.setUrl("https://b");
+		stored.setSecret("");
+		assertEquals(List.of("ALTER ISSUER kc SET URL 'https://b'", "ALTER ISSUER kc DROP FROM SECRET"),
+		             stored.alterStatements(null, Set.of("url", "secret")));
+
+		AclClient client = new AclClient(null, stored, Map.of());
+		client.setName("desktop");
+		client.setAudiences("'account'");
+		client.setRequires("tier = 'gold', 'x' IN groups");
+		client.setRolesFrom("'realm_access.roles'");
+		client.setUnmapped("as_role");
+		client.setClientId("acl-desktop");
+		client.setFlows("authcode, device");
+		assertEquals(List.of("CREATE CLIENT desktop ISSUER kc AUDIENCES ('account') REQUIRE (tier = 'gold', 'x' IN groups) "
+		                     + "ROLES FROM ('realm_access.roles') UNMAPPED AS ROLE CLIENT ID 'acl-desktop' FLOWS (authcode, device)"),
+		             client.createStatements());
+		Map<String, Object> requires = new java.util.LinkedHashMap<>();
+		requires.put("path", "region");
+		requires.put("op", "in");
+		requires.put("values", List.of("eu", "us"));
+		Map<String, Object> constant = new java.util.LinkedHashMap<>();
+		constant.put("name", "fixed");
+		constant.put("paths", List.of());
+		constant.put("constant", "v");
+		AclClient storedClient = new AclClient(null, stored, row("name", "desktop", "issuer", "kc", "azp", List.of("a"),
+		                                                         "requires", List.of(requires), "attributes", List.of(constant),
+		                                                         "implicit", false));
+		assertEquals("region IN ('eu', 'us')", storedClient.getRequires());
+		assertEquals("fixed = CONSTANT 'v'", storedClient.getAttributes());
+		storedClient.setAzp("");
+		storedClient.setTokenType("");
+		assertEquals(List.of("ALTER CLIENT desktop SET AZP ()", "ALTER CLIENT desktop SET TOKEN TYPE ''"),
+		             storedClient.alterStatements(null, Set.of("azp", "tokenType")));
+		AclClient implicit = new AclClient(null, stored, row("name", "kc", "issuer", "kc", "implicit", true));
+		implicit.setRolesFrom("'roles'");
+		assertEquals("the implicit client changes through its issuer", List.of("ALTER ISSUER kc SET ROLES FROM ('roles')"),
+		             implicit.alterStatements(null, Set.of("rolesFrom")));
+
+		AclRoleMapping mapping = new AclRoleMapping(null, null, Map.of());
+		mapping.setExternalValue("steward");
+		mapping.setScopeName("desktop");
+		mapping.setRole("steward");
+		assertEquals(List.of("MAP CLAIM 'steward' FROM CLIENT desktop TO ROLE steward"), mapping.createStatements());
+		mapping.setSource("group");
+		mapping.setScopeKind("issuer");
+		assertEquals(List.of("DROP MAP GROUP 'steward' FROM ISSUER desktop TO ROLE steward"), mapping.dropStatements());
+	}
+
+	@Test
+	public void functionsGroupsAndAdministration() throws Exception {
+		AclFunctionCategory category = new AclFunctionCategory(null, null, Map.of());
+		category.setName("mine");
+		category.setComment("m");
+		assertEquals(List.of("CREATE FUNCTION CATEGORY mine COMMENT 'm'"), category.createStatements());
+		AclFunctionCategory storedCategory = new AclFunctionCategory(null, null, row("category", "mine"));
+		AclCategoryMember member = new AclCategoryMember(null, storedCategory, Map.of());
+		member.setFunction("range TABLE");
+		assertEquals(List.of("ALTER FUNCTION CATEGORY mine ADD (range TABLE)"), member.createStatements());
+		AclCategoryMember storedMember = new AclCategoryMember(null, storedCategory, row("database", "system", "schema",
+		                                                                                 "main", "name", "upper", "kind", "scalar"));
+		assertEquals(List.of("ALTER FUNCTION CATEGORY mine DROP (system.main.upper)"), storedMember.dropStatements());
+
+		AclFunctionGrant grant = new AclFunctionGrant(null, null, Map.of());
+		grant.setCategory("mine");
+		grant.setRole("analyst");
+		assertEquals(List.of("GRANT FUNCTION CATEGORY mine TO ROLE analyst"), grant.createStatements());
+		grant.setAllowed(false);
+		assertEquals(List.of("DENY FUNCTION CATEGORY mine TO ROLE analyst"), grant.createStatements());
+		AclFunctionGrant everyone = new AclFunctionGrant(null, null, row("role", "", "database", "system", "schema", "main",
+		                                                                 "name", "lower", "kind", "scalar", "allowed", true));
+		assertEquals(List.of("REVOKE FUNCTION system.main.lower FROM ALL ROLES"), everyone.dropStatements());
+
+		AclResourceGroup group = new AclResourceGroup(null, null, Map.of());
+		group.setName("g");
+		group.setWindowStart("8");
+		group.setBatchBytes("32MiB");
+		group.setDefault(true);
+		assertEquals(List.of("CREATE RESOURCE GROUP g (window_start 8, batch_bytes '32MiB') DEFAULT"), group.createStatements());
+		AclResourceGroup storedGroup = new AclResourceGroup(null, null, row("group", "g", "max_sessions", 5L, "is_default", true));
+		storedGroup.setMaxSessions("7");
+		storedGroup.setDefault(false);
+		assertEquals(List.of("ALTER RESOURCE GROUP g SET (max_sessions 7)", "ALTER RESOURCE GROUP g DROP DEFAULT"),
+		             storedGroup.alterStatements(null, Set.of("maxSessions", "default")));
+		storedGroup.setMaxSessions("");
+		try {
+			storedGroup.alterStatements(null, Set.of("maxSessions"));
+			org.junit.Assert.fail("a limit is never unset");
+		} catch (org.jkiss.dbeaver.DBException expected) {
+			assertTrue(expected.getMessage().contains("never unset"));
+		}
+
+		AclRole role = new AclRole(null, null, row("role", "auditor"));
+		AclRoleGroup bound = new AclRoleGroup(null, role, Map.of());
+		bound.setName("g");
+		assertEquals(List.of("GRANT RESOURCE GROUP g TO ROLE auditor"), bound.createStatements());
+		AclAdminScope scope = new AclAdminScope(null, role, Map.of());
+		scope.setName("observe");
+		assertEquals(List.of("GRANT ADMIN observe TO ROLE auditor"), scope.createStatements());
+		assertEquals(List.of("REVOKE ADMIN observe FROM ROLE auditor"), scope.dropStatements());
+		AclPlatformGrant view = new AclPlatformGrant(null, role, Map.of());
+		view.setObject("sessions");
+		assertEquals(List.of("GRANT VIEW platform.sessions TO ROLE auditor"), view.createStatements());
+		view.setKind("function");
+		view.setObject("kill_session");
+		view.setAllowed(false);
+		assertEquals(List.of("DENY FUNCTION platform.kill_session TO ROLE auditor"), view.createStatements());
+		AclPlatformGrant source = new AclPlatformGrant(null, role, row("role", "auditor", "kind", "source", "object", "memory.main"));
+		assertEquals(List.of("REVOKE SOURCE memory.main FROM ROLE auditor"), source.dropStatements());
+	}
+
+	@Test
+	public void nodeAndCluster() throws Exception {
+		AclSession session = new AclSession(null, null, row("id", "62F31C2A7615", "subject", "analyst1"));
+		assertEquals(List.of("KILL SESSION '62F31C2A7615'"), session.operation("kill"));
+		assertEquals("SET SESSION '62F31C2A7615' AUDIT LEVEL ALL", session.operation("audit").get(0));
+		assertEquals("SET SESSION '62F31C2A7615' AUDIT LEVEL DEFAULT", session.operation("audit").get(4));
+		assertEquals("PROFILE SESSION '62F31C2A7615' SAMPLED", session.operation("profile").get(1));
+		AclNodeLoad node = new AclNodeLoad(null, null, row("draining", false));
+		assertEquals(List.of("DRAIN NODE"), node.operation("drain"));
+		assertEquals(List.of("RESUME NODE"), node.operation("resume"));
+
+		AclDriftEntry setting = new AclDriftEntry(null, null, row("kind", "setting", "name", "threads", "state", "differs",
+		                                                          "node_value", "16"));
+		assertEquals(List.of("CLUSTER SET threads = 16"), setting.operation("into_profile"));
+		AclDriftEntry database = new AclDriftEntry(null, null, row("kind", "database", "name", "pg", "state", "node_only",
+		                                                           "node_value", "host=db dbname=x"));
+		assertEquals("CLUSTER ATTACH 'host=db dbname=x' AS pg (TYPE <type>, SECRET <secret>)", database.operation("into_profile").get(0));
+		assertTrue(RepairStatements.hasPlaces(database.operation("into_profile").get(0)));
+		AclDriftEntry same = new AclDriftEntry(null, null, row("kind", "setting", "name", "x", "state", "same"));
+		assertEquals("nothing to add", List.of(), same.operation("into_profile"));
+
+		AclClusterItem threads = new AclClusterItem(null, null, Map.of());
+		threads.setName("threads");
+		threads.setValue("4");
+		assertEquals(List.of("CLUSTER SET threads = 4"), threads.createStatements());
+		threads.setScope("g1");
+		threads.setValue("2GB");
+		assertEquals(List.of("CLUSTER SET threads = '2GB' IN GROUP g1"), threads.createStatements());
+		assertEquals(List.of("CLUSTER RESET threads IN GROUP g1"), threads.dropStatements());
+		AclClusterItem source = new AclClusterItem(null, null, Map.of());
+		source.setKind("source");
+		source.setName("pg");
+		source.setPath("host=db dbname=x");
+		source.setType("postgres");
+		source.setSecret("pg_secret");
+		source.setLineage("postgres://db:5432/x");
+		assertEquals(List.of("CLUSTER ATTACH 'host=db dbname=x' AS pg (TYPE postgres, SECRET pg_secret) LINEAGE "
+		                     + "'postgres://db:5432/x'"), source.createStatements());
+		assertEquals(List.of("CLUSTER DETACH pg"), source.dropStatements());
+		AclClusterItem extension = new AclClusterItem(null, null, row("kind", "extension", "name", "spatial",
+		                                                              "spec", Map.of("version", "1.2", "repository", "hugr")));
+		extension.setVersion("1.3");
+		assertEquals(List.of("CLUSTER UPDATE EXTENSION spatial VERSION '1.3'"), extension.alterStatements(null, Set.of("version")));
+		assertEquals(List.of("CLUSTER REMOVE EXTENSION spatial"), extension.dropStatements());
+		assertEquals("READ_ONLY, SCHEMA 'x'", AclClusterItem.options("{\"READ_ONLY\": true, \"SCHEMA\": \"x\"}"));
+	}
 }

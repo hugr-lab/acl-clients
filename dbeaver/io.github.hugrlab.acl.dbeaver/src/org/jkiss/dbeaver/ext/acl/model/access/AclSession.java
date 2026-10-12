@@ -1,12 +1,13 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import java.util.List;
 import java.util.Map;
 import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
 /** A live session of the node (platform.sessions - never a handle). One property per column of its view, the parent's key aside (spec 007.3). */
-public class AclSession extends AclPlatformObject {
+public class AclSession extends AclPlatformObject implements Operable {
 	public AclSession(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
 	}
@@ -75,5 +76,51 @@ public class AclSession extends AclPlatformObject {
 	@Property(viewable = true, order = 51, name = "Profile source")
 	public String getProfileSource() {
 		return text("profile_source");
+	}
+
+	private String id() {
+		return AclGrammar.literal(getName());
+	}
+
+	@Override
+	public List<String> operation(String kind) {
+		return switch (kind) {
+			case "kill" -> List.of("KILL SESSION " + id());
+			case "audit" -> java.util.Arrays.stream(new String[] {"ALL", "DECISIONS", "DENIED", "OFF", "DEFAULT"})
+			    .map(level -> "SET SESSION " + id() + " AUDIT LEVEL " + level).toList();
+			case "profile" -> java.util.Arrays.stream(new String[] {"ON", "SAMPLED", "OFF"})
+			    .map(level -> "PROFILE SESSION " + id() + " " + level).toList();
+			default -> List.of();
+		};
+	}
+
+	@Override
+	public String operationTitle(String kind) {
+		return switch (kind) {
+			case "kill" -> "Kill session";
+			case "audit" -> "Session audit level";
+			default -> "Session profile level";
+		};
+	}
+
+	@Override
+	public String operationExplanation(String kind) {
+		return switch (kind) {
+			case "kill" -> "End session " + getName() + " (" + getSubject() + "): its client is disconnected and must sign in "
+			               + "again.";
+			case "audit" -> "The operator's audit level on session " + getName() + " - DEFAULT clears it back to the "
+			                + "policy's and the node's.";
+			default -> "What the session's statements' execution profiles are recorded at, from its next statement on - "
+			           + "OFF clears the override.";
+		};
+	}
+
+	@Override
+	public String operationFunction(String kind) {
+		return switch (kind) {
+			case "kill" -> "kill_session";
+			case "audit" -> "session_audit_level";
+			default -> "session_profile";
+		};
 	}
 }

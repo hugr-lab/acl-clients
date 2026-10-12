@@ -17,7 +17,20 @@ import org.eclipse.swtbot.swt.finder.junit.SWTBotJunit4ClassRunner;
 import org.eclipse.swtbot.swt.finder.widgets.SWTBotShell;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
+import org.jkiss.dbeaver.ext.acl.model.access.AclAdminScope;
 import org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant;
+import org.jkiss.dbeaver.ext.acl.model.access.AclCategoryMember;
+import org.jkiss.dbeaver.ext.acl.model.access.AclClient;
+import org.jkiss.dbeaver.ext.acl.model.access.AclFunctionCategory;
+import org.jkiss.dbeaver.ext.acl.model.access.AclFunctionGrant;
+import org.jkiss.dbeaver.ext.acl.model.access.AclIssuer;
+import org.jkiss.dbeaver.ext.acl.model.access.AclResourceGroup;
+import org.jkiss.dbeaver.ext.acl.model.access.AclRoleGroup;
+import org.jkiss.dbeaver.ext.acl.model.access.AclRoleMapping;
+import org.jkiss.dbeaver.ext.acl.model.access.AclFinding;
+import org.jkiss.dbeaver.ext.acl.model.access.AclFunctionEntry;
+import org.jkiss.dbeaver.ext.acl.model.access.AclReferenceEntry;
+import org.jkiss.dbeaver.ext.acl.model.access.AclVirtualSchema;
 import org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant;
 import org.jkiss.dbeaver.ext.acl.model.access.AclPlatformObject;
 import org.jkiss.dbeaver.ext.acl.model.access.AclRelation;
@@ -73,6 +86,15 @@ public class LiveEditTest {
 		return (AclDataSource) curator.getDataSource();
 	}
 
+	/** An explicit client is dropped before its issuer (the node refuses the issuer while one names it). */
+	private static void identityCleanUp(AclDataSource acl) throws Exception {
+		run(acl, "DROP CLIENT IF EXISTS t008_client");
+		run(acl, "DROP ISSUER IF EXISTS t008_issuer");
+		run(acl, "DROP FUNCTION CATEGORY IF EXISTS t008_cat");
+		run(acl, "DROP RESOURCE GROUP IF EXISTS t008_group");
+		run(acl, "DROP ROLE IF EXISTS t008_mapped");
+	}
+
 	@AfterClass
 	public static void cleanUp() throws Exception {
 		if (steward != null) {
@@ -80,6 +102,8 @@ public class LiveEditTest {
 			run(steward(), "DROP ROLE IF EXISTS \"" + ROLE + "\"");
 			run(steward(), "DROP ROLE IF EXISTS \"" + GRANTEE + "\"");
 			run(steward(), "DROP ROLE IF EXISTS t008_txn");
+			run(steward(), "DROP VIRTUAL CATALOG IF EXISTS t008b CASCADE");
+			identityCleanUp(steward());
 		}
 	}
 
@@ -113,7 +137,7 @@ public class LiveEditTest {
 		source.collectProperties();
 		assertTrue("property " + id + " is editable", source.isEditable(object));
 		// by its descriptor: a grant's RLS and columns are hidden from the panel (their tabs edit them)
-		source.setPropertyValue(MONITOR, object, org.jkiss.dbeaver.ext.acl.ui.grant.GrantPage.descriptor(source, object, id), value);
+		source.setPropertyValue(MONITOR, object, org.jkiss.dbeaver.ext.acl.ui.grant.PolicyPage.descriptor(source, object, id), value);
 	}
 
 	/** What Save previews: every command's statements, in order. */
@@ -390,6 +414,205 @@ public class LiveEditTest {
 		assertEquals("a mask is answered with its column", "0", mask);
 		assertEquals("nothing written", "tenant = acl_claim('tenant')",
 		             rows(acl, PlatformSql.view("object_grants", "role", "analyst", "object", "orders")).get(0).get("rls"));
+	}
+
+	/** Spec 008.2: schemas, functions, references; a table's source columns; a finding repaired by its alternative. */
+	@Test
+	public void schemasFunctionsReferencesAndARepair() throws Exception {
+		LiveTreeTest.assumeNode();
+		AclDataSource acl = steward();
+		run(acl, "CREATE VIRTUAL CATALOG IF NOT EXISTS t008b");
+		acl.refreshObject(MONITOR);
+		AclVirtualCatalog catalog = find(acl.getAccessCatalogs(MONITOR), "t008b");
+		assertNotNull(catalog);
+
+		DBECommandContext context = context(acl);
+		AclVirtualSchema alias = create(context, AclVirtualSchema.class, catalog);
+		set(context, alias, "name", "raw.eu");
+		set(context, alias, "physPath", "memory.raw_eu");
+		set(context, alias, "comment", "eu");
+		assertEquals(List.of("CREATE VIRTUAL SCHEMA t008b.raw.eu AS memory.raw_eu COMMENT 'eu'"), script(context));
+		context.saveChanges(MONITOR, new HashMap<>());
+		DBECommandContext expand = context(acl);
+		AclVirtualSchema expansion = create(expand, AclVirtualSchema.class, catalog);
+		set(expand, expansion, "name", "cur");
+		set(expand, expansion, "kind", "expansion");
+		set(expand, expansion, "physPath", "memory.raw_eu");
+		expand.saveChanges(MONITOR, new HashMap<>());
+		assertEquals("one record per object of the source", 1,
+		             rows(acl, PlatformSql.view("relations", "catalog", "t008b", "name", "cur.events")).size());
+		run(acl, expansion.refreshStatement(true)); // what Refresh from the source… runs
+		// a record that declares no list shows its source's columns under Columns (the owner's raw.events)
+		AclRelation events = new AclRelation(acl, catalog, rows(acl, PlatformSql.view("relations", "catalog", "t008b", "name", "cur.events")).get(0));
+		assertFalse("the source's columns", events.getExposedColumns(MONITOR).isEmpty());
+		assertNotNull(events.getExposedColumns(MONITOR).get(0).getType());
+
+		DBECommandContext functions = context(acl);
+		AclFunctionEntry macro = create(functions, AclFunctionEntry.class, catalog);
+		set(functions, macro, "name", "big");
+		set(functions, macro, "params", "m INTEGER");
+		set(functions, macro, "template", "SELECT id FROM memory.main.orders WHERE amount >= acl_arg(1)");
+		functions.saveChanges(MONITOR, new HashMap<>());
+		macro.setPersisted(true);
+		macro.refreshObject(MONITOR);
+		DBECommandContext change = context(acl);
+		set(change, macro, "template", "SELECT id, amount FROM memory.main.orders WHERE amount >= acl_arg(1)");
+		set(change, macro, "comment", "the big ones");
+		assertEquals(List.of("ALTER VIRTUAL TABLE FUNCTION t008b.big SET MACRO SELECT id, amount FROM memory.main.orders WHERE amount >= acl_arg(1)",
+		                     "COMMENT ON VIRTUAL TABLE FUNCTION t008b.big IS 'the big ones'"), script(change));
+		change.saveChanges(MONITOR, new HashMap<>());
+		assertEquals("the big ones", rows(acl, PlatformSql.view("functions", "catalog", "t008b", "name", "big")).get(0).get("comment"));
+
+		run(acl, "CREATE VIRTUAL TABLE t008b.orders AS memory.main.orders");
+		run(acl, "CREATE VIRTUAL TABLE t008b.orders2 AS memory.main.orders");
+		DBECommandContext reference = context(acl);
+		AclReferenceEntry ref = create(reference, AclReferenceEntry.class, catalog);
+		set(reference, ref, "name", "same_order");
+		set(reference, ref, "fromObject", "orders");
+		set(reference, ref, "toObject", "orders2");
+		set(reference, ref, "pairs", "id = id");
+		set(reference, ref, "cardinality", "one_to_one");
+		reference.saveChanges(MONITOR, new HashMap<>());
+		ref.setPersisted(true);
+		ref.refreshObject(MONITOR);
+		DBECommandContext hint = context(acl);
+		set(hint, ref, "optional", true);
+		hint.saveChanges(MONITOR, new HashMap<>());
+		assertEquals(Boolean.TRUE, rows(acl, PlatformSql.view("references", "catalog", "t008b", "name", "same_order")).get(0).get("optional"));
+
+		// the Column list tab reads the source's columns
+		AclRelation orders = new AclRelation(acl, catalog, rows(acl, PlatformSql.view("relations", "catalog", "t008b", "name", "orders")).get(0));
+		List<String> names = new ArrayList<>();
+		for (String[] column : orders.physicalColumns(MONITOR)) {
+			names.add(column[0]);
+		}
+		assertEquals(List.of("id", "tenant", "amount"), names);
+
+		// a finding and its repair: a table over nothing, dropped by the repair's alternative
+		run(acl, "CREATE VIRTUAL TABLE t008b.ghost AS memory.main.t008_none");
+		AclFinding ghost = null;
+		for (AclFinding finding : catalog.getFindings(MONITOR)) {
+			if ("ghost".equals(finding.object())) {
+				ghost = finding;
+			}
+		}
+		assertNotNull("check finds the ghost", ghost);
+		List<String> repairs = ghost.repairs();
+		assertEquals("DROP VIRTUAL TABLE t008b.ghost", repairs.get(repairs.size() - 1));
+		run(acl, repairs.get(repairs.size() - 1));
+		assertTrue(rows(acl, PlatformSql.view("relations", "catalog", "t008b", "name", "ghost")).isEmpty());
+	}
+
+	/** Spec 008.2b: identity, function categories and grants, resource groups - and what policy is not offered. */
+	@Test
+	public void identityFunctionsAndGroups() throws Exception {
+		LiveTreeTest.assumeNode();
+		AclDataSource acl = steward();
+		identityCleanUp(acl); // a run that stopped half way
+		run(acl, "CREATE ROLE IF NOT EXISTS t008_mapped");
+		DBECommandContext context = context(acl);
+		AclIssuer issuer = create(context, AclIssuer.class, acl);
+		set(context, issuer, "name", "t008_issuer");
+		set(context, issuer, "url", "https://t008.example/realms/x");
+		context.saveChanges(MONITOR, new HashMap<>());
+		issuer.setPersisted(true);
+		issuer.refreshObject(MONITOR);
+
+		DBECommandContext clients = context(acl);
+		AclClient client = create(clients, AclClient.class, issuer);
+		set(clients, client, "name", "t008_client");
+		set(clients, client, "audiences", "'account'");
+		set(clients, client, "rolesFrom", "'roles'");
+		set(clients, client, "requires", "tier = 'gold'");
+		set(clients, client, "clientId", "t008-desktop");
+		clients.saveChanges(MONITOR, new HashMap<>());
+		client.setPersisted(true);
+		client.refreshObject(MONITOR);
+		assertEquals("read back in the grammar's syntax", "tier = 'gold'", client.getRequires());
+		DBECommandContext change = context(acl);
+		set(change, client, "requires", "");
+		set(change, client, "unmapped", "as_role");
+		assertEquals(List.of("ALTER CLIENT t008_client SET REQUIRE ()", "ALTER CLIENT t008_client SET UNMAPPED AS ROLE"),
+		             script(change));
+		change.saveChanges(MONITOR, new HashMap<>());
+		Map<String, Object> stored = rows(acl, PlatformSql.view("clients", "name", "t008_client")).get(0);
+		assertEquals("as_role", stored.get("unmapped"));
+
+		DBECommandContext half = context(acl); // a mapping missing its scope says so - never an NPE
+		AclRoleMapping unnamed = create(half, AclRoleMapping.class, acl);
+		set(half, unnamed, "externalValue", "t008");
+		set(half, unnamed, "role", "t008_mapped");
+		try {
+			script(half);
+			fail("a mapping without its client or issuer");
+		} catch (DBException e) {
+			assertTrue(e.getMessage(), e.getMessage().contains("the scope name (a client or an issuer) is required"));
+		}
+		DBECommandContext map = context(acl);
+		AclRoleMapping mapping = create(map, AclRoleMapping.class, acl);
+		set(map, mapping, "externalValue", "t008");
+		set(map, mapping, "scopeName", "t008_client");
+		set(map, mapping, "role", "t008_mapped");
+		map.saveChanges(MONITOR, new HashMap<>());
+		assertEquals(1, rows(acl, PlatformSql.view("role_mappings", "role", "t008_mapped")).size());
+		mapping.setPersisted(true);
+		DBECommandContext unmap = context(acl);
+		delete(unmap, mapping);
+		unmap.saveChanges(MONITOR, new HashMap<>());
+		assertTrue(rows(acl, PlatformSql.view("role_mappings", "role", "t008_mapped")).isEmpty());
+
+		DBECommandContext categories = context(acl);
+		AclFunctionCategory category = create(categories, AclFunctionCategory.class, acl);
+		set(categories, category, "name", "t008_cat");
+		categories.saveChanges(MONITOR, new HashMap<>());
+		category.setPersisted(true);
+		category.refreshObject(MONITOR);
+		DBECommandContext members = context(acl);
+		AclCategoryMember member = create(members, AclCategoryMember.class, category);
+		set(members, member, "function", "lower");
+		members.saveChanges(MONITOR, new HashMap<>());
+		assertEquals(1, rows(acl, PlatformSql.view("function_category_members", "category", "t008_cat")).size());
+		DBECommandContext grants = context(acl);
+		AclFunctionGrant grant = create(grants, AclFunctionGrant.class, acl);
+		set(grants, grant, "role", "t008_mapped");
+		set(grants, grant, "category", "t008_cat");
+		grants.saveChanges(MONITOR, new HashMap<>());
+		assertEquals(Boolean.TRUE, rows(acl, PlatformSql.view("function_grants", "role", "t008_mapped")).get(0).get("allowed"));
+
+		DBECommandContext groups = context(acl);
+		AclResourceGroup group = create(groups, AclResourceGroup.class, acl);
+		set(groups, group, "name", "t008_group");
+		set(groups, group, "maxSessions", "5");
+		groups.saveChanges(MONITOR, new HashMap<>());
+		group.setPersisted(true);
+		group.refreshObject(MONITOR);
+		DBECommandContext limits = context(acl);
+		set(limits, group, "maxSessions", "7");
+		set(limits, group, "comment", "t008");
+		limits.saveChanges(MONITOR, new HashMap<>());
+		Map<String, Object> groupRow = rows(acl, PlatformSql.view("resource_groups", "group", "t008_group")).get(0);
+		assertEquals("7", String.valueOf(groupRow.get("max_sessions")));
+		AclRole mapped = find(acl.getAccessRoles(MONITOR), "t008_mapped");
+		if (mapped == null) {
+			acl.refreshObject(MONITOR);
+			mapped = find(acl.getAccessRoles(MONITOR), "t008_mapped");
+		}
+		DBECommandContext bind = context(acl);
+		AclRoleGroup bound = create(bind, AclRoleGroup.class, mapped);
+		set(bind, bound, "name", "t008_group");
+		bind.saveChanges(MONITOR, new HashMap<>());
+		assertEquals(1, rows(acl, PlatformSql.view("role_resource_groups", "role", "t008_mapped")).size());
+
+		// the bundles and the grants on platform are passthrough's: not offered to policy, refused by the node
+		DBEObjectMaker<AclAdminScope, DBSObject> scopes = DBWorkbench.getPlatform().getEditorsRegistry()
+		    .getObjectManager(AclAdminScope.class, DBEObjectMaker.class);
+		assertFalse("GRANT ADMIN is not offered to policy", scopes.canCreateObject(mapped));
+		try {
+			run(acl, "GRANT ADMIN observe TO ROLE t008_mapped");
+			fail("policy hands out no bundle");
+		} catch (Exception expected) {
+			assertTrue(rows(acl, PlatformSql.view("admins", "role", "t008_mapped")).isEmpty());
+		}
 	}
 
 	@Test

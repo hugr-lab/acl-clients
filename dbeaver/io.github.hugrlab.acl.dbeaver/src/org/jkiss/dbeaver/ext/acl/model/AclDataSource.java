@@ -221,9 +221,9 @@ public class AclDataSource extends GenericDataSource {
 	}
 
 	@org.jkiss.dbeaver.model.meta.Association
-	public List<AclClusterItem> getAccessClusterEffective(DBRProgressMonitor monitor) throws DBException {
+	public List<AclClusterEffective> getAccessClusterEffective(DBRProgressMonitor monitor) throws DBException {
 		return accessRows(monitor, "cluster_effective", PlatformSql.view("cluster_effective"),
-		                  r -> new AclClusterItem(this, this, r));
+		                  r -> new AclClusterEffective(this, this, r));
 	}
 
 	@org.jkiss.dbeaver.model.meta.Association

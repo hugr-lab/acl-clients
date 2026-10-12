@@ -5,7 +5,7 @@ import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.model.meta.Property;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 
-/** A declared column of a relation (platform.relation_columns). One property per column of its view, the parent's key aside (spec 007.3). */
+/** A column of a relation: its declared list's (platform.relation_columns), or - none declared - its source's. One property per column of its view, the parent's key aside (spec 007.3). */
 public class AclRelationColumn extends AclPlatformObject {
 	public AclRelationColumn(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
@@ -32,7 +32,12 @@ public class AclRelationColumn extends AclPlatformObject {
 		return text("expr");
 	}
 
-	@Property(viewable = true, order = 4, name = "Nullable")
+	@Property(viewable = true, order = 4, name = "Type", description = "The source column's type (a relation without a declared list)")
+	public String getType() {
+		return text("type");
+	}
+
+	@Property(viewable = true, order = 5, name = "Nullable")
 	public String getNullable() {
 		return text("nullable");
 	}

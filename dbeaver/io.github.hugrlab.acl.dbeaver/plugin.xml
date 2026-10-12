@@ -81,13 +81,13 @@
 							<folder id="acl_object_grants" type="org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant" label="Object grants" icon="#folder" visibleIf="object.dataSource.shows('object_grants')">
 								<items label="Grant" path="objectGrant" property="objectGrants" icon="#table"/>
 							</folder>
-							<folder id="acl_administration" label="Administration" icon="#folder" visibleIf="object.dataSource.shows('admins')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclAdminScope" id="acl_administration" label="Administration" icon="#folder" visibleIf="object.dataSource.shows('admins')">
 								<items label="Scope" path="adminScope" property="adminScopes" icon="#info"/>
 							</folder>
-							<folder id="acl_platform_grants" label="Platform grants" icon="#folder" visibleIf="object.dataSource.shows('platform_grants')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclPlatformGrant" id="acl_platform_grants" label="Platform grants" icon="#folder" visibleIf="object.dataSource.shows('platform_grants')">
 								<items label="Grant" path="platformGrant" property="platformGrants" icon="#info"/>
 							</folder>
-							<folder id="acl_resource_groups" label="Resource groups" icon="#folder" visibleIf="object.dataSource.shows('role_resource_groups')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclRoleGroup" id="acl_resource_groups" label="Resource groups" icon="#folder" visibleIf="object.dataSource.shows('role_resource_groups')">
 								<items label="Group" path="roleGroup" property="resourceGroups" icon="#info"/>
 							</folder>
 							<folder id="acl_effective_rights" label="Effective rights" icon="#folder" visibleIf="object.dataSource.calls('effective_rights') &amp;&amp; object.dataSource.shows('grants')">
@@ -102,20 +102,20 @@
 							<folder id="acl_relations" type="org.jkiss.dbeaver.ext.acl.model.access.AclRelation" label="Relations" icon="#folder_table" visibleIf="object.dataSource.shows('relations')">
 								<items label="Relation" path="accessRelation" property="relations" icon="#table">
 									<folder id="acl_columns_3" label="Columns" icon="#columns" visibleIf="object.dataSource.shows('relation_columns')">
-										<items label="Column" path="relationColumn" property="columns" icon="#column"/>
+										<items label="Column" path="relationColumn" property="exposedColumns" icon="#column"/>
 									</folder>
 									<folder id="acl_keys_2" label="Keys" icon="#constraints" visibleIf="object.dataSource.shows('keys')">
 										<items label="Column" path="keyColumn" property="keyColumns" icon="#unique-key"/>
 									</folder>
 								</items>
 							</folder>
-							<folder id="acl_schemas" label="Schemas" icon="#schema" visibleIf="object.dataSource.shows('schemas')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclVirtualSchema" id="acl_schemas" label="Schemas" icon="#schema" visibleIf="object.dataSource.shows('schemas')">
 								<items label="Schema" path="virtualSchema" property="virtualSchemas" icon="#schema"/>
 							</folder>
-							<folder id="acl_functions_2" label="Functions" icon="#functions" visibleIf="object.dataSource.shows('functions')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionEntry" id="acl_functions_2" label="Functions" icon="#functions" visibleIf="object.dataSource.shows('functions')">
 								<items label="Function" path="functionEntry" property="functionEntries" icon="#function"/>
 							</folder>
-							<folder id="acl_references_2" label="References" icon="#references" visibleIf="object.dataSource.shows('references')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclReferenceEntry" id="acl_references_2" label="References" icon="#references" visibleIf="object.dataSource.shows('references')">
 								<items label="Reference" path="referenceEntry" property="referenceEntries" icon="#reference"/>
 							</folder>
 							<folder id="acl_check" label="Check" icon="#info" visibleIf="object.dataSource.calls('check_catalog')">
@@ -131,28 +131,28 @@
 						</items>
 					</folder>
 					<folder id="acl_identity" label="Identity" icon="#folder" visibleIf="object.shows('issuers') || object.shows('role_mappings')">
-						<folder id="acl_issuers" label="Issuers" icon="#folder" visibleIf="object.shows('issuers')">
+						<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclIssuer" id="acl_issuers" label="Issuers" icon="#folder" visibleIf="object.shows('issuers')">
 							<items label="Issuer" path="accessIssuer" property="accessIssuers" icon="#info">
-								<folder id="acl_clients" label="Clients" icon="#folder" visibleIf="object.dataSource.shows('clients')">
+								<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclClient" id="acl_clients" label="Clients" icon="#folder" visibleIf="object.dataSource.shows('clients')">
 									<items label="Client" path="accessClient" property="clients" icon="#info"/>
 								</folder>
 							</items>
 						</folder>
-						<folder id="acl_role_mappings" label="Role mappings" icon="#folder" visibleIf="object.shows('role_mappings')">
+						<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclRoleMapping" id="acl_role_mappings" label="Role mappings" icon="#folder" visibleIf="object.shows('role_mappings')">
 							<items label="Mapping" path="roleMapping" property="accessRoleMappings" icon="#info"/>
 						</folder>
 					</folder>
-					<folder id="acl_function_categories" label="Function categories" icon="#functions" visibleIf="object.shows('function_categories')">
+					<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionCategory" id="acl_function_categories" label="Function categories" icon="#functions" visibleIf="object.shows('function_categories')">
 						<items label="Category" path="functionCategory" property="accessFunctionCategories" icon="#functions">
-							<folder id="acl_members" label="Members" icon="#folder" visibleIf="object.dataSource.shows('function_category_members')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclCategoryMember" id="acl_members" label="Members" icon="#folder" visibleIf="object.dataSource.shows('function_category_members')">
 								<items label="Function" path="categoryMember" property="members" icon="#function"/>
 							</folder>
 						</items>
 					</folder>
-					<folder id="acl_function_grants" label="Function grants" icon="#functions" visibleIf="object.shows('function_grants')">
+					<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionGrant" id="acl_function_grants" label="Function grants" icon="#functions" visibleIf="object.shows('function_grants')">
 						<items label="Grant" path="functionGrant" property="accessFunctionGrants" icon="#function"/>
 					</folder>
-					<folder id="acl_resource_groups_2" label="Resource groups" icon="#folder" visibleIf="object.shows('resource_groups')">
+					<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclResourceGroup" id="acl_resource_groups_2" label="Resource groups" icon="#folder" visibleIf="object.shows('resource_groups')">
 						<items label="Group" path="resourceGroup" property="accessResourceGroups" icon="#info"/>
 					</folder>
 					<folder id="acl_node" label="Node" icon="#folder" visibleIf="object.shows('sessions') || object.shows('node_load')">
@@ -167,7 +167,7 @@
 						</folder>
 					</folder>
 					<folder id="acl_cluster" label="Cluster" icon="#folder" visibleIf="object.shows('cluster_items') || object.shows('drift')">
-						<folder id="acl_profile" label="Profile" icon="#folder" visibleIf="object.shows('cluster_items')">
+						<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclClusterItem" id="acl_profile" label="Profile" icon="#folder" visibleIf="object.shows('cluster_items')">
 							<items label="Item" path="accessClusterItem" property="accessClusterItems" icon="#info"/>
 						</folder>
 						<folder id="acl_applied_here" label="Applied here" icon="#folder" visibleIf="object.shows('cluster_effective')">
@@ -224,6 +224,20 @@
 		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$CatalogGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant"/>
 		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$SchemaGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclSchemaGrant"/>
 		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$ObjectGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$Schemas" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclVirtualSchema"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$Functions" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionEntry"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$References" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclReferenceEntry"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$Issuers" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclIssuer"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$Clients" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclClient"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$RoleMappings" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclRoleMapping"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$FunctionCategorys" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionCategory"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$CategoryMembers" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclCategoryMember"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$FunctionGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionGrant"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$ResourceGroups" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclResourceGroup"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$RoleGroups" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclRoleGroup"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$AdminScopes" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclAdminScope"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$PlatformGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclPlatformGrant"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$ClusterItems" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclClusterItem"/>
 	</extension>
 
 	<!-- spec 008.1 addendum: a grant's row filter and column list in tabs of their own, each with Check (the node's
@@ -240,6 +254,23 @@
 		        position="additions_end" icon="#columns" type="folder">
 			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant"/>
 			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant"/>
+		</editor>
+		<!-- spec 008.2: a virtual function's parameters, result and template (the owner's ask) -->
+		<editor id="io.github.hugrlab.acl.function.definition" class="org.jkiss.dbeaver.ext.acl.ui.grant.FunctionDefinitionPage"
+		        main="false" label="Definition" description="Parameters, result and template" position="additions_end"
+		        icon="#sql_text" type="folder">
+			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionEntry"/>
+		</editor>
+		<!-- spec 008.2: a virtual table's own row filter and column list -->
+		<editor id="io.github.hugrlab.acl.relation.rowfilter" class="org.jkiss.dbeaver.ext.acl.ui.grant.RelationRowFilterPage"
+		        main="false" label="Row filter" description="The table's own predicate" position="additions_end"
+		        icon="#filter" type="folder">
+			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclRelation"/>
+		</editor>
+		<editor id="io.github.hugrlab.acl.relation.columns" class="org.jkiss.dbeaver.ext.acl.ui.grant.RelationColumnsPage"
+		        main="false" label="Column list" description="Which columns of the source the table exposes, and how"
+		        position="additions_end" icon="#columns" type="folder">
+			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclRelation"/>
 		</editor>
 	</extension>
 
@@ -262,11 +293,16 @@
 		<propertyTester id="io.github.hugrlab.acl.consoleTester"
 		                class="org.jkiss.dbeaver.ext.acl.ui.AclConsoleTester"
 		                namespace="io.github.hugrlab.acl"
-		                properties="console,role"
+		                properties="console,role,run"
 		                type="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
 	</extension>
 
 	<extension point="org.eclipse.ui.commands">
+		<command id="io.github.hugrlab.acl.run" name="duckdb-acl statement"
+		         description="A finding's repair or a schema's refresh - shown, completed, then run"
+		         defaultHandler="org.jkiss.dbeaver.ext.acl.ui.AclRunHandler">
+			<commandParameter id="io.github.hugrlab.acl.run.kind" name="Kind" optional="false"/>
+		</command>
 		<command id="io.github.hugrlab.acl.console" name="duckdb-acl console"
 		         description="A management or native console, or the catalog as a role sees it"
 		         defaultHandler="org.jkiss.dbeaver.ext.acl.ui.AclConsoleHandler">
@@ -328,6 +364,121 @@
 					</visibleWhen>
 				</command>
 			</menu>
+		</menuContribution>
+		<!-- spec 008.2 / 008.3: an object's operations (Operable) - shown, completed, then run -->
+		<menuContribution locationURI="popup:org.eclipse.ui.popup.any?after=additions">
+			<command commandId="io.github.hugrlab.acl.run" label="Repair…" tooltip="The node's repair for this finding - shown, completed, then run" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="repair"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="repair" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
+			<command commandId="io.github.hugrlab.acl.run" label="Refresh from the source…" tooltip="Read the expansion's source again" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="refresh"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="refresh" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
+			<command commandId="io.github.hugrlab.acl.run" label="Kill session…" tooltip="End this session" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="kill"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="kill" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
+			<command commandId="io.github.hugrlab.acl.run" label="Audit level…" tooltip="The operator's audit level on this session" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="audit"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="audit" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
+			<command commandId="io.github.hugrlab.acl.run" label="Profile level…" tooltip="The execution profile level on this session" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="profile"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="profile" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
+			<command commandId="io.github.hugrlab.acl.run" label="Drain the node…" tooltip="Stop seating new clients on this node" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="drain"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="drain" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
+			<command commandId="io.github.hugrlab.acl.run" label="Resume the node…" tooltip="Seat new clients again" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="resume"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="resume" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
+			<command commandId="io.github.hugrlab.acl.run" label="Add to the cluster profile…" tooltip="Write what this node has into the cluster profile" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="into_profile"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="into_profile" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
 		</menuContribution>
 		<!-- spec 008.1: on a role of the Access control branch, the catalog as that role sees it -->
 		<menuContribution locationURI="popup:org.eclipse.ui.popup.any?after=additions">

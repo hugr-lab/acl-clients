@@ -161,13 +161,21 @@ public abstract class AclPlatformObject implements DBSObject, DBPRefreshableObje
 	}
 
 	/** The statements that create it, in order. */
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		return List.of();
 	}
 
 	/** The statements for the properties the user changed (property ids), one per property, in the class's order. */
 	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) throws DBException {
 		return List.of();
+	}
+
+	/** A property a statement cannot be written without: its value, or the refusal that says which it is. */
+	protected static String required(String value, String what) throws DBException {
+		if (AclGrammar.isBlank(value)) {
+			throw new DBException("duckdb-acl: " + what + " is required");
+		}
+		return value.trim();
 	}
 
 	/** The statements that drop it. */
@@ -239,6 +247,17 @@ public abstract class AclPlatformObject implements DBSObject, DBPRefreshableObje
 				}
 			}
 			cached = made;
+			loaded.put(key, cached);
+		}
+		return (List<T>) cached;
+	}
+
+	/** Children made otherwise than from one statement's rows (read once, until a refresh). */
+	@SuppressWarnings("unchecked")
+	protected synchronized <T> List<T> childrenOf(String key, StoredRead<List<T>> make) throws DBException {
+		List<?> cached = loaded.get(key);
+		if (cached == null) {
+			cached = persisted ? make.read() : new ArrayList<T>();
 			loaded.put(key, cached);
 		}
 		return (List<T>) cached;

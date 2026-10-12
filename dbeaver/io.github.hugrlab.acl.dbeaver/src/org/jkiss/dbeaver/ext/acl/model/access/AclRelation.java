@@ -80,7 +80,7 @@ public class AclRelation extends AclPlatformObject {
 		edit("phys", phys);
 	}
 
-	@Property(viewable = true, editable = true, updatable = true, order = 5, name = "Columns",
+	@Property(viewable = true, editable = true, updatable = true, hidden = true, order = 5, name = "Columns",
 	          description = "A table's declared columns, as COLUMNS (…) writes them: id, amount, ssn = NULL, total = amount * 2, "
 	                        + "id NOT NULL; empty = every column of the physical object")
 	public String getDeclaredColumns(DBRProgressMonitor monitor) throws DBException {
@@ -91,7 +91,7 @@ public class AclRelation extends AclPlatformObject {
 		edit("declaredColumns", columns);
 	}
 
-	@Property(viewable = true, editable = true, updatable = true, order = 6, name = "Rls",
+	@Property(viewable = true, editable = true, updatable = true, hidden = true, order = 6, name = "Rls",
 	          description = "A table's predicate over the physical columns, AND-ed into every read and write")
 	public String getRls() {
 		return edited("rls", text("rls"));
@@ -265,7 +265,7 @@ public class AclRelation extends AclPlatformObject {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		List<String> out = new ArrayList<>();
 		String key = edited("primaryKey", "");
 		String comment = getComment();
@@ -277,9 +277,9 @@ public class AclRelation extends AclPlatformObject {
 			if (!AclGrammar.isBlank(comment)) {
 				sql.append(" COMMENT ").append(AclGrammar.literal(comment));
 			}
-			sql.append(" AS ").append(getViewSql() == null ? "" : getViewSql().trim());
+			sql.append(" AS ").append(required(getViewSql(), "a view's SELECT"));
 		} else {
-			sql.append(" AS ").append(getPhys() == null ? "" : AclGrammar.path(getPhys().trim()));
+			sql.append(" AS ").append(AclGrammar.path(required(getPhys(), "the physical object (Phys)")));
 			String columns = edited("declaredColumns", "");
 			if (!AclGrammar.isBlank(columns)) {
 				sql.append(" COLUMNS (").append(columns.trim()).append(')');
@@ -334,6 +334,50 @@ public class AclRelation extends AclPlatformObject {
 	@Override
 	public List<String> dropStatements() {
 		return List.of("DROP VIRTUAL " + kindWord() + " " + target());
+	}
+
+	/**
+	 * The physical columns of a table's source (name, type), as the node lists its attached sources to an administrator
+	 * (`platform.attached.<db>.<schema>`, duckdb-acl spec 118.3); empty for a view or a source it does not list.
+	 */
+	public List<String[]> physicalColumns(DBRProgressMonitor monitor) throws DBException {
+		List<String[]> out = new ArrayList<>();
+		java.util.List<String> parts = getPhys() == null ? null : org.jkiss.dbeaver.ext.acl.model.SchemaPath.parts(getPhys().trim());
+		if (isView() || parts == null || parts.size() != 3) {
+			return out;
+		}
+		String schema = org.jkiss.dbeaver.ext.acl.model.SchemaPath.join(List.of("attached", parts.get(0), parts.get(1)));
+		String sql = "SELECT column_name, data_type FROM information_schema.columns WHERE table_catalog = 'platform'"
+		             + " AND table_schema = " + PlatformSql.literal(schema) + " AND table_name = "
+		             + PlatformSql.literal(parts.get(2)) + " ORDER BY ordinal_position";
+		for (Map<String, Object> row : dataSource.platformRows(monitor, sql)) {
+			out.add(new String[] {PlatformValues.text(row.get("column_name")), PlatformValues.text(row.get("data_type"))});
+		}
+		return out;
+	}
+
+	/**
+	 * What the navigator shows under Columns: the declared list, or - a relation that declares none (an alias, an
+	 * expansion's record) - its source's columns with their types, as the node lists its attached sources.
+	 */
+	@Association
+	public List<AclRelationColumn> getExposedColumns(DBRProgressMonitor monitor) throws DBException {
+		List<AclRelationColumn> declared = getColumns(monitor);
+		if (!declared.isEmpty() || isView()) {
+			return declared;
+		}
+		return childrenOf("SourceColumns", () -> {
+			List<AclRelationColumn> out = new ArrayList<>();
+			int pos = 0;
+			for (String[] column : physicalColumns(monitor)) {
+				Map<String, Object> made = new java.util.HashMap<>();
+				made.put("name", column[0]);
+				made.put("type", column[1]);
+				made.put("pos", pos++);
+				out.add(new AclRelationColumn(dataSource, this, made));
+			}
+			return out;
+		});
 	}
 
 	@Association

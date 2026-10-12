@@ -1,5 +1,7 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import org.jkiss.dbeaver.DBException;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -135,8 +137,9 @@ public class AclSchemaGrant extends AclGrantObject {
 		};
 	}
 
-	private String grant() {
-		StringBuilder sql = new StringBuilder("GRANT SCHEMA ").append(AclGrammar.inCatalog(getCatalog(), getSchemaPath()))
+	private String grant() throws DBException {
+		StringBuilder sql = new StringBuilder("GRANT SCHEMA ").append(AclGrammar.inCatalog(required(getCatalog(), "the catalog"),
+		                                                                                      required(getSchemaPath(), "the schema path")))
 		    .append(" TO ROLE ").append(AclGrammar.ident(role())).append(AclGrammar.grantCaps(caps()));
 		if (!AclGrammar.isBlank(getInto())) {
 			sql.append(" INTO ").append(AclGrammar.path(getInto().trim()));
@@ -150,12 +153,12 @@ public class AclSchemaGrant extends AclGrantObject {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		return List.of(grant());
 	}
 
 	@Override
-	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) {
+	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) throws DBException {
 		return changed.isEmpty() ? List.of() : List.of(grant());
 	}
 

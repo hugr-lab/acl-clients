@@ -16,6 +16,19 @@ import org.jkiss.dbeaver.ext.acl.model.access.AclRole;
 public class AclConsoleTester extends PropertyTester {
 	@Override
 	public boolean test(Object receiver, String property, Object[] args, Object expectedValue) {
+		if ("run".equals(property)) { // spec 008.2 / 008.3: an object's operation, where its function is callable
+			if (!(receiver instanceof DBNDatabaseNode node) || !(node.getObject() instanceof org.jkiss.dbeaver.ext.acl.model.access.AclPlatformObject object)
+			    || !(object instanceof org.jkiss.dbeaver.ext.acl.model.access.Operable operable) || object.getDataSource() == null
+			    || object.getDataSource().console() == null || object.getDataSource().getContainer().isConnectionReadOnly()) {
+				return false;
+			}
+			String kind = args.length > 0 ? String.valueOf(args[0]) : "";
+			if (operable.operation(kind).isEmpty()) {
+				return false;
+			}
+			String function = operable.operationFunction(kind);
+			return function == null || object.getDataSource().console().mayCall(function, object.catalogOf());
+		}
 		if ("role".equals(property)) {
 			return receiver instanceof DBNDatabaseNode node && node.getObject() instanceof AclRole role
 			       && role.getDataSource() != null && role.getDataSource().console() != null

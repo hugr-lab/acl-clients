@@ -27,7 +27,7 @@ import org.jkiss.dbeaver.ext.acl.model.access.GrantColumns.Shown;
  * replaces the value) or hidden - a STRUCT's fields as children (duckdb-acl spec 102), the `COLUMNS (…)` it writes
  * under the tree, and Check. A catalog grant's list names columns across the catalog: written as text.
  */
-public class GrantColumnsPage extends GrantPage {
+public class GrantColumnsPage extends PolicyPage {
 	private static final String[] SHOWN = {"Visible", "Masked", "Hidden"};
 
 	private TreeViewer tree;
@@ -182,8 +182,10 @@ public class GrantColumnsPage extends GrantPage {
 		if (catalogList != null) {
 			catalogList.setEditable(editable());
 			filling = true;
-			String list = grant().getColumns();
-			catalogList.setText(list == null ? "" : list);
+			String list = grant().getColumns() == null ? "" : grant().getColumns();
+			if (!catalogList.getText().equals(list)) { // never put back what the user is typing (the caret stays)
+				catalogList.setText(list);
+			}
 			filling = false;
 			return;
 		}

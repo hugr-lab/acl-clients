@@ -1,5 +1,7 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
+import org.jkiss.dbeaver.DBException;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -129,8 +131,9 @@ public class AclObjectGrant extends AclGrantObject implements AclPolicyGrant {
 		};
 	}
 
-	private String grant() {
-		StringBuilder sql = new StringBuilder("GRANT OBJECT ").append(AclGrammar.inCatalog(getCatalog(), getObject()))
+	private String grant() throws DBException {
+		StringBuilder sql = new StringBuilder("GRANT OBJECT ").append(AclGrammar.inCatalog(required(getCatalog(), "the catalog"),
+		                                                                                      required(getObject(), "the object")))
 		    .append(" TO ROLE ").append(AclGrammar.ident(role())).append(AclGrammar.grantCaps(caps()));
 		if (!AclGrammar.isBlank(getRls())) {
 			sql.append(" RLS (").append(getRls().trim()).append(')');
@@ -142,12 +145,12 @@ public class AclObjectGrant extends AclGrantObject implements AclPolicyGrant {
 	}
 
 	@Override
-	public List<String> createStatements() {
+	public List<String> createStatements() throws DBException {
 		return List.of(grant());
 	}
 
 	@Override
-	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) {
+	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) throws DBException {
 		return changed.isEmpty() ? List.of() : List.of(grant());
 	}
 
