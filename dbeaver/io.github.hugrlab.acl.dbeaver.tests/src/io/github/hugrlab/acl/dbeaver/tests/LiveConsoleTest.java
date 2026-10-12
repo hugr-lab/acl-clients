@@ -82,15 +82,15 @@ public class LiveConsoleTest {
 			}
 		});
 		SWTBotTreeItem item = bot.viewById(NAVIGATOR).bot().tree().getTreeItem(stewardName).select();
-		List<String> items = item.contextMenu("duckdb-acl").menuItems();
+		List<String> items = item.contextMenu("Access control").menuItems();
 		assertTrue(items.toString(), items.contains("Management console"));
 		assertTrue(items.toString(), items.contains("View as role…"));
 		assertFalse(items.toString(), items.contains("Native console"));
 		SWTBotTreeItem other = bot.viewById(NAVIGATOR).bot().tree().getTreeItem(analystName).select();
-		assertFalse(other.contextMenu().menuItems().contains("duckdb-acl"));
+		assertFalse(other.contextMenu().menuItems().contains("Access control"));
 
 		// the actions themselves: a management console is an SQL editor on a connection of its own
-		bot.viewById(NAVIGATOR).bot().tree().getTreeItem(stewardName).select().contextMenu("duckdb-acl")
+		bot.viewById(NAVIGATOR).bot().tree().getTreeItem(stewardName).select().contextMenu("Access control")
 		    .menu("Management console").click();
 		DataSourceDescriptor manage = waitFor(bot, stewardName + " · manage");
 		// what the copy is (AclConsoles.open): manage mode, auto-commit, no bootstrap statements of the user's, the
@@ -116,7 +116,7 @@ public class LiveConsoleTest {
 		bot.editors().stream().filter(e -> e.getTitle().contains("· manage")).forEach(e -> e.close());
 		close(manage);
 		// view-as: the role chosen from platform.roles, then a read-only connection in the navigator
-		bot.viewById(NAVIGATOR).bot().tree().getTreeItem(stewardName).select().contextMenu("duckdb-acl")
+		bot.viewById(NAVIGATOR).bot().tree().getTreeItem(stewardName).select().contextMenu("Access control")
 		    .menu("View as role…").click();
 		// the dialog's own widgets: the test runtime never takes the focus, so its shell is not activated
 		SWTBot dialog = bot.shell("View as role").bot();
@@ -139,7 +139,7 @@ public class LiveConsoleTest {
 		close(viewAs);
 		// a role the viewer may not view (steward holds administration - passthrough's to view): the node refuses
 		// it at connect, the plugin says so and leaves no connection behind
-		bot.viewById(NAVIGATOR).bot().tree().getTreeItem(stewardName).select().contextMenu("duckdb-acl")
+		bot.viewById(NAVIGATOR).bot().tree().getTreeItem(stewardName).select().contextMenu("Access control")
 		    .menu("View as role…").click();
 		SWTBot again = bot.shell("View as role").bot();
 		again.text().setText("steward");

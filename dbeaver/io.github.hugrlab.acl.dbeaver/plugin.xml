@@ -5,7 +5,9 @@
 <plugin>
 	<extension point="org.jkiss.dbeaver.dataSourceProvider">
 		<dataSourceType id="duckdb_acl" label="duckdb-acl" description="duckdb-acl node"
-		                dataSourceInformation="A duckdb-acl node: its Flight SQL door, OAuth sign-in"/>
+		                dataSourceInformation="A duckdb-acl node: its Flight SQL door, OAuth sign-in"
+		                icon="platform:/plugin/io.github.hugrlab.acl.dbeaver/icons/acl_icon.png"
+		                iconBig="platform:/plugin/io.github.hugrlab.acl.dbeaver/icons/acl_icon_big.png"/>
 		<datasource
 		        class="org.jkiss.dbeaver.ext.acl.model.AclDataSourceProvider"
 		        description="duckdb-acl node (Flight SQL door)"
@@ -14,6 +16,7 @@
 		        parent="generic"
 		        inheritProviderProperties="true"
 		        label="duckdb-acl"
+		        icon="platform:/plugin/io.github.hugrlab.acl.dbeaver/icons/acl_icon.png"
 		        dialect="duckdb_acl">
 			<!-- The node's tree (Generic's, 26.2, cut to what a duckdb-acl node has). No visibleIf: DBeaver evaluates those
 			     with JEXL limited to its own packages, so a condition on our classes is silently false - the node's
@@ -188,7 +191,9 @@
 				        description="duckdb-acl node: Flight SQL door, OAuth sign-in"
 				        supportedConfigurationTypes="MANUAL,URL"
 				        anonymous="true"
-				        categories="sql,analytic">
+				        categories="sql,analytic"
+				        icon="platform:/plugin/io.github.hugrlab.acl.dbeaver/icons/acl_icon.png"
+				        iconBig="platform:/plugin/io.github.hugrlab.acl.dbeaver/icons/acl_icon_big.png">
 					<file type="jar" path="bundle:/io.github.hugrlab.acl.jdbc"/>
 					<!-- spec 006's drivers.xml: functions listed by getFunctions and getProcedures; the active
 					     catalog is the session's USE (duckdb-acl spec 114) -->
@@ -243,7 +248,7 @@
 
 	<extension point="org.eclipse.ui.menus">
 		<menuContribution locationURI="popup:org.eclipse.ui.popup.any?after=additions">
-			<menu id="io.github.hugrlab.acl.menu" label="duckdb-acl">
+			<menu id="io.github.hugrlab.acl.menu" label="Access control">
 				<visibleWhen checkEnabled="false">
 					<with variable="selection">
 						<count value="1"/>

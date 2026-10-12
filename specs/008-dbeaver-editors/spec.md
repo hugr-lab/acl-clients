@@ -93,6 +93,10 @@ Phases 3-4 of design/079 close that gap:
 - Value editors for STRUCT / MAP beyond Generic's.
 - A compare-and-set on the node.
 - Any view across nodes (that is the front's or the orchestrator's, design/017 and 019).
+- **Full impersonation** (the owner, 2026-10-12, for later): a view-as connection that also runs queries - reads
+  the role's data, not only its metadata. Today the node refuses that by design (duckdb-acl 120.3: `metadata_only`);
+  opening it is a node decision first - who may (a bundle of its own, never `policy` alone), what the audit records
+  (the real principal on every statement), whether writes are in it - then a duckdb-acl spec, then the plugin.
 
 ## Security
 - Same as spec 007: tokens are the driver's, and the plugin stores and shows none.
@@ -140,8 +144,9 @@ Phases 3-4 of design/079 close that gap:
 ## Stages
 A PR each, with three review passes and the build, UI tests and install check green.
 
-- **008.1** - the framework (object managers, the composer, preview, run, stale check, refresh, templates) and
-  the policy core:
+- **008.1** - the framework (object managers, the composer, preview, run, stale check, refresh, templates), the
+  owner's 2026-10-12 asks from the look at 007 (the hugr logo as the connection's icon, the console submenu named
+  `Access control` instead of `duckdb-acl`, **View as this role** on a role of the branch), and the policy core:
   - roles (claims, comment);
   - virtual catalogs (comment);
   - virtual tables and views (phys, columns, RLS, key, types, comment);

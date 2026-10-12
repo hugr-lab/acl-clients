@@ -25,7 +25,7 @@ Built against DBeaver CE 26.2.2 (Java 21).
 - The node's tree as the signed-in principal sees it: catalogs, schemas nested by their path (`raw` → `eu`),
   tables (columns, declared keys and references), views, table functions and scalars (parameters, result columns).
 - The ACL management words highlighted in the SQL editor.
-- For an administrator, **duckdb-acl ▸** on a connection (right-click in the navigator) - each item shown only when
+- For an administrator, **Access control ▸** on a connection (right-click in the navigator) - each item shown only when
   the node's `platform.console_info()` says it works for you (the node judges again anyway):
   - **Management console** - an SQL editor where every statement is management (`CREATE VIRTUAL …`, `GRANT …`,
     `CHECK VIRTUAL CATALOG …`): the bundles `policy`, a catalog's `manage`, any platform view.
