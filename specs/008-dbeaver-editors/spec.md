@@ -1,6 +1,6 @@
 # Spec 008: editors in the DBeaver plugin - a form, our statement, then the node
 
-- **Status**: draft (for the owner's review, 2026-10-12)
+- **Status**: accepted (by the owner 2026-10-12, with the recommended answers to the questions below)
 - **Date**: 2026-10-12
 - **Node side**: duckdb-acl specs 117 (the `platform` catalog: views, `console_info`, the one authorizer, management
   without a marker under a principal), 118 (node and cluster), 120 (the missing ALTER / REVOKE forms,
@@ -156,8 +156,8 @@ A PR each, with three review passes and the build, UI tests and install check gr
 - **008.3** - the node and the cluster: sessions (kill, audit and profile level), drain and resume; the
   cluster profile's items per group; drift into the profile.
 
-## Questions for the owner
-1. Edits as ALTER per property, never a silent `CREATE OR REPLACE` (recommended), or a whole redefinition?
-2. The preview read-only, with "open in a management console" to edit by hand (recommended)?
-3. The stale check on the client for now, with a node-side compare-and-set later: acceptable?
-4. Node and cluster operations (008.3) in this spec, or a spec of their own after 008.1-008.2?
+## Questions for the owner (answered 2026-10-12: the recommendations)
+1. Edits are ALTER per property, never a silent `CREATE OR REPLACE`.
+2. The preview is read-only; "open in a management console" with the script edits by hand.
+3. The stale check is the client's for now; a node-side compare-and-set later.
+4. Node and cluster operations stay here, as 008.3.
