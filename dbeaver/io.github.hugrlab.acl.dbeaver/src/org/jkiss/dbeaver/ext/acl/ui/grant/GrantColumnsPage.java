@@ -110,7 +110,7 @@ public class GrantColumnsPage extends GrantPage {
 
 			@Override
 			protected boolean canEdit(Object element) {
-				return true;
+				return editable();
 			}
 
 			@Override
@@ -134,7 +134,7 @@ public class GrantColumnsPage extends GrantPage {
 
 			@Override
 			protected boolean canEdit(Object element) {
-				return ((Node) element).shown == Shown.MASKED;
+				return editable() && ((Node) element).shown == Shown.MASKED;
 			}
 
 			@Override
@@ -180,6 +180,7 @@ public class GrantColumnsPage extends GrantPage {
 	@Override
 	protected void load() {
 		if (catalogList != null) {
+			catalogList.setEditable(editable());
 			filling = true;
 			String list = grant().getColumns();
 			catalogList.setText(list == null ? "" : list);

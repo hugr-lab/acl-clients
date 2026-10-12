@@ -260,4 +260,6 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
   written); UI `LiveConsoleTest.aGrantsRowFilterAndColumnsTabs` (analyst's grant on sales.orders: the tabs show the
   predicate and the columns, Check answers, an edit of the predicate is previewed by Save as the GRANT with it).
 - Needs a node with duckdb-acl spec 122 (PR #214); an older node answers the tabs' reads with its refusal.
+- The tabs are read-only where the object manager refuses the edit (a catalog admin reading a grant); a new grant's
+  columns are read again each time its tab is shown (its object is chosen on Properties).
 - **Not here**: the same tabs for a virtual table's own COLUMNS / RLS (008.2).

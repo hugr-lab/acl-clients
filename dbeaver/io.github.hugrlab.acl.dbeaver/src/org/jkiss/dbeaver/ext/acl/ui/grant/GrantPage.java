@@ -111,9 +111,19 @@ public abstract class GrantPage extends AbstractDatabaseObjectEditor<AclGrantObj
 	public void setFocus() {
 	}
 
+	/** Whether this principal may change the grant (its object manager's answer - the node judges regardless). */
+	@SuppressWarnings("unchecked")
+	protected boolean editable() {
+		org.jkiss.dbeaver.model.edit.DBEObjectEditor<AclGrantObject> manager =
+		    org.jkiss.dbeaver.runtime.DBWorkbench.getPlatform().getEditorsRegistry()
+		        .getObjectManager(getDatabaseObject().getClass(), org.jkiss.dbeaver.model.edit.DBEObjectEditor.class);
+		return manager != null && manager.canEditObject(getDatabaseObject());
+	}
+
 	@Override
 	public void activatePart() {
-		if (!loaded) {
+		// a new grant's object is chosen on the Properties tab: read its columns again each time the tab is shown
+		if (!loaded || !getDatabaseObject().isPersisted()) {
 			loaded = true;
 			load();
 		}

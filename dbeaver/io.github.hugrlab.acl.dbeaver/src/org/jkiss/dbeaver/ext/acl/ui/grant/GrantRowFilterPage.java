@@ -67,6 +67,7 @@ public class GrantRowFilterPage extends GrantPage {
 
 	@Override
 	protected void load() {
+		predicate.setEditable(editable());
 		filling = true;
 		String rls = grant().getRls();
 		predicate.setText(rls == null ? "" : rls);
