@@ -14,8 +14,9 @@ download, nothing to merge into DBeaver's config.
    - **Sign-in**: leave user and password empty for the browser sign-in (the IdP's own page; nothing is stored by
      DBeaver), or enter them for the door's password sign-in. With "Save password" on, DBeaver keeps that password
      in its own credentials store - prefer the browser sign-in, or turn on DBeaver's secure storage.
-   - **TLS**: a node with a certificate your machine does not trust needs it in the system trust store; the driver's
-     TLS options are on the Driver properties tab (`disableCertificateVerification` is for a dev node only).
+   - **TLS**: a node with a certificate your machine does not trust needs it in the system trust store (or its CA
+     named by the driver property `tlsRootCerts`). For a self-signed development node (`dev/node.sh`), tick **Trust
+     the node's certificate without checking it** under TLS on the Main page - never for a node in production.
 
 Built against DBeaver CE 26.2.2 (Java 21).
 

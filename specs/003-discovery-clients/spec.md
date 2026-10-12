@@ -52,6 +52,13 @@ and clientId properties": the owner, connecting DBeaver to the dev node, was sen
 help. A certificate failure in the causes (`SSLHandshakeException`, a certificate path exception) is now
 `UntrustedDoorException`: "the door at h:p presented a certificate this machine does not trust (<the root cause>) -
 add the CA that signed it to the trust store or name it with tlsRootCerts=<PEM file>; disableCertificateVerification=
-true is for a development node only", and it fails the connect whether or not an issuer is named. Tests: unit
+true is for a development node only", and it fails the connect whether or not an issuer is named. And DBeaver's Main
+page (the owner, same day) carries the development switch as a box, **Trust the node's certificate without checking
+it** (`AclConnectionPage`: Generic's page plus a TLS group); it is a provider property (`acl.trustCertificate`) the
+data source passes to the driver as `disableCertificateVerification=true` at connect (`getInternalConnectionProperties`,
+before the user's own driver properties - one set on the Driver properties tab wins), so the two tabs never overwrite
+each other. Tests: unit
 `TokenProviderTest` (the message, a named issuer does not get past it, the cause chain), live `LiveDoorE2ETest`
-(the dev node with verification on).
+(the dev node with verification on); plugin unit `TrustCertificateTest`, UI `LiveConnectionPageTest` (the box on
+the page shows what the connection holds; with it and no driver property a self-signed node connects, without it
+the connect fails with "does not trust").
