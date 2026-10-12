@@ -274,4 +274,123 @@ public class EditStatementsTest {
 		             storedRef.alterStatements(null, Set.of("optional", "cardinality")));
 		assertEquals(List.of("DROP VIRTUAL REFERENCE c.ab"), storedRef.dropStatements());
 	}
+
+	@Test
+	public void identity() throws Exception {
+		AclIssuer issuer = new AclIssuer(null, null, Map.of());
+		issuer.setName("kc");
+		issuer.setUrl("https://kc/realms/x");
+		issuer.setSecret("kc_keys");
+		issuer.setSecretService("corp");
+		assertEquals(List.of("CREATE ISSUER kc URL 'https://kc/realms/x' FROM SECRET kc_keys IN corp"), issuer.createStatements());
+		AclIssuer stored = new AclIssuer(null, null, row("name", "kc", "url", "https://a", "secret", "s"));
+		stored.setUrl("https://b");
+		stored.setSecret("");
+		assertEquals(List.of("ALTER ISSUER kc SET URL 'https://b'", "ALTER ISSUER kc DROP FROM SECRET"),
+		             stored.alterStatements(null, Set.of("url", "secret")));
+
+		AclClient client = new AclClient(null, stored, Map.of());
+		client.setName("desktop");
+		client.setAudiences("'account'");
+		client.setRequires("tier = 'gold', 'x' IN groups");
+		client.setRolesFrom("'realm_access.roles'");
+		client.setUnmapped("as_role");
+		client.setClientId("acl-desktop");
+		client.setFlows("authcode, device");
+		assertEquals(List.of("CREATE CLIENT desktop ISSUER kc AUDIENCES ('account') REQUIRE (tier = 'gold', 'x' IN groups) "
+		                     + "ROLES FROM ('realm_access.roles') UNMAPPED AS ROLE CLIENT ID 'acl-desktop' FLOWS (authcode, device)"),
+		             client.createStatements());
+		Map<String, Object> requires = new java.util.LinkedHashMap<>();
+		requires.put("path", "region");
+		requires.put("op", "in");
+		requires.put("values", List.of("eu", "us"));
+		Map<String, Object> constant = new java.util.LinkedHashMap<>();
+		constant.put("name", "fixed");
+		constant.put("paths", List.of());
+		constant.put("constant", "v");
+		AclClient storedClient = new AclClient(null, stored, row("name", "desktop", "issuer", "kc", "azp", List.of("a"),
+		                                                         "requires", List.of(requires), "attributes", List.of(constant),
+		                                                         "implicit", false));
+		assertEquals("region IN ('eu', 'us')", storedClient.getRequires());
+		assertEquals("fixed = CONSTANT 'v'", storedClient.getAttributes());
+		storedClient.setAzp("");
+		storedClient.setTokenType("");
+		assertEquals(List.of("ALTER CLIENT desktop SET AZP ()", "ALTER CLIENT desktop SET TOKEN TYPE ''"),
+		             storedClient.alterStatements(null, Set.of("azp", "tokenType")));
+		AclClient implicit = new AclClient(null, stored, row("name", "kc", "issuer", "kc", "implicit", true));
+		implicit.setRolesFrom("'roles'");
+		assertEquals("the implicit client changes through its issuer", List.of("ALTER ISSUER kc SET ROLES FROM ('roles')"),
+		             implicit.alterStatements(null, Set.of("rolesFrom")));
+
+		AclRoleMapping mapping = new AclRoleMapping(null, null, Map.of());
+		mapping.setExternalValue("steward");
+		mapping.setScopeName("desktop");
+		mapping.setRole("steward");
+		assertEquals(List.of("MAP CLAIM 'steward' FROM CLIENT desktop TO ROLE steward"), mapping.createStatements());
+		mapping.setSource("group");
+		mapping.setScopeKind("issuer");
+		assertEquals(List.of("DROP MAP GROUP 'steward' FROM ISSUER desktop TO ROLE steward"), mapping.dropStatements());
+	}
+
+	@Test
+	public void functionsGroupsAndAdministration() throws Exception {
+		AclFunctionCategory category = new AclFunctionCategory(null, null, Map.of());
+		category.setName("mine");
+		category.setComment("m");
+		assertEquals(List.of("CREATE FUNCTION CATEGORY mine COMMENT 'm'"), category.createStatements());
+		AclFunctionCategory storedCategory = new AclFunctionCategory(null, null, row("category", "mine"));
+		AclCategoryMember member = new AclCategoryMember(null, storedCategory, Map.of());
+		member.setFunction("range TABLE");
+		assertEquals(List.of("ALTER FUNCTION CATEGORY mine ADD (range TABLE)"), member.createStatements());
+		AclCategoryMember storedMember = new AclCategoryMember(null, storedCategory, row("database", "system", "schema",
+		                                                                                 "main", "name", "upper", "kind", "scalar"));
+		assertEquals(List.of("ALTER FUNCTION CATEGORY mine DROP (system.main.upper)"), storedMember.dropStatements());
+
+		AclFunctionGrant grant = new AclFunctionGrant(null, null, Map.of());
+		grant.setCategory("mine");
+		grant.setRole("analyst");
+		assertEquals(List.of("GRANT FUNCTION CATEGORY mine TO ROLE analyst"), grant.createStatements());
+		grant.setAllowed(false);
+		assertEquals(List.of("DENY FUNCTION CATEGORY mine TO ROLE analyst"), grant.createStatements());
+		AclFunctionGrant everyone = new AclFunctionGrant(null, null, row("role", "", "database", "system", "schema", "main",
+		                                                                 "name", "lower", "kind", "scalar", "allowed", true));
+		assertEquals(List.of("REVOKE FUNCTION system.main.lower FROM ALL ROLES"), everyone.dropStatements());
+
+		AclResourceGroup group = new AclResourceGroup(null, null, Map.of());
+		group.setName("g");
+		group.setWindowStart("8");
+		group.setBatchBytes("32MiB");
+		group.setDefault(true);
+		assertEquals(List.of("CREATE RESOURCE GROUP g (window_start 8, batch_bytes '32MiB') DEFAULT"), group.createStatements());
+		AclResourceGroup storedGroup = new AclResourceGroup(null, null, row("group", "g", "max_sessions", 5L, "is_default", true));
+		storedGroup.setMaxSessions("7");
+		storedGroup.setDefault(false);
+		assertEquals(List.of("ALTER RESOURCE GROUP g SET (max_sessions 7)", "ALTER RESOURCE GROUP g DROP DEFAULT"),
+		             storedGroup.alterStatements(null, Set.of("maxSessions", "default")));
+		storedGroup.setMaxSessions("");
+		try {
+			storedGroup.alterStatements(null, Set.of("maxSessions"));
+			org.junit.Assert.fail("a limit is never unset");
+		} catch (org.jkiss.dbeaver.DBException expected) {
+			assertTrue(expected.getMessage().contains("never unset"));
+		}
+
+		AclRole role = new AclRole(null, null, row("role", "auditor"));
+		AclRoleGroup bound = new AclRoleGroup(null, role, Map.of());
+		bound.setName("g");
+		assertEquals(List.of("GRANT RESOURCE GROUP g TO ROLE auditor"), bound.createStatements());
+		AclAdminScope scope = new AclAdminScope(null, role, Map.of());
+		scope.setName("observe");
+		assertEquals(List.of("GRANT ADMIN observe TO ROLE auditor"), scope.createStatements());
+		assertEquals(List.of("REVOKE ADMIN observe FROM ROLE auditor"), scope.dropStatements());
+		AclPlatformGrant view = new AclPlatformGrant(null, role, Map.of());
+		view.setObject("sessions");
+		assertEquals(List.of("GRANT VIEW platform.sessions TO ROLE auditor"), view.createStatements());
+		view.setKind("function");
+		view.setObject("kill_session");
+		view.setAllowed(false);
+		assertEquals(List.of("DENY FUNCTION platform.kill_session TO ROLE auditor"), view.createStatements());
+		AclPlatformGrant source = new AclPlatformGrant(null, role, row("role", "auditor", "kind", "source", "object", "memory.main"));
+		assertEquals(List.of("REVOKE SOURCE memory.main FROM ROLE auditor"), source.dropStatements());
+	}
 }

@@ -293,3 +293,38 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
   live `LiveEditTest.schemasFunctionsReferencesAndARepair` (an alias and an expansion with its refresh, a macro
   edited, a reference and its hint, a table's source columns, a finding repaired by its alternative); UI
   `LiveConsoleTest.aTablesColumnListAndARepair` (the Column list tab, Repair… through the dialog).
+
+### 008.2b (2026-10-12) - identity, functions, resource groups, administration
+- **Issuers**: Create (Name, Url, Secret, Secret service) → `CREATE ISSUER n URL '…' [FROM SECRET s [IN c]]`; `ALTER
+  ISSUER n SET URL`, `SET FROM SECRET` / `DROP FROM SECRET`; `DROP ISSUER`. **Clients** (under their issuer): each
+  clause a property in the grammar's own syntax - Audiences, Azp, Require (`tier = 'gold', 'x' IN groups, region IN
+  ('eu'), mail LIKE '%@x'`), Roles from, Roles constant, Unmapped (ignore | as_role), Attributes (`tenant = 'tenant',
+  units = ('a', 'b'), fixed = CONSTANT 'v'`), Subject, Token type, Client id, Flows, Secret; read back from the view's
+  typed columns (REQUIRE's `path / op / values`, ATTRIBUTES' `name / paths / constant`); `CREATE CLIENT n ISSUER i …`,
+  one `ALTER CLIENT n SET <clause>` per changed clause - a cleared list `X ()`, a cleared text `TOKEN TYPE ''` /
+  `CLIENT ID ''` (checked on the node) - and the implicit client of a short-form issuer through `ALTER ISSUER i SET …`
+  (the node refuses ALTER CLIENT on it; its secret as `SET CLIENT FROM SECRET` / `DROP CLIENT FROM SECRET` - not
+  exercised here, it needs a secrets service). No field for a key or a credential. **Role mappings**: Create (Source
+  claim-value | group, External value, Scope kind client | issuer, Scope name, Role) → `MAP …`; `DROP MAP …`; no edit
+  (a mapping is its key).
+- **Function categories**: Create (Name, Comment) → `CREATE FUNCTION CATEGORY`; `SET COMMENT`; `DROP`; **members**
+  (`ALTER FUNCTION CATEGORY c ADD (lower)` / `DROP (system.main.upper)`, `TABLE` after a table function). **Function
+  grants**: Role (empty = every role), Category or Function, Allowed → `GRANT | DENY FUNCTION [CATEGORY] x TO ROLE r |
+  TO ALL ROLES`; Allowed changed = the GRANT / DENY again; `REVOKE … FROM …`.
+- **Resource groups**: the six limits as properties (`window_start` … `max_sessions`, a size like `'32MiB'` quoted),
+  Default, Comment → `CREATE RESOURCE GROUP g (…) [DEFAULT] [COMMENT]`; `SET (only the changed limits)`, `SET | DROP
+  DEFAULT`, `SET COMMENT`; a limit is set or changed, never unset - the node refuses NULL, and the plugin says so
+  before it; `DROP`. A role's group: `GRANT | REVOKE RESOURCE GROUP g TO | FROM ROLE r`.
+- **Administration** (a role's bundles) and **Platform grants** (views, functions, sources): `GRANT ADMIN <bundle>` /
+  `REVOKE ADMIN <bundle>`; `GRANT | DENY VIEW | FUNCTION platform.x`, `GRANT SOURCE db[.schema]`, `REVOKE …` -
+  passthrough's alone: offered where `grant_admin` / `grant_platform` / `grant_source` are callable, refused by the
+  node otherwise. A catalog's `manage` row is its catalog grant's caps (not dropped here).
+- **Tests**: unit `EditStatementsTest.identity` (an issuer, a client created and read back, cleared clauses, the
+  implicit client through its issuer, mappings), `.functionsGroupsAndAdministration`; live
+  `LiveEditTest.identityFunctionsAndGroups` (an issuer, its client created, read back in the grammar's syntax and
+  edited; a mapping made and dropped; a category with a member and its grant; a group with a limit changed and bound
+  to a role; GRANT ADMIN not offered to policy and refused by the node).
+- **Found**: DBeaver collects only the properties its panel shows - a hidden property set by its id did nothing; the
+  tabs and the tests set by descriptor (008.1 addendum).
+- **Not here**: 008.3 (node, cluster); a stored reference's pairs / arguments shown (they are `reference_columns`;
+  only a new one's are written); a Check for a virtual table's definition (duckdb-acl would add `check_relation`).

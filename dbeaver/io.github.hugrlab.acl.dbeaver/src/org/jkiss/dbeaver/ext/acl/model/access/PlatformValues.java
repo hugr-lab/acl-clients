@@ -54,6 +54,55 @@ public final class PlatformValues {
 		return value.toString();
 	}
 
+	/** A LIST value's items (a java.sql.Array, a Java list or array); empty for NULL. */
+	public static List<Object> items(Object value) {
+		List<Object> out = new ArrayList<>();
+		try {
+			if (value instanceof Array array) {
+				value = array.getArray();
+			}
+		} catch (SQLException e) {
+			return out;
+		}
+		if (value instanceof Object[] array) {
+			out.addAll(java.util.Arrays.asList(array));
+		} else if (value instanceof Collection<?> list) {
+			out.addAll(list);
+		}
+		return out;
+	}
+
+	/** A STRUCT value's fields by name (a java.sql.Struct the driver names, or a map); empty when it has none. */
+	public static Map<?, ?> fieldsOf(Object value) {
+		if (value instanceof Struct struct) {
+			Map<?, ?> named = fields(struct);
+			return named == null ? Map.of() : named;
+		}
+		return value instanceof Map<?, ?> map ? map : Map.of();
+	}
+
+	/** A LIST of text as the grammar writes it in a list clause: `'a', 'b'`. */
+	public static String quotedList(Object value) {
+		List<String> out = new ArrayList<>();
+		for (Object item : items(value)) {
+			if (item != null) {
+				out.add(AclGrammar.literal(item.toString()));
+			}
+		}
+		return String.join(", ", out);
+	}
+
+	/** A LIST of words as the grammar writes it bare: `authcode, device`. */
+	public static String bareList(Object value) {
+		List<String> out = new ArrayList<>();
+		for (Object item : items(value)) {
+			if (item != null) {
+				out.add(item.toString());
+			}
+		}
+		return String.join(", ", out);
+	}
+
 	/** A STRUCT's fields by name - the driver's struct carries them (getMap); null when a struct does not. */
 	static Map<?, ?> fields(Struct struct) {
 		try {

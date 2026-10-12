@@ -81,13 +81,13 @@
 							<folder id="acl_object_grants" type="org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant" label="Object grants" icon="#folder" visibleIf="object.dataSource.shows('object_grants')">
 								<items label="Grant" path="objectGrant" property="objectGrants" icon="#table"/>
 							</folder>
-							<folder id="acl_administration" label="Administration" icon="#folder" visibleIf="object.dataSource.shows('admins')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclAdminScope" id="acl_administration" label="Administration" icon="#folder" visibleIf="object.dataSource.shows('admins')">
 								<items label="Scope" path="adminScope" property="adminScopes" icon="#info"/>
 							</folder>
-							<folder id="acl_platform_grants" label="Platform grants" icon="#folder" visibleIf="object.dataSource.shows('platform_grants')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclPlatformGrant" id="acl_platform_grants" label="Platform grants" icon="#folder" visibleIf="object.dataSource.shows('platform_grants')">
 								<items label="Grant" path="platformGrant" property="platformGrants" icon="#info"/>
 							</folder>
-							<folder id="acl_resource_groups" label="Resource groups" icon="#folder" visibleIf="object.dataSource.shows('role_resource_groups')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclRoleGroup" id="acl_resource_groups" label="Resource groups" icon="#folder" visibleIf="object.dataSource.shows('role_resource_groups')">
 								<items label="Group" path="roleGroup" property="resourceGroups" icon="#info"/>
 							</folder>
 							<folder id="acl_effective_rights" label="Effective rights" icon="#folder" visibleIf="object.dataSource.calls('effective_rights') &amp;&amp; object.dataSource.shows('grants')">
@@ -131,28 +131,28 @@
 						</items>
 					</folder>
 					<folder id="acl_identity" label="Identity" icon="#folder" visibleIf="object.shows('issuers') || object.shows('role_mappings')">
-						<folder id="acl_issuers" label="Issuers" icon="#folder" visibleIf="object.shows('issuers')">
+						<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclIssuer" id="acl_issuers" label="Issuers" icon="#folder" visibleIf="object.shows('issuers')">
 							<items label="Issuer" path="accessIssuer" property="accessIssuers" icon="#info">
-								<folder id="acl_clients" label="Clients" icon="#folder" visibleIf="object.dataSource.shows('clients')">
+								<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclClient" id="acl_clients" label="Clients" icon="#folder" visibleIf="object.dataSource.shows('clients')">
 									<items label="Client" path="accessClient" property="clients" icon="#info"/>
 								</folder>
 							</items>
 						</folder>
-						<folder id="acl_role_mappings" label="Role mappings" icon="#folder" visibleIf="object.shows('role_mappings')">
+						<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclRoleMapping" id="acl_role_mappings" label="Role mappings" icon="#folder" visibleIf="object.shows('role_mappings')">
 							<items label="Mapping" path="roleMapping" property="accessRoleMappings" icon="#info"/>
 						</folder>
 					</folder>
-					<folder id="acl_function_categories" label="Function categories" icon="#functions" visibleIf="object.shows('function_categories')">
+					<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionCategory" id="acl_function_categories" label="Function categories" icon="#functions" visibleIf="object.shows('function_categories')">
 						<items label="Category" path="functionCategory" property="accessFunctionCategories" icon="#functions">
-							<folder id="acl_members" label="Members" icon="#folder" visibleIf="object.dataSource.shows('function_category_members')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclCategoryMember" id="acl_members" label="Members" icon="#folder" visibleIf="object.dataSource.shows('function_category_members')">
 								<items label="Function" path="categoryMember" property="members" icon="#function"/>
 							</folder>
 						</items>
 					</folder>
-					<folder id="acl_function_grants" label="Function grants" icon="#functions" visibleIf="object.shows('function_grants')">
+					<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionGrant" id="acl_function_grants" label="Function grants" icon="#functions" visibleIf="object.shows('function_grants')">
 						<items label="Grant" path="functionGrant" property="accessFunctionGrants" icon="#function"/>
 					</folder>
-					<folder id="acl_resource_groups_2" label="Resource groups" icon="#folder" visibleIf="object.shows('resource_groups')">
+					<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclResourceGroup" id="acl_resource_groups_2" label="Resource groups" icon="#folder" visibleIf="object.shows('resource_groups')">
 						<items label="Group" path="resourceGroup" property="accessResourceGroups" icon="#info"/>
 					</folder>
 					<folder id="acl_node" label="Node" icon="#folder" visibleIf="object.shows('sessions') || object.shows('node_load')">
@@ -227,6 +227,16 @@
 		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$Schemas" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclVirtualSchema"/>
 		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$Functions" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionEntry"/>
 		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$References" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclReferenceEntry"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$Issuers" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclIssuer"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$Clients" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclClient"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$RoleMappings" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclRoleMapping"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$FunctionCategorys" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionCategory"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$CategoryMembers" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclCategoryMember"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$FunctionGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionGrant"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$ResourceGroups" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclResourceGroup"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$RoleGroups" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclRoleGroup"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$AdminScopes" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclAdminScope"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$PlatformGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclPlatformGrant"/>
 	</extension>
 
 	<!-- spec 008.1 addendum: a grant's row filter and column list in tabs of their own, each with Check (the node's

@@ -4,6 +4,16 @@ import java.util.Map;
 
 import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant;
+import org.jkiss.dbeaver.ext.acl.model.access.AclPlatformGrant;
+import org.jkiss.dbeaver.ext.acl.model.access.AclAdminScope;
+import org.jkiss.dbeaver.ext.acl.model.access.AclRoleGroup;
+import org.jkiss.dbeaver.ext.acl.model.access.AclResourceGroup;
+import org.jkiss.dbeaver.ext.acl.model.access.AclFunctionGrant;
+import org.jkiss.dbeaver.ext.acl.model.access.AclCategoryMember;
+import org.jkiss.dbeaver.ext.acl.model.access.AclFunctionCategory;
+import org.jkiss.dbeaver.ext.acl.model.access.AclRoleMapping;
+import org.jkiss.dbeaver.ext.acl.model.access.AclClient;
+import org.jkiss.dbeaver.ext.acl.model.access.AclIssuer;
 import org.jkiss.dbeaver.ext.acl.model.access.AclFunctionEntry;
 import org.jkiss.dbeaver.ext.acl.model.access.AclReferenceEntry;
 import org.jkiss.dbeaver.ext.acl.model.access.AclVirtualSchema;
@@ -75,6 +85,76 @@ final class AclManagers {
 		@Override
 		protected AclReferenceEntry make(DBSObject container) {
 			return new AclReferenceEntry(dataSource(container), container, Map.of());
+		}
+	}
+
+	public static class Issuers extends AclObjectManager<AclIssuer> {
+		@Override
+		protected AclIssuer make(DBSObject container) {
+			return new AclIssuer(dataSource(container), container, Map.of());
+		}
+	}
+
+	public static class Clients extends AclObjectManager<AclClient> {
+		@Override
+		protected AclClient make(DBSObject container) {
+			return new AclClient(dataSource(container), container, Map.of());
+		}
+	}
+
+	public static class RoleMappings extends AclObjectManager<AclRoleMapping> {
+		@Override
+		protected AclRoleMapping make(DBSObject container) {
+			return new AclRoleMapping(dataSource(container), container, Map.of());
+		}
+	}
+
+	public static class FunctionCategorys extends AclObjectManager<AclFunctionCategory> {
+		@Override
+		protected AclFunctionCategory make(DBSObject container) {
+			return new AclFunctionCategory(dataSource(container), container, Map.of());
+		}
+	}
+
+	public static class CategoryMembers extends AclObjectManager<AclCategoryMember> {
+		@Override
+		protected AclCategoryMember make(DBSObject container) {
+			return new AclCategoryMember(dataSource(container), container, Map.of());
+		}
+	}
+
+	public static class FunctionGrants extends AclObjectManager<AclFunctionGrant> {
+		@Override
+		protected AclFunctionGrant make(DBSObject container) {
+			return new AclFunctionGrant(dataSource(container), container, Map.of());
+		}
+	}
+
+	public static class ResourceGroups extends AclObjectManager<AclResourceGroup> {
+		@Override
+		protected AclResourceGroup make(DBSObject container) {
+			return new AclResourceGroup(dataSource(container), container, Map.of());
+		}
+	}
+
+	public static class RoleGroups extends AclObjectManager<AclRoleGroup> {
+		@Override
+		protected AclRoleGroup make(DBSObject container) {
+			return new AclRoleGroup(dataSource(container), container, Map.of());
+		}
+	}
+
+	public static class AdminScopes extends AclObjectManager<AclAdminScope> {
+		@Override
+		protected AclAdminScope make(DBSObject container) {
+			return new AclAdminScope(dataSource(container), container, Map.of());
+		}
+	}
+
+	public static class PlatformGrants extends AclObjectManager<AclPlatformGrant> {
+		@Override
+		protected AclPlatformGrant make(DBSObject container) {
+			return new AclPlatformGrant(dataSource(container), container, Map.of());
 		}
 	}
 }
