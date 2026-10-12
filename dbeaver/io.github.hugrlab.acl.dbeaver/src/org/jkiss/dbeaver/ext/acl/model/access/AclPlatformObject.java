@@ -67,6 +67,12 @@ public abstract class AclPlatformObject implements DBSObject, DBPRefreshableObje
 		return null;
 	}
 
+	/** What DBeaver shows where it names the object (an editor's title, a dialog): its name. */
+	@Override
+	public String toString() {
+		return getName();
+	}
+
 	@Override
 	public DBSObject getParentObject() {
 		return parent;
@@ -121,6 +127,36 @@ public abstract class AclPlatformObject implements DBSObject, DBPRefreshableObje
 
 	/** Whether it can be written at all: a class of the branch that is only read answers false. */
 	public boolean isEditable() {
+		return false;
+	}
+
+	/**
+	 * The platform functions its statements compile to (spec 008.1), by action - what console_info's my_functions must
+	 * hold for the action to be offered - and the catalog it belongs to (null: none).
+	 */
+	public enum Action {
+		CREATE, EDIT, DELETE
+	}
+
+	public Set<String> functionsFor(Action action) {
+		return Set.of();
+	}
+
+	@Nullable
+	public String catalogOf() {
+		return null;
+	}
+
+	/** Whether this principal is offered the action on it (the node decides anyway). */
+	public boolean offers(Action action) {
+		if (dataSource == null || dataSource.console() == null) {
+			return false;
+		}
+		for (String function : functionsFor(action)) {
+			if (dataSource.console().mayCall(function, catalogOf())) {
+				return true;
+			}
+		}
 		return false;
 	}
 

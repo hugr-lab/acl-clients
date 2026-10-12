@@ -155,6 +155,237 @@ public class LiveConsoleTest {
 	}
 
 	/** Every text a dialog shows (labels, texts, links), joined. */
+	/** Spec 008.1: View as this role, on a role of the Access control branch - that role's copy, no chooser. */
+	@Test
+	public void viewAsThisRoleFromTheBranch() throws Exception {
+		LiveTreeTest.assumeNode();
+		SWTWorkbenchBot bot = new SWTWorkbenchBot();
+		String stewardName = steward().getName();
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem connection = bot.viewById(NAVIGATOR).bot().tree()
+		    .getTreeItem(stewardName).expand();
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem roles = expandTo(bot, connection, "Access control", "Roles");
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				return roles.getNodes().contains("analyst");
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "no role analyst under Roles: " + roles.getNodes();
+			}
+		}, 30_000);
+		roles.getNode("analyst").select().contextMenu("View as this role").click();
+		DataSourceDescriptor viewAs = waitFor(bot, stewardName + " · as analyst");
+		assertTrue(viewAs.isConnectionReadOnly());
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				return viewAs.isConnected();
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "View as this role did not connect the copy";
+			}
+		}, 30_000);
+		close(viewAs);
+	}
+
+	/**
+	 * Spec 008.1 through DBeaver's own UI: Create New Role on the branch's Roles opens the object's editor; Save shows
+	 * DBeaver's Persist Changes with our grammar and Execute runs it; an edit saves as one ALTER; Delete drops it.
+	 * The property values are set through the editor's own command context - what its properties panel does.
+	 */
+	@Test
+	public void aRoleThroughDbeaversEditor() throws Exception {
+		LiveTreeTest.assumeNode();
+		SWTWorkbenchBot bot = new SWTWorkbenchBot();
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem connection = bot.viewById(NAVIGATOR).bot().tree()
+		    .getTreeItem(steward().getName()).expand();
+		dropRole("t008 ui"); // a run that stopped half way
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem roles = expandTo(bot, connection, "Access control", "Roles");
+		roles.select().contextMenu("Create New Role").click();
+		org.eclipse.swtbot.eclipse.finder.widgets.SWTBotEditor editor = waitForEditor(bot);
+		org.eclipse.ui.IEditorPart part = UIThreadRunnable.syncExec(() -> editor.getReference().getEditor(true));
+		org.jkiss.dbeaver.ui.editors.IDatabaseEditorInput input =
+		    (org.jkiss.dbeaver.ui.editors.IDatabaseEditorInput) part.getEditorInput();
+		org.jkiss.dbeaver.ext.acl.model.access.AclRole role = (org.jkiss.dbeaver.ext.acl.model.access.AclRole) input.getDatabaseObject();
+		setInEditor(input, role, "name", "t008 ui");
+		setInEditor(input, role, "comment", "from the ui");
+		String preview = saveAndExecute(bot, part, "t008 ui");
+		assertTrue(preview, preview.contains("CREATE ROLE \"t008 ui\";") && preview.contains("ALTER ROLE \"t008 ui\" SET COMMENT 'from the ui';"));
+		org.jkiss.dbeaver.ext.acl.model.AclDataSource acl = (org.jkiss.dbeaver.ext.acl.model.AclDataSource) steward().getDataSource();
+		waitForRows(bot, acl, org.jkiss.dbeaver.ext.acl.model.access.PlatformSql.view("roles", "role", "t008 ui", "comment", "from the ui"), 1);
+
+		// as a user would: close the new object's editor, open the role from the tree, edit there
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				return !role.isCreating() && !UIThreadRunnable.syncExec(part::isDirty);
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "the saved role was not read again";
+			}
+		}, 30_000);
+		assertEquals("read again after the save", "from the ui", role.getComment());
+		UIThreadRunnable.syncExec(() -> part.getSite().getPage().closeEditor(part, false));
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				return roles.getNodes().contains("t008 ui");
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "the new role is not in the tree: " + roles.getNodes();
+			}
+		}, 30_000);
+		roles.getNode("t008 ui").select().contextMenu("View Role").click();
+		org.eclipse.swtbot.eclipse.finder.widgets.SWTBotEditor reopened = waitForEditor(bot);
+		org.eclipse.ui.IEditorPart part2 = UIThreadRunnable.syncExec(() -> reopened.getReference().getEditor(true));
+		org.jkiss.dbeaver.ui.editors.IDatabaseEditorInput input2 =
+		    (org.jkiss.dbeaver.ui.editors.IDatabaseEditorInput) part2.getEditorInput();
+		org.jkiss.dbeaver.ext.acl.model.access.AclRole stored = (org.jkiss.dbeaver.ext.acl.model.access.AclRole) input2.getDatabaseObject();
+		assertEquals("the editor shows what the node holds", "from the ui", stored.getComment());
+		setInEditor(input2, stored, "comment", "two");
+		preview = saveAndExecute(bot, part2, "t008 ui");
+		assertEquals("ALTER ROLE \"t008 ui\" SET COMMENT 'two';", preview.trim());
+		waitForRows(bot, acl, org.jkiss.dbeaver.ext.acl.model.access.PlatformSql.view("roles", "role", "t008 ui", "comment", "two"), 1);
+		UIThreadRunnable.syncExec(() -> part2.getSite().getPage().closeEditor(part2, false));
+
+		// Delete from the navigator: DBeaver confirms, then the role is dropped
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				return roles.getNodes().contains("t008 ui");
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "the new role is not in the tree: " + roles.getNodes();
+			}
+		}, 30_000);
+		roles.getNode("t008 ui").select().contextMenu("Delete").click();
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotShell confirm = bot.shell("Delete object");
+		java.util.Set<String> before = new java.util.HashSet<>();
+		for (org.eclipse.swtbot.swt.finder.widgets.SWTBotShell sh : bot.shells()) {
+			before.add(sh.getText());
+		}
+		confirm.bot().button("View Script").click();
+		String script = null;
+		for (int i = 0; i < 50 && script == null; i++) {
+			for (org.eclipse.swtbot.swt.finder.widgets.SWTBotShell sh : bot.shells()) {
+				if (!before.contains(sh.getText())) {
+					script = textsOf(sh);
+					sh.close();
+				}
+			}
+			Thread.sleep(100);
+		}
+		assertTrue("the delete's script: " + script, script != null && script.contains("DROP ROLE \"t008 ui\""));
+		confirm = bot.shell("Delete object"); // DBeaver asks again once the script is closed
+		confirm.bot().button("Yes").click();
+		waitForRows(bot, acl, org.jkiss.dbeaver.ext.acl.model.access.PlatformSql.view("roles", "role", "t008 ui"), 0);
+	}
+
+	private static void dropRole(String role) throws Exception {
+		org.jkiss.dbeaver.ext.acl.model.AclDataSource acl = (org.jkiss.dbeaver.ext.acl.model.AclDataSource) steward().getDataSource();
+		try (org.jkiss.dbeaver.model.exec.jdbc.JDBCSession session = org.jkiss.dbeaver.model.DBUtils.openUtilSession(
+		         new org.jkiss.dbeaver.model.runtime.VoidProgressMonitor(), acl, "t008");
+		     org.jkiss.dbeaver.model.exec.jdbc.JDBCStatement statement = session.createStatement()) {
+			statement.execute("DROP ROLE IF EXISTS " + org.jkiss.dbeaver.ext.acl.model.access.AclGrammar.ident(role));
+		}
+	}
+
+	private static org.eclipse.swtbot.eclipse.finder.widgets.SWTBotEditor waitForEditor(SWTWorkbenchBot workbench) {
+		workbench.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				try {
+					return workbench.activeEditor() != null;
+				} catch (Exception e) {
+					return false;
+				}
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "Create New Role opened no editor";
+			}
+		}, 30_000);
+		return workbench.activeEditor();
+	}
+
+	private static void setInEditor(org.jkiss.dbeaver.ui.editors.IDatabaseEditorInput input, Object object, String id,
+	                                Object value) {
+		org.jkiss.dbeaver.runtime.properties.PropertySourceEditable source =
+		    new org.jkiss.dbeaver.runtime.properties.PropertySourceEditable(input.getCommandContext(), object, object);
+		source.collectProperties();
+		UIThreadRunnable.syncExec(() -> source.setPropertyValue(new org.jkiss.dbeaver.model.runtime.VoidProgressMonitor(), id, value));
+	}
+
+	/** Save the editor: DBeaver's Persist Changes shows the script; Execute runs it. Answers the script shown. */
+	private static String saveAndExecute(SWTWorkbenchBot bot, org.eclipse.ui.IEditorPart part, String name) {
+		UIThreadRunnable.asyncExec(() -> part.doSave(new org.eclipse.core.runtime.NullProgressMonitor()));
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotShell persist = bot.shell(name + " - Persist Changes");
+		String shown = UIThreadRunnable.syncExec(() -> {
+			java.util.ArrayDeque<org.eclipse.swt.widgets.Control> todo = new java.util.ArrayDeque<>();
+			todo.add(persist.widget);
+			while (!todo.isEmpty()) {
+				org.eclipse.swt.widgets.Control c = todo.poll();
+				if (c instanceof org.eclipse.swt.custom.StyledText t) {
+					return t.getText();
+				}
+				if (c instanceof org.eclipse.swt.widgets.Composite composite) {
+					todo.addAll(java.util.Arrays.asList(composite.getChildren()));
+				}
+			}
+			return "";
+		});
+		persist.bot().button("Execute").click();
+		return shown;
+	}
+
+	private static void waitForRows(SWTWorkbenchBot bot, org.jkiss.dbeaver.ext.acl.model.AclDataSource acl, String sql,
+	                                int count) {
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() throws Exception {
+				return acl.platformRows(new org.jkiss.dbeaver.model.runtime.VoidProgressMonitor(), sql).size() == count;
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "the node does not hold it yet: " + sql;
+			}
+		}, 30_000);
+	}
+
+	/** Expand a path of the navigator, waiting at each level for its children (DBeaver loads them in the background). */
+	private static org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem expandTo(SWTWorkbenchBot bot,
+	    org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem from, String... path) {
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem at = from;
+		for (String name : path) {
+			org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem parent = at.expand();
+			bot.waitUntil(new DefaultCondition() {
+				@Override
+				public boolean test() {
+					return parent.getNodes().contains(name);
+				}
+
+				@Override
+				public String getFailureMessage() {
+					return "no " + name + " under " + parent.getText() + ": " + parent.getNodes();
+				}
+			}, 30_000);
+			at = parent.getNode(name);
+		}
+		return at.expand();
+	}
+
 	static String textsOf(org.eclipse.swtbot.swt.finder.widgets.SWTBotShell shell) {
 		return UIThreadRunnable.syncExec(() -> {
 			StringBuilder out = new StringBuilder();

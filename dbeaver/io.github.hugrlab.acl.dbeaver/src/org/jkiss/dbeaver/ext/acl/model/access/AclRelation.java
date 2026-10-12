@@ -212,6 +212,20 @@ public class AclRelation extends AclPlatformObject {
 	}
 
 	@Override
+	public Set<String> functionsFor(Action action) {
+		return switch (action) {
+			case CREATE -> Set.of("add_relation", "add_view");
+			case EDIT -> Set.of("alter_relation", "set_key", "comment");
+			case DELETE -> Set.of("drop_relation");
+		};
+	}
+
+	@Override
+	public String catalogOf() {
+		return catalog();
+	}
+
+	@Override
 	protected String selfSql() {
 		return PlatformSql.view("relations", "catalog", catalog(), "name", getName());
 	}

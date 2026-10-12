@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- spec 008.1: the management grammar's main forms as SQL editor templates (Ctrl+Space after the name); the forms
+     themselves are the node's (website/docs/management-sql.md) - each runs under the connection's principal -->
+<templates>
+	<template id="io.github.hugrlab.acl.templates.create_role" name="aclrole" context="sql_duckdb_acl_duckdb_acl_jdbc" autoinsert="true"
+	          description="CREATE ROLE with default claims">CREATE ROLE ${role} CLAIMS (${claim} = '${value}');${cursor}</template>
+	<template id="io.github.hugrlab.acl.templates.create_catalog" name="aclcatalog" context="sql_duckdb_acl_duckdb_acl_jdbc" autoinsert="true"
+	          description="CREATE VIRTUAL CATALOG">CREATE VIRTUAL CATALOG ${catalog} COMMENT '${comment}';${cursor}</template>
+	<template id="io.github.hugrlab.acl.templates.create_table" name="acltable" context="sql_duckdb_acl_duckdb_acl_jdbc" autoinsert="true"
+	          description="CREATE VIRTUAL TABLE over a physical object">CREATE VIRTUAL TABLE ${catalog}.${name} AS ${db}.${schema}.${table}
+    COLUMNS (${columns}) RLS (${predicate});${cursor}</template>
+	<template id="io.github.hugrlab.acl.templates.create_view" name="aclview" context="sql_duckdb_acl_duckdb_acl_jdbc" autoinsert="true"
+	          description="CREATE VIRTUAL VIEW (a SELECT in physical names)">CREATE VIRTUAL VIEW ${catalog}.${name} AS SELECT ${cursor};</template>
+	<template id="io.github.hugrlab.acl.templates.grant_catalog" name="aclgrant" context="sql_duckdb_acl_duckdb_acl_jdbc" autoinsert="true"
+	          description="GRANT CATALOG to a role">GRANT CATALOG ${catalog} TO ROLE ${role} WITH (select) MAIN;${cursor}</template>
+	<template id="io.github.hugrlab.acl.templates.grant_object" name="aclgrantobject" context="sql_duckdb_acl_duckdb_acl_jdbc" autoinsert="true"
+	          description="GRANT OBJECT with a row filter and columns">GRANT OBJECT ${catalog}.${name} TO ROLE ${role} WITH (select)
+    RLS (${predicate}) COLUMNS (${columns});${cursor}</template>
+	<template id="io.github.hugrlab.acl.templates.alter_grant" name="aclaltergrant" context="sql_duckdb_acl_duckdb_acl_jdbc" autoinsert="true"
+	          description="ALTER GRANT CATALOG … SET CAPS">ALTER GRANT CATALOG ${catalog} TO ROLE ${role} SET CAPS '{"select": true}';${cursor}</template>
+	<template id="io.github.hugrlab.acl.templates.check_catalog" name="aclcheck" context="sql_duckdb_acl_duckdb_acl_jdbc" autoinsert="true"
+	          description="CHECK VIRTUAL CATALOG: what drifted from the source, with the repair">CHECK VIRTUAL CATALOG ${catalog};${cursor}</template>
+	<template id="io.github.hugrlab.acl.templates.view_as" name="aclviewas" context="sql_duckdb_acl_duckdb_acl_jdbc" autoinsert="true"
+	          description="SET SESSION VIEW AS ROLE: the catalog as a role sees it (metadata only)">SET SESSION VIEW AS ROLE '${role}';${cursor}</template>
+</templates>

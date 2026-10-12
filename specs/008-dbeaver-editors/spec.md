@@ -166,3 +166,72 @@ A PR each, with three review passes and the build, UI tests and install check gr
 2. The preview is read-only; "open in a management console" with the script edits by hand.
 3. The stale check is the client's for now; a node-side compare-and-set later.
 4. Node and cluster operations stay here, as 008.3.
+
+## As built
+
+### 008.1 (2026-10-12)
+- **The seam**: an `org.jkiss.dbeaver.objectManager` per editable class (`AclObjectManager<T>`, a `SQLObjectEditor`:
+  `AclRoleManager`, `AclManagers$Catalogs | Relations | CatalogGrants | SchemaGrants | ObjectGrants`), the branch's
+  folders typed (`type=` - DBeaver's **Create New Role / Catalog / Relation / Grant** on them, **Delete** on an object)
+  and given ids (a folder of folders had none - DBeaver's node path, `getNodeUri`, threw an NPE on Create). A new
+  object opens DBeaver's own editor (`FEATURE_EDITOR_ON_CREATE`); its properties are the class's `@Property`s,
+  editable where the grammar can change them (`editable` - new only - / `updatable`); **Save** is DBeaver's **Persist
+  Changes** dialog showing the script (**Execute**, **Open Editor** - the script in an SQL editor, the owner's answer
+  2 -, Copy, Cancel), Delete DBeaver's confirmation with **View Script**. The bundle now has a localization
+  (`OSGI-INF/l10n/bundle`): DBeaver reads it for every property it collects to edit.
+- **The composer** (`AclGrammar` + each class's `createStatements` / `alterStatements(changed)` / `dropStatements`):
+  names from the rows' canonical keys, a part quoted when it is not a plain lower-case name or is a duckdb reserved
+  word (the grammar's own words read as names - checked on the node); text as `'…'`, quotes doubled; a user's clause
+  (RLS, COLUMNS, claims, view SQL, key) written as typed - the preview shows it.
+  - **Role**: `CREATE ROLE r [CLAIMS (…)]` + `ALTER ROLE r SET COMMENT` (CREATE has no comment clause); `SET CLAIMS (…)`
+    / `''`, `SET COMMENT`; `DROP ROLE`. The default claims are one text property, the list form
+    (`tenant = 'acme', unit = 'eu'`), read from `role_claims`.
+  - **Virtual catalog**: `CREATE VIRTUAL CATALOG c [COMMENT]`, `ALTER … SET COMMENT`, `DROP VIRTUAL CATALOG c` - without
+    CASCADE: a catalog a role holds a grant on is refused by the node, which names the roles.
+  - **Relation** (Kind table | view at Create): `CREATE VIRTUAL TABLE c.n AS <phys> [COLUMNS] [RLS] [PRIMARY KEY]
+    [COMMENT]` / `CREATE VIRTUAL VIEW c.n [PRIMARY KEY] [COMMENT] AS <select>`, then `SET TYPES` when set; one
+    statement per changed property - `SET PHYS`, `SET COLUMNS (…)` / `''` (the alias form), `SET RLS (…)` / `''`,
+    `SET AS`, `SET PRIMARY KEY` / `DROP PRIMARY KEY`, `SET TYPES (aliases = …, enums = …)` (`default` = the node's),
+    `COMMENT ON VIRTUAL TABLE | VIEW`; `DROP VIRTUAL TABLE | VIEW`. The declared columns are one text property read
+    from `relation_columns` (`name [= expr] [NOT NULL | NULL]`, by `pos`), the key from `keys`.
+  - **Catalog grant**: `GRANT CATALOG c TO ROLE r [WITH (…) | CAPS '{}'] [MAIN] [RLS] [COLUMNS]`; `ALTER GRANT … SET
+    CAPS '<json>' | '' (unstated), SET MAIN true | false, SET RLS '…', SET COLUMNS '…'`; `REVOKE CATALOG`.
+  - **Schema and object grants** have no ALTER and a GRANT replaces the grant whole (checked on the node: caps, RLS,
+    columns, comment, INTO all replaced), so an edit writes the GRANT again with every property the form shows -
+    which are all of the grant's facts - and the preview says so; `REVOKE SCHEMA | OBJECT` (spec 120). An inherited
+    schema-grant row (caps materialised from an ancestor) states none: unstated.
+  - **Capabilities** are boxes in a Capabilities category: **Unstated** and one per capability (select … manage); a
+    tick makes the grant state its own list, Unstated clears it.
+- **What is offered** (spec section 0): each action needs the platform function its grammar compiles to in
+  console_info's `my_functions` (`create_role`, `alter_grant`, `add_relation`, `revoke_object`, …) and - for a catalog's
+  administrator without the policy bundle - the object's catalog among its `admin_catalogs` (folded as the node folds
+  names); a view-as copy (read-only) and a connection without console_info edit nothing. The node judges every
+  statement regardless.
+- **How it runs** (section 3): on the user's connection, in auto-commit (`OPTION_AVOID_TRANSACTIONS`), one statement
+  at a time; the error of a refused statement lists the ones that ran before it ("Applied before it (a management batch
+  is not atomic)"). A management write is applied whatever the client's transaction does - checked through the driver
+  (a ROLLBACK keeps it). Before a save of a stored object, its row is read again and every property the user changed
+  is compared with the value the form was opened with; a moved one is shown (`comment: was 'a', now 'b'`) and asked
+  about - No saves nothing. After a save, the object reads its own row again (DBeaver refreshes the node).
+- **The owner's asks** (the look at 007): the hugr logo as the type's / driver's icon; the console submenu
+  `Access control ▸`; **View as this role** on a role of the branch (the property tester `io.github.hugrlab.acl.role`
+  - the connection's view-as offer); SQL templates for the main forms (`templates/duckdb_acl-templates.xml`, context
+  `sql_duckdb_acl_duckdb_acl_jdbc`: `aclrole`, `aclcatalog`, `acltable`, `aclview`, `aclgrant`, `aclgrantobject`,
+  `aclaltergrant`, `aclcheck`, `aclviewas`). An object's `toString()` is its name (DBeaver's titles).
+- **Dev realm**: `curator1` (`curator1-pass`; the realm role `curator` → `manage` on the catalog `scratch`, `GRANT SOURCE
+  memory.main`) beside steward1, ops1, analyst1.
+- **Tests**: unit `EditStatementsTest` (every class's create / one-per-property / no change → nothing / drop, spec 116
+  names, reserved words), `ConsoleTest.whatAnEditorIsOffered`; live `LiveEditTest` (DBeaver's command path - the
+  managers, a property edit through `PropertySourceEditable` as the panel makes it, the script, `saveChanges`): a role
+  from Create to Drop with the stale question answered No, a catalog with its table and the three grants (and the
+  refused drop of a catalog held by a grant), the curator's own catalog written and another not offered (the node
+  refusing the statement sent by hand), analyst1 offered nothing, a refusal reporting what ran before it, a write
+  inside a client transaction kept after ROLLBACK; UI `LiveConsoleTest.aRoleThroughDbeaversEditor` (Create New Role →
+  the editor → Save → Persist Changes shows our grammar → Execute → reopened from the tree, an edit is one ALTER →
+  Delete → View Script shows `DROP ROLE "t008 ui"` → Yes) and `viewAsThisRoleFromTheBranch`; `PluginLoadedTest`
+  (the templates). The live and UI tests need `dev/node.sh` (`ACL_E2E_URL`) and run locally; CI builds, runs the
+  units and the install check, as for 007.
+- **Found on the node**: `CLAIMS (tenant = 'a,b')` cut the value to `a` (fixed in duckdb-acl, PR #213); its "already
+  exists" message names a role `".r"` and a catalog `"c.c"` (a follow-up there).
+- **Not here**: 008.2 / 008.3; a DDL tab (120.4); editing a view's declared column list (its `(col TYPE, …)` at
+  Create); a list provider for the physical objects (`phys` is typed).

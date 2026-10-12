@@ -316,17 +316,42 @@ public class LiveEditTest {
 		assertEquals(1, rows(steward(), PlatformSql.view("relations", "catalog", "scratch", "name", "t008_mine")).size());
 		run(steward(), "DROP VIRTUAL TABLE scratch.t008_mine");
 
-		// another catalog, even one the listing does not show it: the node refuses
+		// another catalog: not offered (console_info: it administers scratch only) - and the node refuses the statement
 		AclVirtualCatalog sales = new AclVirtualCatalog(acl, acl, Map.of("catalog", "sales"));
-		DBECommandContext other = context(acl);
-		AclRelation foreign = create(other, AclRelation.class, sales);
-		set(other, foreign, "name", "t008_theirs");
-		set(other, foreign, "phys", "memory.main.orders");
+		DBEObjectMaker<AclRelation, DBSObject> maker = DBWorkbench.getPlatform().getEditorsRegistry()
+		    .getObjectManager(AclRelation.class, DBEObjectMaker.class);
+		assertFalse("Create is not offered in a catalog it does not administer", maker.canCreateObject(sales));
+		assertFalse("nor is Create New Role", DBWorkbench.getPlatform().getEditorsRegistry()
+		    .getObjectManager(AclRole.class, DBEObjectMaker.class).canCreateObject(acl));
 		try {
-			other.saveChanges(MONITOR, new HashMap<>());
+			run(acl, "CREATE VIRTUAL TABLE sales.t008_theirs AS memory.main.orders");
 			fail("a catalog admin writes only its catalogs");
-		} catch (DBException e) {
+		} catch (Exception e) {
 			assertTrue(rows(steward(), PlatformSql.view("relations", "catalog", "sales", "name", "t008_theirs")).isEmpty());
+		}
+	}
+
+	/** A save whose second statement is refused says the first ran (a management batch is not atomic). */
+	@Test
+	public void aRefusalSaysWhatRanBeforeIt() throws Exception {
+		LiveTreeTest.assumeNode();
+		AclDataSource acl = steward();
+		AclVirtualCatalog scratch = find(acl.getAccessCatalogs(MONITOR), "scratch");
+		assertNotNull(scratch);
+		DBECommandContext context = context(acl);
+		AclRelation table = create(context, AclRelation.class, scratch);
+		set(context, table, "name", "t008_half");
+		set(context, table, "phys", "memory.main.orders");
+		table.setAliasTypes("bogus"); // the list offers base / keep: a value the node refuses, set past it
+		try {
+			context.saveChanges(MONITOR, new HashMap<>());
+			fail("SET TYPES (aliases = bogus) is refused");
+		} catch (DBException e) {
+			String said = e.getMessage();
+			assertTrue(said, said.contains("Applied before it"));
+			assertTrue(said, said.contains("CREATE VIRTUAL TABLE scratch.t008_half AS memory.main.orders"));
+		} finally {
+			run(acl, "DROP VIRTUAL TABLE IF EXISTS scratch.t008_half");
 		}
 	}
 

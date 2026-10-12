@@ -63,17 +63,22 @@ public abstract class AclObjectManager<T extends AclPlatformObject> extends SQLO
 	@Override
 	public boolean canCreateObject(@NotNull Object container) {
 		DBSObject owner = owner(container);
-		return owner != null && writable(owner.getDataSource()) && super.canCreateObject(container);
+		return owner != null && writable(owner.getDataSource()) && make(owner).offers(AclPlatformObject.Action.CREATE)
+		       && super.canCreateObject(container);
 	}
 
+	/** A new object's properties are its create statement's: editable where Create is offered. */
 	@Override
 	public boolean canEditObject(@NotNull T object) {
-		return object.isEditable() && writable(object.getDataSource()) && super.canEditObject(object);
+		AclPlatformObject.Action action = object.isPersisted() ? AclPlatformObject.Action.EDIT : AclPlatformObject.Action.CREATE;
+		return object.isEditable() && writable(object.getDataSource()) && object.offers(action)
+		       && super.canEditObject(object);
 	}
 
 	@Override
 	public boolean canDeleteObject(@NotNull T object) {
-		return object.isEditable() && writable(object.getDataSource()) && super.canDeleteObject(object);
+		return object.isEditable() && writable(object.getDataSource()) && object.offers(AclPlatformObject.Action.DELETE)
+		       && super.canDeleteObject(object);
 	}
 
 	@Nullable

@@ -47,6 +47,20 @@ public class AclVirtualCatalog extends AclPlatformObject {
 	}
 
 	@Override
+	public Set<String> functionsFor(Action action) {
+		return switch (action) {
+			case CREATE -> Set.of("create_catalog");
+			case EDIT -> Set.of("alter_catalog");
+			case DELETE -> Set.of("drop_catalog");
+		};
+	}
+
+	@Override
+	public String catalogOf() {
+		return getName();
+	}
+
+	@Override
 	protected String selfSql() {
 		return PlatformSql.view("catalogs", "catalog", getName());
 	}

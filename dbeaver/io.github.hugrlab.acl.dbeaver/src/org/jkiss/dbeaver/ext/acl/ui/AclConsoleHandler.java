@@ -20,6 +20,8 @@ import org.jkiss.dbeaver.model.exec.jdbc.JDBCPreparedStatement;
 import org.jkiss.dbeaver.model.exec.jdbc.JDBCResultSet;
 import org.jkiss.dbeaver.model.exec.jdbc.JDBCSession;
 import org.jkiss.dbeaver.model.navigator.DBNDataSource;
+import org.jkiss.dbeaver.model.navigator.DBNDatabaseNode;
+import org.jkiss.dbeaver.ext.acl.model.access.AclRole;
 import org.jkiss.dbeaver.model.navigator.DBNNode;
 import org.jkiss.dbeaver.registry.DataSourceDescriptor;
 import org.jkiss.dbeaver.runtime.DBWorkbench;
@@ -46,15 +48,27 @@ public class AclConsoleHandler extends AbstractHandler {
 		}
 		ConsoleKind kind = ConsoleKind.of(which);
 		DBNNode node = NavigatorUtils.getSelectedNode(HandlerUtil.getCurrentSelection(event));
-		if (!(node instanceof DBNDataSource source)
-		    || !(source.getDataSourceContainer() instanceof DataSourceDescriptor original)) {
+		// spec 008.1: View as this role - on a role of the Access control branch, that role, no chooser
+		String chosen = null;
+		DataSourceDescriptor original;
+		if (node instanceof DBNDatabaseNode roleNode && roleNode.getObject() instanceof AclRole aclRole
+		    && aclRole.getDataSource().getContainer() instanceof DataSourceDescriptor roleSource) {
+			kind = ConsoleKind.VIEW_AS;
+			chosen = aclRole.getName();
+			original = roleSource;
+		} else if (node instanceof DBNDataSource source
+		           && source.getDataSourceContainer() instanceof DataSourceDescriptor connection) {
+			original = connection;
+		} else {
 			return null;
 		}
 		IWorkbenchWindow window = HandlerUtil.getActiveWorkbenchWindow(event);
 		try {
-			String role = null;
+			String role = chosen;
 			if (kind == ConsoleKind.VIEW_AS) {
-				role = chooseRole(window.getShell(), roles(original.getDataSource()));
+				if (role == null) {
+					role = chooseRole(window.getShell(), roles(original.getDataSource()));
+				}
 				if (role == null) {
 					return null;
 				}

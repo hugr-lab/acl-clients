@@ -89,6 +89,20 @@ public class AclObjectGrant extends AclGrantObject {
 	}
 
 	@Override
+	public Set<String> functionsFor(Action action) {
+		return switch (action) {
+			case CREATE -> Set.of("grant_object");
+			case EDIT -> Set.of("grant_object");
+			case DELETE -> Set.of("revoke_object");
+		};
+	}
+
+	@Override
+	public String catalogOf() {
+		return getCatalog();
+	}
+
+	@Override
 	protected String selfSql() {
 		return PlatformSql.view("object_grants", "role", role(), "catalog", getCatalog(), "object", getObject());
 	}

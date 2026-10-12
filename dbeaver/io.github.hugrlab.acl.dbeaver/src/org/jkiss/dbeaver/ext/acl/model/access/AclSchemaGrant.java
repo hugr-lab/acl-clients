@@ -104,6 +104,20 @@ public class AclSchemaGrant extends AclGrantObject {
 	}
 
 	@Override
+	public Set<String> functionsFor(Action action) {
+		return switch (action) {
+			case CREATE -> Set.of("grant_schema");
+			case EDIT -> Set.of("grant_schema");
+			case DELETE -> Set.of("revoke_schema");
+		};
+	}
+
+	@Override
+	public String catalogOf() {
+		return getCatalog();
+	}
+
+	@Override
 	protected String selfSql() {
 		return PlatformSql.view("schema_grants", "role", role(), "catalog", getCatalog(), "schema_path", getSchemaPath());
 	}

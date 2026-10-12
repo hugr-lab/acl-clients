@@ -67,6 +67,15 @@ public class AclRole extends AclPlatformObject {
 	}
 
 	@Override
+	public Set<String> functionsFor(Action action) {
+		return switch (action) {
+			case CREATE -> Set.of("create_role");
+			case EDIT -> Set.of("alter_role", "comment_role");
+			case DELETE -> Set.of("drop_role");
+		};
+	}
+
+	@Override
 	protected String selfSql() {
 		return PlatformSql.view("roles", "role", getName());
 	}

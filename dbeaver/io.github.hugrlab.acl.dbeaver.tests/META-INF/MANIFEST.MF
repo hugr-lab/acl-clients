@@ -16,4 +16,6 @@ Require-Bundle: org.junit,
  org.eclipse.swt,
  org.jkiss.dbeaver.ui,
  org.jkiss.dbeaver.ext.generic,
- org.jkiss.dbeaver.ui.editors.connection
+ org.jkiss.dbeaver.ui.editors.connection,
+ org.jkiss.dbeaver.ui.editors.base,
+ org.jkiss.dbeaver.ui.editors.sql

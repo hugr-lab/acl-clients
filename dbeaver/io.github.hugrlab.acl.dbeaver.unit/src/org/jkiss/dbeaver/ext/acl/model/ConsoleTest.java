@@ -17,6 +17,20 @@ public class ConsoleTest {
 		return new ConsoleInfo(bundles, catalogs, views, functions);
 	}
 
+	/** Spec 008.1: an editor is offered where its platform function is callable - in a catalog it administers. */
+	@Test
+	public void whatAnEditorIsOffered() {
+		ConsoleInfo policy = info(Set.of("policy"), Set.of(), Set.of("roles"), Set.of("create_role", "add_relation"));
+		assertTrue(policy.mayCall("create_role", null));
+		assertTrue(policy.mayCall("add_relation", "sales"));
+		assertFalse("not callable", policy.mayCall("drop_role", null));
+		ConsoleInfo curator = info(Set.of(), Set.of("Scratch"), Set.of("catalogs"), Set.of("add_relation"));
+		assertTrue("its catalog, folded as the node folds names", curator.mayCall("add_relation", "scratch"));
+		assertFalse("another catalog", curator.mayCall("add_relation", "sales"));
+		ConsoleInfo point = info(Set.of(), Set.of(), Set.of(), Set.of("grant_catalog"));
+		assertTrue("a point grant: any catalog", point.mayCall("grant_catalog", "sales"));
+	}
+
 	@Test
 	public void whatIsOffered() {
 		ConsoleInfo policy = info(Set.of("policy"), Set.of(), Set.of("roles", "catalogs"), Set.of("view_as", "console_info"));
