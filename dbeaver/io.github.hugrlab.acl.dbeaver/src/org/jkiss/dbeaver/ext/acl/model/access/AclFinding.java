@@ -47,4 +47,17 @@ public class AclFinding extends AclPlatformObject {
 	public String getRepair() {
 		return text("repair");
 	}
+
+	/** The object it is about, as the catalog names it. */
+	public String object() {
+		return text("object");
+	}
+
+	/** The repair's statements one may run (spec 008.2): the node's own, split at its alternatives. */
+	public java.util.List<String> repairs() {
+		String vcat = text("vcat");
+		String object = text("object");
+		return RepairStatements.alternatives(getRepair(), vcat == null || object == null ? null
+		                                                                                  : AclGrammar.inCatalog(vcat, object));
+	}
 }

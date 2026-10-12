@@ -64,7 +64,7 @@ public final class SchemaPath {
 		return parts == null ? path : parts.get(parts.size() - 1);
 	}
 
-	static String join(List<String> parts) {
+	public static String join(List<String> parts) {
 		StringBuilder out = new StringBuilder();
 		for (String part : parts) {
 			if (out.length() > 0) {

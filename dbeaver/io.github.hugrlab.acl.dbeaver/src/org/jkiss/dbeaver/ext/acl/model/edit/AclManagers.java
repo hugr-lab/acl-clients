@@ -4,6 +4,9 @@ import java.util.Map;
 
 import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant;
+import org.jkiss.dbeaver.ext.acl.model.access.AclFunctionEntry;
+import org.jkiss.dbeaver.ext.acl.model.access.AclReferenceEntry;
+import org.jkiss.dbeaver.ext.acl.model.access.AclVirtualSchema;
 import org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant;
 import org.jkiss.dbeaver.ext.acl.model.access.AclRelation;
 import org.jkiss.dbeaver.ext.acl.model.access.AclSchemaGrant;
@@ -51,6 +54,27 @@ final class AclManagers {
 		@Override
 		protected AclObjectGrant make(DBSObject container) {
 			return new AclObjectGrant(dataSource(container), container, Map.of());
+		}
+	}
+
+	public static class Schemas extends AclObjectManager<AclVirtualSchema> {
+		@Override
+		protected AclVirtualSchema make(DBSObject container) {
+			return new AclVirtualSchema(dataSource(container), container, Map.of());
+		}
+	}
+
+	public static class Functions extends AclObjectManager<AclFunctionEntry> {
+		@Override
+		protected AclFunctionEntry make(DBSObject container) {
+			return new AclFunctionEntry(dataSource(container), container, Map.of());
+		}
+	}
+
+	public static class References extends AclObjectManager<AclReferenceEntry> {
+		@Override
+		protected AclReferenceEntry make(DBSObject container) {
+			return new AclReferenceEntry(dataSource(container), container, Map.of());
 		}
 	}
 }

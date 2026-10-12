@@ -18,6 +18,10 @@ import org.eclipse.swtbot.swt.finder.widgets.SWTBotShell;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
 import org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant;
+import org.jkiss.dbeaver.ext.acl.model.access.AclFinding;
+import org.jkiss.dbeaver.ext.acl.model.access.AclFunctionEntry;
+import org.jkiss.dbeaver.ext.acl.model.access.AclReferenceEntry;
+import org.jkiss.dbeaver.ext.acl.model.access.AclVirtualSchema;
 import org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant;
 import org.jkiss.dbeaver.ext.acl.model.access.AclPlatformObject;
 import org.jkiss.dbeaver.ext.acl.model.access.AclRelation;
@@ -80,6 +84,7 @@ public class LiveEditTest {
 			run(steward(), "DROP ROLE IF EXISTS \"" + ROLE + "\"");
 			run(steward(), "DROP ROLE IF EXISTS \"" + GRANTEE + "\"");
 			run(steward(), "DROP ROLE IF EXISTS t008_txn");
+			run(steward(), "DROP VIRTUAL CATALOG IF EXISTS t008b CASCADE");
 		}
 	}
 
@@ -113,7 +118,7 @@ public class LiveEditTest {
 		source.collectProperties();
 		assertTrue("property " + id + " is editable", source.isEditable(object));
 		// by its descriptor: a grant's RLS and columns are hidden from the panel (their tabs edit them)
-		source.setPropertyValue(MONITOR, object, org.jkiss.dbeaver.ext.acl.ui.grant.GrantPage.descriptor(source, object, id), value);
+		source.setPropertyValue(MONITOR, object, org.jkiss.dbeaver.ext.acl.ui.grant.PolicyPage.descriptor(source, object, id), value);
 	}
 
 	/** What Save previews: every command's statements, in order. */
@@ -390,6 +395,89 @@ public class LiveEditTest {
 		assertEquals("a mask is answered with its column", "0", mask);
 		assertEquals("nothing written", "tenant = acl_claim('tenant')",
 		             rows(acl, PlatformSql.view("object_grants", "role", "analyst", "object", "orders")).get(0).get("rls"));
+	}
+
+	/** Spec 008.2: schemas, functions, references; a table's source columns; a finding repaired by its alternative. */
+	@Test
+	public void schemasFunctionsReferencesAndARepair() throws Exception {
+		LiveTreeTest.assumeNode();
+		AclDataSource acl = steward();
+		run(acl, "CREATE VIRTUAL CATALOG IF NOT EXISTS t008b");
+		acl.refreshObject(MONITOR);
+		AclVirtualCatalog catalog = find(acl.getAccessCatalogs(MONITOR), "t008b");
+		assertNotNull(catalog);
+
+		DBECommandContext context = context(acl);
+		AclVirtualSchema alias = create(context, AclVirtualSchema.class, catalog);
+		set(context, alias, "name", "raw.eu");
+		set(context, alias, "physPath", "memory.raw_eu");
+		set(context, alias, "comment", "eu");
+		assertEquals(List.of("CREATE VIRTUAL SCHEMA t008b.raw.eu AS memory.raw_eu COMMENT 'eu'"), script(context));
+		context.saveChanges(MONITOR, new HashMap<>());
+		DBECommandContext expand = context(acl);
+		AclVirtualSchema expansion = create(expand, AclVirtualSchema.class, catalog);
+		set(expand, expansion, "name", "cur");
+		set(expand, expansion, "kind", "expansion");
+		set(expand, expansion, "physPath", "memory.raw_eu");
+		expand.saveChanges(MONITOR, new HashMap<>());
+		assertEquals("one record per object of the source", 1,
+		             rows(acl, PlatformSql.view("relations", "catalog", "t008b", "name", "cur.events")).size());
+		run(acl, expansion.refreshStatement(true)); // what Refresh from the source… runs
+
+		DBECommandContext functions = context(acl);
+		AclFunctionEntry macro = create(functions, AclFunctionEntry.class, catalog);
+		set(functions, macro, "name", "big");
+		set(functions, macro, "params", "m INTEGER");
+		set(functions, macro, "template", "SELECT id FROM memory.main.orders WHERE amount >= acl_arg(1)");
+		functions.saveChanges(MONITOR, new HashMap<>());
+		macro.setPersisted(true);
+		macro.refreshObject(MONITOR);
+		DBECommandContext change = context(acl);
+		set(change, macro, "template", "SELECT id, amount FROM memory.main.orders WHERE amount >= acl_arg(1)");
+		set(change, macro, "comment", "the big ones");
+		assertEquals(List.of("ALTER VIRTUAL TABLE FUNCTION t008b.big SET MACRO SELECT id, amount FROM memory.main.orders WHERE amount >= acl_arg(1)",
+		                     "COMMENT ON VIRTUAL TABLE FUNCTION t008b.big IS 'the big ones'"), script(change));
+		change.saveChanges(MONITOR, new HashMap<>());
+		assertEquals("the big ones", rows(acl, PlatformSql.view("functions", "catalog", "t008b", "name", "big")).get(0).get("comment"));
+
+		run(acl, "CREATE VIRTUAL TABLE t008b.orders AS memory.main.orders");
+		run(acl, "CREATE VIRTUAL TABLE t008b.orders2 AS memory.main.orders");
+		DBECommandContext reference = context(acl);
+		AclReferenceEntry ref = create(reference, AclReferenceEntry.class, catalog);
+		set(reference, ref, "name", "same_order");
+		set(reference, ref, "fromObject", "orders");
+		set(reference, ref, "toObject", "orders2");
+		set(reference, ref, "pairs", "id = id");
+		set(reference, ref, "cardinality", "one_to_one");
+		reference.saveChanges(MONITOR, new HashMap<>());
+		ref.setPersisted(true);
+		ref.refreshObject(MONITOR);
+		DBECommandContext hint = context(acl);
+		set(hint, ref, "optional", true);
+		hint.saveChanges(MONITOR, new HashMap<>());
+		assertEquals(Boolean.TRUE, rows(acl, PlatformSql.view("references", "catalog", "t008b", "name", "same_order")).get(0).get("optional"));
+
+		// the Column list tab reads the source's columns
+		AclRelation orders = new AclRelation(acl, catalog, rows(acl, PlatformSql.view("relations", "catalog", "t008b", "name", "orders")).get(0));
+		List<String> names = new ArrayList<>();
+		for (String[] column : orders.physicalColumns(MONITOR)) {
+			names.add(column[0]);
+		}
+		assertEquals(List.of("id", "tenant", "amount"), names);
+
+		// a finding and its repair: a table over nothing, dropped by the repair's alternative
+		run(acl, "CREATE VIRTUAL TABLE t008b.ghost AS memory.main.t008_none");
+		AclFinding ghost = null;
+		for (AclFinding finding : catalog.getFindings(MONITOR)) {
+			if ("ghost".equals(finding.object())) {
+				ghost = finding;
+			}
+		}
+		assertNotNull("check finds the ghost", ghost);
+		List<String> repairs = ghost.repairs();
+		assertEquals("DROP VIRTUAL TABLE t008b.ghost", repairs.get(repairs.size() - 1));
+		run(acl, repairs.get(repairs.size() - 1));
+		assertTrue(rows(acl, PlatformSql.view("relations", "catalog", "t008b", "name", "ghost")).isEmpty());
 	}
 
 	@Test

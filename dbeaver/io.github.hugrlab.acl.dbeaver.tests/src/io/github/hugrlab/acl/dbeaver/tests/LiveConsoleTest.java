@@ -515,6 +515,87 @@ public class LiveConsoleTest {
 		});
 	}
 
+	/** Spec 008.2: a virtual table's Column list tab, and Repair… on a finding of Check through its dialog. */
+	@Test
+	public void aTablesColumnListAndARepair() throws Exception {
+		LiveTreeTest.assumeNode();
+		SWTWorkbenchBot bot = new SWTWorkbenchBot();
+		runAsSteward("DROP VIRTUAL CATALOG IF EXISTS t008ui CASCADE");
+		runAsSteward("CREATE VIRTUAL CATALOG t008ui");
+		runAsSteward("CREATE VIRTUAL TABLE t008ui.o AS memory.main.orders");
+		runAsSteward("CREATE VIRTUAL TABLE t008ui.ghost AS memory.main.t008_none");
+		try {
+			org.jkiss.dbeaver.model.navigator.DBNDatabaseNode root = DBWorkbench.getPlatform().getNavigatorModel()
+			    .getNodeByObject(steward().getDataSource());
+			root.refreshNode(new org.jkiss.dbeaver.model.runtime.VoidProgressMonitor(), this);
+			org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem connection = bot.viewById(NAVIGATOR).bot().tree()
+			    .getTreeItem(steward().getName()).expand();
+			org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem relations = expandTo(bot, connection, "Access control",
+			                                                                         "Virtual catalogs", "t008ui", "Relations");
+			bot.waitUntil(new DefaultCondition() {
+				@Override
+				public boolean test() {
+					return relations.getNodes().contains("o");
+				}
+
+				@Override
+				public String getFailureMessage() {
+					return "no relation o: " + relations.getNodes();
+				}
+			}, 30_000);
+			relations.getNode("o").doubleClick();
+			org.eclipse.swtbot.eclipse.finder.widgets.SWTBotEditor editor = waitForEditor(bot);
+			org.eclipse.ui.IEditorPart part = UIThreadRunnable.syncExec(() -> editor.getReference().getEditor(true));
+			org.jkiss.dbeaver.ui.editors.entity.EntityEditor entity = (org.jkiss.dbeaver.ui.editors.entity.EntityEditor) part;
+			UIThreadRunnable.syncExec(() -> entity.switchFolder("io.github.hugrlab.acl.relation.columns"));
+			bot.waitUntil(new DefaultCondition() {
+				@Override
+				public boolean test() {
+					String all = editorTexts(entity);
+					return all.contains("(none - every column as it is)") && all.contains("yes");
+				}
+
+				@Override
+				public String getFailureMessage() {
+					return "the Column list tab shows no source columns: " + editorTexts(entity);
+				}
+			}, 30_000);
+			UIThreadRunnable.syncExec(() -> part.getSite().getPage().closeEditor(part, false));
+
+			org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem check = expandTo(bot, connection, "Access control",
+			                                                                     "Virtual catalogs", "t008ui", "Check");
+			bot.waitUntil(new DefaultCondition() {
+				@Override
+				public boolean test() {
+					return check.getNodes().stream().anyMatch(n -> n.contains("ghost"));
+				}
+
+				@Override
+				public String getFailureMessage() {
+					return "no finding on ghost: " + check.getNodes();
+				}
+			}, 30_000);
+			String finding = check.getNodes().stream().filter(n -> n.contains("ghost")).findFirst().orElseThrow();
+			check.getNode(finding).select().contextMenu("Repair…").click();
+			org.eclipse.swtbot.swt.finder.widgets.SWTBotShell repair = bot.shell("Repair");
+			repair.bot().radio("DROP VIRTUAL TABLE t008ui.ghost").click();
+			repair.bot().button("Execute").click();
+			org.jkiss.dbeaver.ext.acl.model.AclDataSource acl = (org.jkiss.dbeaver.ext.acl.model.AclDataSource) steward().getDataSource();
+			waitForRows(bot, acl, org.jkiss.dbeaver.ext.acl.model.access.PlatformSql.view("relations", "catalog", "t008ui", "name", "ghost"), 0);
+		} finally {
+			runAsSteward("DROP VIRTUAL CATALOG IF EXISTS t008ui CASCADE");
+		}
+	}
+
+	private static void runAsSteward(String sql) throws Exception {
+		org.jkiss.dbeaver.ext.acl.model.AclDataSource acl = (org.jkiss.dbeaver.ext.acl.model.AclDataSource) steward().getDataSource();
+		try (org.jkiss.dbeaver.model.exec.jdbc.JDBCSession session = org.jkiss.dbeaver.model.DBUtils.openUtilSession(
+		         new org.jkiss.dbeaver.model.runtime.VoidProgressMonitor(), acl, "t008");
+		     org.jkiss.dbeaver.model.exec.jdbc.JDBCStatement statement = session.createStatement()) {
+			statement.execute(sql);
+		}
+	}
+
 	/** Expand a path of the navigator, waiting at each level for its children (DBeaver loads them in the background). */
 	private static org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem expandTo(SWTWorkbenchBot bot,
 	    org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem from, String... path) {

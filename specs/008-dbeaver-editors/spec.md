@@ -263,3 +263,33 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
 - The tabs are read-only where the object manager refuses the edit (a catalog admin reading a grant); a new grant's
   columns are read again each time its tab is shown (its object is chosen on Properties).
 - **Not here**: the same tabs for a virtual table's own COLUMNS / RLS (008.2).
+
+### 008.2a (2026-10-12) - a table's own columns and filter, schemas, functions, references, repair
+- **A virtual table's Row filter and Column list** (`RelationRowFilterPage`, `RelationColumnsPage`; the navigator
+  already has a "Columns" folder, hence "Column list"): the predicate over the source's physical columns in its own
+  editor; the source's columns (read from the node's attached tree, `platform.attached.<db>.<schema>` -
+  `AclRelation.physicalColumns`) each Exposed or not, under a name of the table's (a rename), through an expression (a
+  mask), with NOT NULL / NULL - and computed columns the source lacks (added and removed); the `COLUMNS (…)` it
+  writes under the table, nothing changed = the alias form. The model is `RelationColumns` (pure; a field path kept as
+  written). A view's columns are its SELECT's: the tabs say so. The two properties left the top grid (`hidden`). No
+  Check yet (the node binds the definition where it is written; a `check_relation` would be duckdb-acl's).
+- **Virtual schemas**: Create (Kind alias | expansion, Phys path, Comment) → `CREATE VIRTUAL SCHEMA c.path AS | FROM
+  <phys>`; `ALTER … SET PHYS` (an alias), `COMMENT ON VIRTUAL SCHEMA`; `DROP VIRTUAL SCHEMA` (no CASCADE); **Refresh
+  from the source…** on an expansion → `ALTER VIRTUAL SCHEMA c.path REFRESH [PRUNE]` (chosen in the dialog).
+- **Functions**: Create (Kind table | scalar, Form macro | alias, Params, Returns, Primary key, Template / Target,
+  Comment) → `CREATE VIRTUAL TABLE FUNCTION | SCALAR …`; `SET MACRO` / `SET ALIAS OF`, `SET | DROP PRIMARY KEY` (a
+  table function; the key read from `keys`), `COMMENT ON VIRTUAL …`; parameters and result have no ALTER; `DROP
+  VIRTUAL TABLE FUNCTION | SCALAR`.
+- **References**: Create (From, To, To kind relation | function, On pairs, Arguments, Expression, Cardinality,
+  Optional, Join method, Comment) → `CREATE VIRTUAL REFERENCE …`; `ALTER VIRTUAL REFERENCE … SET CARDINALITY |
+  OPTIONAL | COMMENT` (spec 120); its ends and condition by a re-create; `DROP VIRTUAL REFERENCE`.
+- **Check → Repair…** on a finding: the node's repair is often a template with alternatives (`REPAIR VIRTUAL TABLE c.a
+  REMAP (gone = <column>)  -- or DROP MISSING COLUMNS`) - `RepairStatements` splits it into whole statements (a tail
+  alternative joined to the first's object), the dialog (`StatementDialog`) offers them, the statement editable, and
+  Execute only once no `<…>` place is left; it runs on the connection and the catalog is read again.
+- Offered as in 008.1 - each action's platform function (`add_schema_alias`, `alter_function`, `add_reference`, …) in
+  `my_functions`, a catalog admin in its catalogs.
+- **Tests**: unit `RelationColumnsTest`, `RepairStatementsTest`, `EditStatementsTest.schemasFunctionsAndReferences`;
+  live `LiveEditTest.schemasFunctionsReferencesAndARepair` (an alias and an expansion with its refresh, a macro
+  edited, a reference and its hint, a table's source columns, a finding repaired by its alternative); UI
+  `LiveConsoleTest.aTablesColumnListAndARepair` (the Column list tab, Repair… through the dialog).

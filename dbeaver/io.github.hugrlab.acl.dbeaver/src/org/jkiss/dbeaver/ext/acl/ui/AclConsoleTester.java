@@ -16,6 +16,19 @@ import org.jkiss.dbeaver.ext.acl.model.access.AclRole;
 public class AclConsoleTester extends PropertyTester {
 	@Override
 	public boolean test(Object receiver, String property, Object[] args, Object expectedValue) {
+		if ("run".equals(property)) { // spec 008.2: Repair… / Refresh from the source…
+			if (!(receiver instanceof DBNDatabaseNode node) || !(node.getObject() instanceof org.jkiss.dbeaver.ext.acl.model.access.AclPlatformObject object)
+			    || object.getDataSource() == null || object.getDataSource().console() == null
+			    || object.getDataSource().getContainer().isConnectionReadOnly()) {
+				return false;
+			}
+			String kind = args.length > 0 ? String.valueOf(args[0]) : "";
+			if ("repair".equals(kind)) {
+				return object instanceof org.jkiss.dbeaver.ext.acl.model.access.AclFinding finding && !finding.repairs().isEmpty();
+			}
+			return "refresh".equals(kind) && object instanceof org.jkiss.dbeaver.ext.acl.model.access.AclVirtualSchema schema
+			       && schema.isExpansion() && object.offers(org.jkiss.dbeaver.ext.acl.model.access.AclPlatformObject.Action.EDIT);
+		}
 		if ("role".equals(property)) {
 			return receiver instanceof DBNDatabaseNode node && node.getObject() instanceof AclRole role
 			       && role.getDataSource() != null && role.getDataSource().console() != null

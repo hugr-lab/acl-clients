@@ -109,13 +109,13 @@
 									</folder>
 								</items>
 							</folder>
-							<folder id="acl_schemas" label="Schemas" icon="#schema" visibleIf="object.dataSource.shows('schemas')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclVirtualSchema" id="acl_schemas" label="Schemas" icon="#schema" visibleIf="object.dataSource.shows('schemas')">
 								<items label="Schema" path="virtualSchema" property="virtualSchemas" icon="#schema"/>
 							</folder>
-							<folder id="acl_functions_2" label="Functions" icon="#functions" visibleIf="object.dataSource.shows('functions')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionEntry" id="acl_functions_2" label="Functions" icon="#functions" visibleIf="object.dataSource.shows('functions')">
 								<items label="Function" path="functionEntry" property="functionEntries" icon="#function"/>
 							</folder>
-							<folder id="acl_references_2" label="References" icon="#references" visibleIf="object.dataSource.shows('references')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclReferenceEntry" id="acl_references_2" label="References" icon="#references" visibleIf="object.dataSource.shows('references')">
 								<items label="Reference" path="referenceEntry" property="referenceEntries" icon="#reference"/>
 							</folder>
 							<folder id="acl_check" label="Check" icon="#info" visibleIf="object.dataSource.calls('check_catalog')">
@@ -224,6 +224,9 @@
 		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$CatalogGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant"/>
 		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$SchemaGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclSchemaGrant"/>
 		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$ObjectGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$Schemas" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclVirtualSchema"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$Functions" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclFunctionEntry"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$References" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclReferenceEntry"/>
 	</extension>
 
 	<!-- spec 008.1 addendum: a grant's row filter and column list in tabs of their own, each with Check (the node's
@@ -240,6 +243,17 @@
 		        position="additions_end" icon="#columns" type="folder">
 			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant"/>
 			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant"/>
+		</editor>
+		<!-- spec 008.2: a virtual table's own row filter and column list -->
+		<editor id="io.github.hugrlab.acl.relation.rowfilter" class="org.jkiss.dbeaver.ext.acl.ui.grant.RelationRowFilterPage"
+		        main="false" label="Row filter" description="The table's own predicate" position="additions_end"
+		        icon="#filter" type="folder">
+			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclRelation"/>
+		</editor>
+		<editor id="io.github.hugrlab.acl.relation.columns" class="org.jkiss.dbeaver.ext.acl.ui.grant.RelationColumnsPage"
+		        main="false" label="Column list" description="Which columns of the source the table exposes, and how"
+		        position="additions_end" icon="#columns" type="folder">
+			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclRelation"/>
 		</editor>
 	</extension>
 
@@ -262,11 +276,16 @@
 		<propertyTester id="io.github.hugrlab.acl.consoleTester"
 		                class="org.jkiss.dbeaver.ext.acl.ui.AclConsoleTester"
 		                namespace="io.github.hugrlab.acl"
-		                properties="console,role"
+		                properties="console,role,run"
 		                type="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
 	</extension>
 
 	<extension point="org.eclipse.ui.commands">
+		<command id="io.github.hugrlab.acl.run" name="duckdb-acl statement"
+		         description="A finding's repair or a schema's refresh - shown, completed, then run"
+		         defaultHandler="org.jkiss.dbeaver.ext.acl.ui.AclRunHandler">
+			<commandParameter id="io.github.hugrlab.acl.run.kind" name="Kind" optional="false"/>
+		</command>
 		<command id="io.github.hugrlab.acl.console" name="duckdb-acl console"
 		         description="A management or native console, or the catalog as a role sees it"
 		         defaultHandler="org.jkiss.dbeaver.ext.acl.ui.AclConsoleHandler">
@@ -328,6 +347,37 @@
 					</visibleWhen>
 				</command>
 			</menu>
+		</menuContribution>
+		<!-- spec 008.2: a finding's repair, an expanded schema's refresh -->
+		<menuContribution locationURI="popup:org.eclipse.ui.popup.any?after=additions">
+			<command commandId="io.github.hugrlab.acl.run" label="Repair…" tooltip="The node's repair for this finding - shown, completed, then run" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="repair"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="repair" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
+			<command commandId="io.github.hugrlab.acl.run" label="Refresh from the source…" tooltip="Read the expansion's source again" style="push">
+				<parameter name="io.github.hugrlab.acl.run.kind" value="refresh"/>
+				<visibleWhen checkEnabled="false">
+					<with variable="selection">
+						<count value="1"/>
+						<iterate ifEmpty="false">
+							<and>
+								<instanceof value="org.jkiss.dbeaver.model.navigator.DBNDatabaseNode"/>
+								<test property="io.github.hugrlab.acl.run" args="refresh" forcePluginActivation="true"/>
+							</and>
+						</iterate>
+					</with>
+				</visibleWhen>
+			</command>
 		</menuContribution>
 		<!-- spec 008.1: on a role of the Access control branch, the catalog as that role sees it -->
 		<menuContribution locationURI="popup:org.eclipse.ui.popup.any?after=additions">

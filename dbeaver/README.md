@@ -69,6 +69,10 @@ Built against DBeaver CE 26.2.2 (Java 21).
     batch is not atomic, and it is not part of a transaction of yours - a ROLLBACK does not undo it).
   - What you are offered follows what the node lets you do (console_info); the node judges every statement anyway.
     A view-as connection edits nothing.
+  - A virtual table's **Row filter** and **Column list** tabs: its predicate, and the source's columns - exposed or
+    not, renamed, masked by an expression, NOT NULL - plus computed columns. Schemas (an alias or an expansion, with
+    **Refresh from the source…**), table functions and scalars, references are edited the same way.
+  - **Repair…** on a finding of Check: the node's repair - choose an alternative, fill what is in `<…>`, Execute.
 - **View as this role** on a role of the branch: the same view-as connection, for that role.
 - SQL editor templates for the main forms (`aclgrant`, `acltable`, `aclrole`, … - Ctrl+Space).
 

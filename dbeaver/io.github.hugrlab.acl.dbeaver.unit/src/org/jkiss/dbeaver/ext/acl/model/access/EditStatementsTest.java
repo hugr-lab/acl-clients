@@ -196,4 +196,82 @@ public class EditStatementsTest {
 		assertEquals(List.of("ALTER VIRTUAL VIEW sales.big SET AS SELECT 2"), storedView.alterStatements(null, Set.of("viewSql")));
 		assertEquals(List.of("DROP VIRTUAL VIEW sales.big"), storedView.dropStatements());
 	}
+
+	@Test
+	public void schemasFunctionsAndReferences() throws Exception {
+		AclVirtualCatalog catalog = new AclVirtualCatalog(null, null, row("catalog", "c"));
+		AclVirtualSchema alias = new AclVirtualSchema(null, catalog, Map.of());
+		alias.setName("raw.eu");
+		alias.setPhysPath("memory.raw_eu");
+		alias.setComment("eu");
+		assertEquals(List.of("CREATE VIRTUAL SCHEMA c.raw.eu AS memory.raw_eu COMMENT 'eu'"), alias.createStatements());
+		alias.setKind("expansion");
+		assertEquals(List.of("CREATE VIRTUAL SCHEMA c.raw.eu FROM memory.raw_eu COMMENT 'eu'"), alias.createStatements());
+		AclVirtualSchema stored = new AclVirtualSchema(null, catalog, row("catalog", "c", "path", "raw", "phys_path", "memory.s2"));
+		assertEquals("alias", stored.getKind());
+		stored.setPhysPath("memory.s3");
+		stored.setComment("y");
+		assertEquals(List.of("ALTER VIRTUAL SCHEMA c.raw SET PHYS memory.s3", "COMMENT ON VIRTUAL SCHEMA c.raw IS 'y'"),
+		             stored.alterStatements(null, Set.of("physPath", "comment")));
+		assertEquals(List.of("DROP VIRTUAL SCHEMA c.raw"), stored.dropStatements());
+		AclVirtualSchema expansion = new AclVirtualSchema(null, catalog, row("catalog", "c", "path", "cur", "origin", "memory.s2"));
+		assertEquals("expansion", expansion.getKind());
+		assertEquals("ALTER VIRTUAL SCHEMA c.cur REFRESH PRUNE", expansion.refreshStatement(true));
+
+		AclFunctionEntry macro = new AclFunctionEntry(null, catalog, Map.of());
+		macro.setName("perday");
+		macro.setParams("m INTEGER");
+		macro.setReturns("id INTEGER NOT NULL, amount INTEGER");
+		macro.setPrimaryKey("id");
+		macro.setTemplate("SELECT id, amount FROM memory.main.orders WHERE amount >= acl_arg(1)");
+		assertEquals(List.of("CREATE VIRTUAL TABLE FUNCTION c.perday(m INTEGER) RETURNS TABLE (id INTEGER NOT NULL, amount "
+		                     + "INTEGER) PRIMARY KEY (id) AS SELECT id, amount FROM memory.main.orders WHERE amount >= acl_arg(1)"),
+		             macro.createStatements());
+		AclFunctionEntry scalar = new AclFunctionEntry(null, catalog, Map.of());
+		scalar.setName("shout");
+		scalar.setKind("scalar");
+		scalar.setParams("text VARCHAR");
+		scalar.setReturns("VARCHAR");
+		scalar.setTemplate("upper(acl_arg(1))");
+		assertEquals(List.of("CREATE VIRTUAL SCALAR c.shout(text VARCHAR) RETURNS VARCHAR AS upper(acl_arg(1))"),
+		             scalar.createStatements());
+		AclFunctionEntry alias2 = new AclFunctionEntry(null, catalog, Map.of());
+		alias2.setName("rng");
+		alias2.setForm("alias");
+		alias2.setTarget("range");
+		assertEquals(List.of("CREATE VIRTUAL TABLE FUNCTION c.rng ALIAS OF range"), alias2.createStatements());
+		AclFunctionEntry storedFn = new AclFunctionEntry(null, catalog, row("catalog", "c", "name", "sh", "kind", "scalar",
+		                                                                   "form", "macro", "template", "upper(acl_arg(1))"));
+		storedFn.setTemplate("lower(acl_arg(1))");
+		storedFn.setComment("low");
+		assertEquals(List.of("ALTER VIRTUAL SCALAR c.sh SET MACRO lower(acl_arg(1))", "COMMENT ON VIRTUAL SCALAR c.sh IS 'low'"),
+		             storedFn.alterStatements(null, Set.of("template", "comment")));
+		assertEquals(List.of("DROP VIRTUAL SCALAR c.sh"), storedFn.dropStatements());
+
+		AclReferenceEntry reference = new AclReferenceEntry(null, catalog, Map.of());
+		reference.setName("orders_customer");
+		reference.setFromObject("orders");
+		reference.setToObject("customers");
+		reference.setPairs("customer_id = id");
+		reference.setCardinality("many_to_one");
+		reference.setComment("the customer");
+		assertEquals(List.of("CREATE VIRTUAL REFERENCE c.orders_customer FROM orders TO customers ON (customer_id = id) "
+		                     + "CARDINALITY many_to_one COMMENT 'the customer'"), reference.createStatements());
+		AclReferenceEntry toFunction = new AclReferenceEntry(null, catalog, Map.of());
+		toFunction.setName("cust_orders");
+		toFunction.setFromObject("customers");
+		toFunction.setToObject("orders_of");
+		toFunction.setToKind("function");
+		toFunction.setArguments("cust => id");
+		toFunction.setOptional(true);
+		assertEquals(List.of("CREATE VIRTUAL REFERENCE c.cust_orders FROM customers TO FUNCTION orders_of(cust => id) OPTIONAL"),
+		             toFunction.createStatements());
+		AclReferenceEntry storedRef = new AclReferenceEntry(null, catalog, row("catalog", "c", "name", "ab", "optional", false,
+		                                                                       "cardinality", "many_to_one"));
+		storedRef.setOptional(true);
+		storedRef.setCardinality("one_to_one");
+		assertEquals(List.of("ALTER VIRTUAL REFERENCE c.ab SET CARDINALITY one_to_one", "ALTER VIRTUAL REFERENCE c.ab SET OPTIONAL true"),
+		             storedRef.alterStatements(null, Set.of("optional", "cardinality")));
+		assertEquals(List.of("DROP VIRTUAL REFERENCE c.ab"), storedRef.dropStatements());
+	}
 }
