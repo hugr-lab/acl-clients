@@ -73,6 +73,11 @@ Built against DBeaver CE 26.2.2 (Java 21).
     not, renamed, masked by an expression, NOT NULL - plus computed columns. Schemas (an alias or an expansion, with
     **Refresh from the source…**), table functions and scalars, references are edited the same way.
   - **Repair…** on a finding of Check: the node's repair - choose an alternative, fill what is in `<…>`, Execute.
+  - Identity: issuers (URL, a secret by name), their clients - each clause (Audiences, Require, Roles from,
+    Attributes, Flows, …) in the grammar's own syntax, read back from the node -, role mappings. Function categories
+    with their members, function grants (a role or every role, grant or deny), resource groups (limits, default) and a
+    role's groups; a role's administration bundles and its grants on `platform` and on sources (passthrough's). No
+    field anywhere takes a key, a password or a client secret: those are the secrets service's, named.
 - **View as this role** on a role of the branch: the same view-as connection, for that role.
 - SQL editor templates for the main forms (`aclgrant`, `acltable`, `aclrole`, … - Ctrl+Space).
 
