@@ -70,7 +70,7 @@ public class GrantRowFilterPage extends PolicyPage {
 		predicate.setEditable(editable());
 		filling = true;
 		String rls = grant().getRls();
-		predicate.setText(rls == null ? "" : rls);
+		fill(predicate, rls);
 		filling = false;
 		columns.removeAll();
 		if (!(getDatabaseObject() instanceof AclObjectGrant)) {

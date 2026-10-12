@@ -430,10 +430,19 @@ public class LiveConsoleTest {
 		}, 30_000);
 		// an edit of the predicate there: Save previews the grant's statement with it (cancelled - the dev policy stays)
 		UIThreadRunnable.syncExec(() -> entity.switchFolder("io.github.hugrlab.acl.grant.rowfilter"));
-		UIThreadRunnable.syncExec(() -> {
-			org.eclipse.swt.custom.StyledText text = predicateEditor(entity, "tenant = acl_claim('tenant')");
-			text.setText("tenant = acl_claim('tenant') AND amount > 0");
-		});
+		// typed at its end, a key at a time: each keystroke is a command, and the text must stay where it is typed
+		org.eclipse.swt.custom.StyledText field = UIThreadRunnable.syncExec(() -> predicateEditor(entity, "tenant = acl_claim('tenant')"));
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotStyledText typed = new org.eclipse.swtbot.swt.finder.widgets.SWTBotStyledText(field);
+		UIThreadRunnable.syncExec(() -> field.setCaretOffset(field.getCharCount()));
+		for (char c : " AND amount > 0".toCharArray()) {
+			UIThreadRunnable.syncExec(() -> {
+				int at = field.getCaretOffset();
+				field.replaceTextRange(at, 0, String.valueOf(c)); // what a key does: insert at the caret, then move it
+				field.setCaretOffset(at + 1);
+			});
+			Thread.sleep(30); // let the command's refresh run between keys, as it does between a person's keys
+		}
+		assertEquals("tenant = acl_claim('tenant') AND amount > 0", typed.getText());
 		UIThreadRunnable.asyncExec(() -> part.doSave(new org.eclipse.core.runtime.NullProgressMonitor()));
 		org.eclipse.swtbot.swt.finder.widgets.SWTBotShell persist = bot.shell("sales.orders - Persist Changes");
 		String preview = textsOf(persist);

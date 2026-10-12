@@ -182,8 +182,10 @@ public class GrantColumnsPage extends PolicyPage {
 		if (catalogList != null) {
 			catalogList.setEditable(editable());
 			filling = true;
-			String list = grant().getColumns();
-			catalogList.setText(list == null ? "" : list);
+			String list = grant().getColumns() == null ? "" : grant().getColumns();
+			if (!catalogList.getText().equals(list)) { // never put back what the user is typing (the caret stays)
+				catalogList.setText(list);
+			}
 			filling = false;
 			return;
 		}

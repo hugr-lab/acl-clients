@@ -80,7 +80,7 @@ public class RelationRowFilterPage extends PolicyPage {
 		predicate.setEditable(editable());
 		filling = true;
 		String rls = relation().getRls();
-		predicate.setText(rls == null ? "" : rls);
+		fill(predicate, rls);
 		filling = false;
 		columns.removeAll();
 		inBackground("Read the source's columns", relation()::physicalColumns, this::fill, error -> hint.setText(error));

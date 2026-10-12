@@ -155,8 +155,24 @@ public abstract class PolicyPage extends AbstractDatabaseObjectEditor<AclPlatfor
 
 	@Override
 	public org.jkiss.dbeaver.ui.IRefreshablePart.RefreshResult refreshPart(Object source, boolean force) {
+		// read again on a real refresh only - F5, or the node's state after a save; DBeaver also calls this for the
+		// tab's own edits (each keystroke is a command), and reading then would put the typed text back (spec 008.1:
+		// the caret jumped to the start)
+		boolean onSave = source instanceof org.jkiss.dbeaver.model.navigator.DBNEvent event
+		                 && event.getSource() == org.jkiss.dbeaver.model.navigator.DBNEvent.UPDATE_ON_SAVE;
+		if (!force && !onSave) {
+			return org.jkiss.dbeaver.ui.IRefreshablePart.RefreshResult.IGNORED;
+		}
 		loaded = false;
 		UIUtils.asyncExec(this::activatePart);
 		return org.jkiss.dbeaver.ui.IRefreshablePart.RefreshResult.REFRESHED;
+	}
+
+	/** Text put into a field the user may be typing in: untouched when it already says that (the caret stays). */
+	protected static void fill(org.eclipse.swt.custom.StyledText field, String text) {
+		String value = text == null ? "" : text;
+		if (!field.getText().equals(value)) {
+			field.setText(value);
+		}
 	}
 }
