@@ -364,6 +364,157 @@ public class LiveConsoleTest {
 		}, 30_000);
 	}
 
+	/**
+	 * Spec 008.1 addendum: a grant's Row filter and Columns tabs - the predicate in its own editor, the object's columns
+	 * read from the node, Check answering - and an edit there previewed by Save as the grant's statement.
+	 */
+	@Test
+	public void aGrantsRowFilterAndColumnsTabs() throws Exception {
+		LiveTreeTest.assumeNode();
+		SWTWorkbenchBot bot = new SWTWorkbenchBot();
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem connection = bot.viewById(NAVIGATOR).bot().tree()
+		    .getTreeItem(steward().getName()).expand();
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem grants = expandTo(bot, connection, "Access control", "Roles",
+		                                                                      "analyst", "Object grants");
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				return grants.getNodes().contains("sales.orders");
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "no grant sales.orders: " + grants.getNodes();
+			}
+		}, 30_000);
+		grants.getNode("sales.orders").doubleClick();
+		org.eclipse.swtbot.eclipse.finder.widgets.SWTBotEditor editor = waitForEditor(bot);
+		org.eclipse.ui.IEditorPart part = UIThreadRunnable.syncExec(() -> editor.getReference().getEditor(true));
+		org.jkiss.dbeaver.ui.editors.entity.EntityEditor entity = (org.jkiss.dbeaver.ui.editors.entity.EntityEditor) part;
+		UIThreadRunnable.syncExec(() -> entity.switchFolder("io.github.hugrlab.acl.grant.rowfilter"));
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				String all = editorTexts(entity);
+				return all.contains("tenant = acl_claim('tenant')") && all.contains("amount");
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "the Row filter tab shows no predicate or no columns: " + editorTexts(entity);
+			}
+		}, 30_000);
+		clickButton(entity, "Check with the node");
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				return editorTexts(entity).contains("The write would be accepted");
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "Check did not answer: " + editorTexts(entity);
+			}
+		}, 30_000);
+		UIThreadRunnable.syncExec(() -> entity.switchFolder("io.github.hugrlab.acl.grant.columns"));
+		bot.waitUntil(new DefaultCondition() {
+			@Override
+			public boolean test() {
+				return editorTexts(entity).contains("(none - every column, whole)");
+			}
+
+			@Override
+			public String getFailureMessage() {
+				return "the Columns tab shows no tree: " + editorTexts(entity);
+			}
+		}, 30_000);
+		// an edit of the predicate there: Save previews the grant's statement with it (cancelled - the dev policy stays)
+		UIThreadRunnable.syncExec(() -> entity.switchFolder("io.github.hugrlab.acl.grant.rowfilter"));
+		UIThreadRunnable.syncExec(() -> {
+			org.eclipse.swt.custom.StyledText text = predicateEditor(entity, "tenant = acl_claim('tenant')");
+			text.setText("tenant = acl_claim('tenant') AND amount > 0");
+		});
+		UIThreadRunnable.asyncExec(() -> part.doSave(new org.eclipse.core.runtime.NullProgressMonitor()));
+		org.eclipse.swtbot.swt.finder.widgets.SWTBotShell persist = bot.shell("sales.orders - Persist Changes");
+		String preview = textsOf(persist);
+		assertTrue(preview, preview.contains("GRANT OBJECT sales.orders TO ROLE analyst WITH (select) RLS (tenant = "
+		                                     + "acl_claim('tenant') AND amount > 0)"));
+		persist.bot().button("Cancel").click();
+		UIThreadRunnable.syncExec(() -> part.getSite().getPage().closeEditor(part, false));
+	}
+
+	private static String editorTexts(org.eclipse.ui.IEditorPart part) {
+		return UIThreadRunnable.syncExec(() -> {
+			StringBuilder out = new StringBuilder();
+			java.util.ArrayDeque<org.eclipse.swt.widgets.Control> todo = new java.util.ArrayDeque<>();
+			todo.add(control(part));
+			while (!todo.isEmpty()) {
+				org.eclipse.swt.widgets.Control c = todo.poll();
+				if (c == null || c.isDisposed()) {
+					continue;
+				}
+				if (c instanceof org.eclipse.swt.widgets.Label l) {
+					out.append(l.getText()).append(" | ");
+				} else if (c instanceof org.eclipse.swt.widgets.Text t) {
+					out.append(t.getText()).append(" | ");
+				} else if (c instanceof org.eclipse.swt.custom.StyledText t) {
+					out.append(t.getText()).append(" | ");
+				} else if (c instanceof org.eclipse.swt.widgets.Table t) {
+					for (org.eclipse.swt.widgets.TableItem item : t.getItems()) {
+						out.append(item.getText(0)).append(" ");
+					}
+				} else if (c instanceof org.eclipse.swt.widgets.Tree t) {
+					for (org.eclipse.swt.widgets.TreeItem item : t.getItems()) {
+						out.append(item.getText(0)).append(" ");
+					}
+				}
+				if (c instanceof org.eclipse.swt.widgets.Composite composite) {
+					todo.addAll(java.util.Arrays.asList(composite.getChildren()));
+				}
+			}
+			return out.toString();
+		});
+	}
+
+	private static org.eclipse.swt.widgets.Control control(org.eclipse.ui.IEditorPart part) {
+		org.eclipse.swt.widgets.Shell shell = part.getSite().getShell();
+		return shell;
+	}
+
+	/** The Row filter tab's editor: the StyledText holding the grant's predicate. */
+	private static org.eclipse.swt.custom.StyledText predicateEditor(org.eclipse.ui.IEditorPart part, String predicate) {
+		java.util.ArrayDeque<org.eclipse.swt.widgets.Control> todo = new java.util.ArrayDeque<>();
+		todo.add(control(part));
+		while (!todo.isEmpty()) {
+			org.eclipse.swt.widgets.Control c = todo.poll();
+			if (c instanceof org.eclipse.swt.custom.StyledText t && predicate.equals(t.getText())) {
+				return t;
+			}
+			if (c instanceof org.eclipse.swt.widgets.Composite composite) {
+				todo.addAll(java.util.Arrays.asList(composite.getChildren()));
+			}
+		}
+		throw new AssertionError("no predicate editor in the editor");
+	}
+
+	private static void clickButton(org.eclipse.ui.IEditorPart part, String label) {
+		UIThreadRunnable.syncExec(() -> {
+			java.util.ArrayDeque<org.eclipse.swt.widgets.Control> todo = new java.util.ArrayDeque<>();
+			todo.add(control(part));
+			while (!todo.isEmpty()) {
+				org.eclipse.swt.widgets.Control c = todo.poll();
+				if (c instanceof org.eclipse.swt.widgets.Button b && label.equals(b.getText()) && b.isVisible()) {
+					b.notifyListeners(org.eclipse.swt.SWT.Selection, new org.eclipse.swt.widgets.Event());
+					return;
+				}
+				if (c instanceof org.eclipse.swt.widgets.Composite composite) {
+					todo.addAll(java.util.Arrays.asList(composite.getChildren()));
+				}
+			}
+			throw new AssertionError("no button " + label);
+		});
+	}
+
 	/** Expand a path of the navigator, waiting at each level for its children (DBeaver loads them in the background). */
 	private static org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem expandTo(SWTWorkbenchBot bot,
 	    org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem from, String... path) {

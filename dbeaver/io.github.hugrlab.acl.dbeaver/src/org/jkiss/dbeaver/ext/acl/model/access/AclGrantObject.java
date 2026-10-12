@@ -70,6 +70,16 @@ public abstract class AclGrantObject extends AclPlatformObject {
 		return caps != null && caps.contains(cap);
 	}
 
+	/** The capabilities as CAPS writes them - the JSON, unquoted - or null when unstated. */
+	public String capsJson() {
+		Set<String> caps = caps();
+		if (caps == null) {
+			return null;
+		}
+		String quoted = AclGrammar.capsJson(caps);
+		return quoted.substring(1, quoted.length() - 1).replace("''", "'");
+	}
+
 	/** The caps as text, for the stale check and the read-only column. */
 	protected String capsText(Set<String> caps) {
 		return caps == null ? "unstated" : String.join(", ", AclGrammar.CAPABILITIES.stream().filter(caps::contains).toList());

@@ -235,3 +235,31 @@ A PR each, with three review passes and the build, UI tests and install check gr
   exists" message names a role `".r"` and a catalog `"c.c"` (a follow-up there).
 - **Not here**: 008.2 / 008.3; a DDL tab (120.4); editing a view's declared column list (its `(col TYPE, …)` at
   Create); a list provider for the physical objects (`phys` is typed).
+
+### 008.1 addendum - a grant's Row filter and Columns tabs (2026-10-12)
+The owner, looking at 008.1: a grant's RLS and columns were two small fields at the top, their syntax unclear there -
+move them into tabs beside Capabilities, with a check of the RLS, the columns, the masks. Decided the same day: the
+node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
+- **Row filter** and **Columns** are folder pages of the grant's editor (`org.jkiss.dbeaver.databaseEditor`, `type =
+  "folder"`: `GrantRowFilterPage`, `GrantColumnsPage`, for catalog and object grants; a schema grant carries
+  capabilities only). The two properties are hidden from the top grid (`hidden = true`); the tabs set them through the
+  editor's own command context by their descriptor (DBeaver's by-id setter only knows the properties it shows), so
+  Save previews and writes them as before.
+- **Row filter**: the predicate in a multi-line editor, beside the object's columns (double-click inserts a name).
+- **Columns**: the object's columns as the node answers them (`check_grant` with no list: every column it exposes,
+  with its type - the grantor needs no grant on the catalog) in a tree - a STRUCT's fields and a list of structs'
+  (`items[].price`) as children - each **Visible / Masked / Hidden**, a mask's expression in its own cell; under it the
+  `COLUMNS (…)` the tree writes. The tree reads the grant's list and writes it back in spec 102's forms (`address` whole,
+  `address.city` narrowed, `address, address.ssn = '***'` a masked field of the whole); a field shown keeps its struct, a
+  struct shown again with every field hidden is shown whole; an item the tree does not know is kept as written
+  (`GrantColumns`, pure). A catalog grant's list is text (names across the catalog - not probed).
+- **Check with the node** on both: `platform.check_grant` with the tab's values - one row per finding (the write's
+  own words for a refusal, in red), "The write would be accepted / refused". Nothing is written.
+- **Tests**: unit `GrantColumnsTest` (the tree from types, round trips of every form, edits, unknown items kept); live
+  `LiveEditTest.aGrantIsCheckedBeforeItIsWritten` (the object's columns, a refused predicate, a mask answered, nothing
+  written); UI `LiveConsoleTest.aGrantsRowFilterAndColumnsTabs` (analyst's grant on sales.orders: the tabs show the
+  predicate and the columns, Check answers, an edit of the predicate is previewed by Save as the GRANT with it).
+- Needs a node with duckdb-acl spec 122 (PR #214); an older node answers the tabs' reads with its refusal.
+- The tabs are read-only where the object manager refuses the edit (a catalog admin reading a grant); a new grant's
+  columns are read again each time its tab is shown (its object is chosen on Properties).
+- **Not here**: the same tabs for a virtual table's own COLUMNS / RLS (008.2).

@@ -16,7 +16,7 @@ import org.jkiss.dbeaver.model.struct.DBSObject;
  * GRANT CATALOG c TO ROLE r SET CAPS | MAIN | RLS | COLUMNS` per property; `REVOKE CATALOG c FROM ROLE r` (which takes
  * the role's object grants in that catalog with it - the node's rule).
  */
-public class AclCatalogGrant extends AclGrantObject {
+public class AclCatalogGrant extends AclGrantObject implements AclPolicyGrant {
 	public AclCatalogGrant(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
 	}
@@ -49,7 +49,7 @@ public class AclCatalogGrant extends AclGrantObject {
 		return caps == null ? "unstated: select, insert, update, delete, merge" : caps.isEmpty() ? "none" : capsText(caps);
 	}
 
-	@Property(viewable = true, editable = true, updatable = true, order = 4, name = "Rls",
+	@Property(viewable = true, editable = true, updatable = true, hidden = true, order = 4, name = "Rls",
 	          description = "The grant's own predicate over the physical columns, AND-ed onto every object of the catalog")
 	public String getRls() {
 		return edited("rls", text("rls"));
@@ -59,7 +59,7 @@ public class AclCatalogGrant extends AclGrantObject {
 		edit("rls", rls);
 	}
 
-	@Property(viewable = true, editable = true, updatable = true, order = 5, name = "Columns",
+	@Property(viewable = true, editable = true, updatable = true, hidden = true, order = 5, name = "Columns",
 	          description = "The grant's own column list, as COLUMNS (…) writes it: id, amount, ssn = NULL, address.city")
 	public String getColumns() {
 		return edited("columns", text("columns"));
@@ -77,6 +77,16 @@ public class AclCatalogGrant extends AclGrantObject {
 	@Override
 	public boolean isEditable() {
 		return true;
+	}
+
+	@Override
+	public String grantCatalog() {
+		return getName();
+	}
+
+	@Override
+	public String grantObject() {
+		return "";
 	}
 
 	@Override

@@ -15,7 +15,7 @@ import org.jkiss.dbeaver.model.struct.DBSObject;
  * for it and a GRANT replaces it whole (verified), so a change writes it again with every property the form shows,
  * which are all of its facts; `REVOKE OBJECT c.n FROM ROLE r` (duckdb-acl spec 120).
  */
-public class AclObjectGrant extends AclGrantObject {
+public class AclObjectGrant extends AclGrantObject implements AclPolicyGrant {
 	public AclObjectGrant(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
 		super(dataSource, parent, row);
 	}
@@ -58,7 +58,7 @@ public class AclObjectGrant extends AclGrantObject {
 		return caps == null ? "unstated: the catalog grant's" : caps.isEmpty() ? "none" : capsText(caps);
 	}
 
-	@Property(viewable = true, editable = true, updatable = true, order = 5, name = "Rls",
+	@Property(viewable = true, editable = true, updatable = true, hidden = true, order = 5, name = "Rls",
 	          description = "The grant's predicate, AND-ed onto the catalog grant's and the object's own")
 	public String getRls() {
 		return edited("rls", text("rls"));
@@ -68,7 +68,7 @@ public class AclObjectGrant extends AclGrantObject {
 		edit("rls", rls);
 	}
 
-	@Property(viewable = true, editable = true, updatable = true, order = 6, name = "Columns",
+	@Property(viewable = true, editable = true, updatable = true, hidden = true, order = 6, name = "Columns",
 	          description = "The grant's column list, as COLUMNS (…) writes it: id, amount, ssn = NULL, address.city")
 	public String getColumns() {
 		return edited("columns", text("columns"));
@@ -86,6 +86,16 @@ public class AclObjectGrant extends AclGrantObject {
 	@Override
 	public boolean isEditable() {
 		return true;
+	}
+
+	@Override
+	public String grantCatalog() {
+		return getCatalog();
+	}
+
+	@Override
+	public String grantObject() {
+		return getObject();
 	}
 
 	@Override
