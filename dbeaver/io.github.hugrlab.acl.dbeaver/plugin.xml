@@ -67,18 +67,18 @@
 				     where the principal reads its platform view or calls its read function (visibleIf on our model's
 				     org.jkiss.dbeaver.ext.acl.model classes, which DBeaver's JEXL may call); every node is one statement -->
 				<folder label="Access control" icon="#folder" visibleIf="object.accessControl">
-					<folder label="Roles" icon="#folder" visibleIf="object.shows('roles')">
+					<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclRole" label="Roles" icon="#folder" visibleIf="object.shows('roles')">
 						<items label="Role" path="accessRole" property="accessRoles" icon="#user">
 							<folder label="Claims" icon="#folder" visibleIf="object.dataSource.shows('role_claims')">
 								<items label="Claim" path="roleClaim" property="claims" icon="#info"/>
 							</folder>
-							<folder label="Catalog grants" icon="#folder" visibleIf="object.dataSource.shows('grants')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant" label="Catalog grants" icon="#folder" visibleIf="object.dataSource.shows('grants')">
 								<items label="Grant" path="catalogGrant" property="catalogGrants" icon="#database"/>
 							</folder>
-							<folder label="Schema grants" icon="#folder" visibleIf="object.dataSource.shows('schema_grants')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclSchemaGrant" label="Schema grants" icon="#folder" visibleIf="object.dataSource.shows('schema_grants')">
 								<items label="Grant" path="schemaGrant" property="schemaGrants" icon="#schema"/>
 							</folder>
-							<folder label="Object grants" icon="#folder" visibleIf="object.dataSource.shows('object_grants')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant" label="Object grants" icon="#folder" visibleIf="object.dataSource.shows('object_grants')">
 								<items label="Grant" path="objectGrant" property="objectGrants" icon="#table"/>
 							</folder>
 							<folder label="Administration" icon="#folder" visibleIf="object.dataSource.shows('admins')">
@@ -97,9 +97,9 @@
 							</folder>
 						</items>
 					</folder>
-					<folder label="Virtual catalogs" icon="#folder" visibleIf="object.shows('catalogs')">
+					<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclVirtualCatalog" label="Virtual catalogs" icon="#folder" visibleIf="object.shows('catalogs')">
 						<items label="Catalog" path="accessCatalog" property="accessCatalogs" icon="#database">
-							<folder label="Relations" icon="#folder_table" visibleIf="object.dataSource.shows('relations')">
+							<folder type="org.jkiss.dbeaver.ext.acl.model.access.AclRelation" label="Relations" icon="#folder_table" visibleIf="object.dataSource.shows('relations')">
 								<items label="Relation" path="accessRelation" property="relations" icon="#table">
 									<folder label="Columns" icon="#columns" visibleIf="object.dataSource.shows('relation_columns')">
 										<items label="Column" path="relationColumn" property="columns" icon="#column"/>
@@ -213,6 +213,17 @@
 	<!-- the Main page: Generic's plus the TLS choice a dev node needs (spec 003 addendum) -->
 	<extension point="org.jkiss.dbeaver.dataSourceConfigurator">
 		<configurator dataSource="duckdb_acl" class="org.jkiss.dbeaver.ext.acl.ui.AclConnectionPage"/>
+	</extension>
+
+	<!-- spec 008.1: the editable classes of the Access control branch - DBeaver's own create / edit / delete and Save
+	     (the script shown first), the statements the objects' own composition in the management grammar -->
+	<extension point="org.jkiss.dbeaver.objectManager">
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclRoleManager" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclRole"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$Catalogs" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclVirtualCatalog"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$Relations" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclRelation"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$CatalogGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$SchemaGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclSchemaGrant"/>
+		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$ObjectGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant"/>
 	</extension>
 
 	<extension point="org.jkiss.dbeaver.generic.meta">

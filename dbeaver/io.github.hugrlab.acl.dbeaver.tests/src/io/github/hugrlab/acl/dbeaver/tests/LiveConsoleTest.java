@@ -155,7 +155,7 @@ public class LiveConsoleTest {
 	}
 
 	/** Every text a dialog shows (labels, texts, links), joined. */
-	private static String textsOf(org.eclipse.swtbot.swt.finder.widgets.SWTBotShell shell) {
+	static String textsOf(org.eclipse.swtbot.swt.finder.widgets.SWTBotShell shell) {
 		return UIThreadRunnable.syncExec(() -> {
 			StringBuilder out = new StringBuilder();
 			java.util.ArrayDeque<org.eclipse.swt.widgets.Control> todo = new java.util.ArrayDeque<>();
