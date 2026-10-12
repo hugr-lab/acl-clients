@@ -205,6 +205,11 @@
 		</datasource>
 	</extension>
 
+	<!-- the Main page: Generic's plus the TLS choice a dev node needs (spec 003 addendum) -->
+	<extension point="org.jkiss.dbeaver.dataSourceConfigurator">
+		<configurator dataSource="duckdb_acl" class="org.jkiss.dbeaver.ext.acl.ui.AclConnectionPage"/>
+	</extension>
+
 	<extension point="org.jkiss.dbeaver.generic.meta">
 		<meta id="duckdb_acl_jdbc"
 		      class="org.jkiss.dbeaver.ext.acl.model.AclMetaModel"

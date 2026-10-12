@@ -32,6 +32,9 @@ public class AclDataSource extends GenericDataSource {
 	private static final Log log = Log.getLog(AclDataSource.class);
 	static final String CONSOLE_SQL = "SELECT bundles, admin_catalogs, my_views, my_functions FROM platform.console_info()";
 
+	/** The Main page's "trust the node's certificate" (a provider property - spec 003 addendum). */
+	public static final String PROP_TRUST_CERTIFICATE = "acl.trustCertificate";
+
 	private volatile ConsoleInfo console;
 
 	public AclDataSource(@NotNull DBRProgressMonitor monitor, @NotNull DBPDataSourceContainer container,
@@ -48,6 +51,35 @@ public class AclDataSource extends GenericDataSource {
 		boolean data = mode == null || mode.isEmpty() || "data".equals(mode);
 		String viewAs = configuration.getProperty("acl.viewAs");
 		console = data && (viewAs == null || viewAs.isEmpty()) ? readConsole(monitor) : null;
+	}
+
+	/** Whether the connection trusts the node's certificate unchecked (the Main page's TLS choice). */
+	public static boolean trustsCertificate(DBPConnectionConfiguration configuration) {
+		return "true".equals(configuration.getProviderProperty(PROP_TRUST_CERTIFICATE));
+	}
+
+	/**
+	 * What the Main page's choices add to the driver's properties: {@code disableCertificateVerification=true} when it
+	 * trusts the certificate - before the user's own driver properties, which win (DBeaver fills them after these).
+	 */
+	public static java.util.Map<String, String> internalProperties(DBPConnectionConfiguration configuration) {
+		return trustsCertificate(configuration) ? java.util.Map.of("disableCertificateVerification", "true")
+		                                        : java.util.Map.of();
+	}
+
+	@Override
+	protected java.util.Map<String, String> getInternalConnectionProperties(@NotNull DBRProgressMonitor monitor,
+	    @NotNull org.jkiss.dbeaver.model.connection.DBPDriver driver,
+	    @NotNull org.jkiss.dbeaver.model.impl.jdbc.JDBCExecutionContext context, @NotNull String purpose,
+	    @NotNull DBPConnectionConfiguration connectionInfo) throws org.jkiss.dbeaver.model.exec.DBCException {
+		java.util.Map<String, String> out = new java.util.HashMap<>();
+		java.util.Map<String, String> inherited = super.getInternalConnectionProperties(monitor, driver, context, purpose,
+		                                                                                connectionInfo);
+		if (inherited != null) {
+			out.putAll(inherited);
+		}
+		out.putAll(internalProperties(connectionInfo));
+		return out;
 	}
 
 	/** What console_info answered at connect; null when it was not read or was refused. */

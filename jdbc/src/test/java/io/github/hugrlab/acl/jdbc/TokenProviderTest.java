@@ -246,6 +246,30 @@ class TokenProviderTest {
 	}
 
 	@Test
+	void anUntrustedDoorIsNotADiscoveryProblem() {
+		TokenProvider untrusted = new TokenProvider(c -> {
+			throw new UntrustedDoorException("d", 1, new RuntimeException("io exception",
+			    new javax.net.ssl.SSLHandshakeException("PKIX path building failed")));
+		}, ui);
+		AuthException e = assertThrows(AuthException.class,
+		    () -> untrusted.acquire(config("user", "alice", "password", "secret")));
+		assertTrue(e.getMessage().contains("certificate this machine does not trust (PKIX path building failed)"),
+		    e.getMessage());
+		assertTrue(!e.getMessage().contains("set the issuer and clientId"), e.getMessage());
+		// a named issuer does not get past it either
+		assertThrows(AuthException.class,
+		    () -> untrusted.acquire(config("issuer", idp.issuer, "clientId", FakeIdp.CLIENT, "user", "alice", "password",
+		                                   "secret")));
+	}
+
+	@Test
+	void aCertificateFailureIsFoundInTheCauses() {
+		assertTrue(UntrustedDoorException.isCertificateFailure(new RuntimeException("io exception",
+		    new IllegalStateException("x", new java.security.cert.CertPathBuilderException("unable to find")))));
+		assertTrue(!UntrustedDoorException.isCertificateFailure(new RuntimeException("connection refused")));
+	}
+
+	@Test
 	void discoveryAnswerParses() throws IOException {
 		List<DoorIssuer> issuers = FlightDiscovery.parse(("{\"issuers\":[{\"name\":\"a\",\"issuer\":\"https://a\","
 		                                                  + "\"clients\":[]},"

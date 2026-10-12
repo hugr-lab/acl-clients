@@ -94,6 +94,9 @@ final class TokenProvider {
 		if (config.discovery) {
 			try {
 				issuers = discovery.discover(config);
+			} catch (UntrustedDoorException e) {
+				// not a discovery problem: no issuer or client set here would get past it
+				throw new AuthException(e.getMessage(), e);
 			} catch (IOException e) {
 				if (config.issuer == null) {
 					throw new AuthException("could not ask the door which issuer to sign in with (" + e.getMessage()
