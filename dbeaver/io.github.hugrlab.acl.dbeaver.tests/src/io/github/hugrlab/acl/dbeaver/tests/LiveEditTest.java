@@ -111,9 +111,9 @@ public class LiveEditTest {
 	private static void set(DBECommandContext context, Object object, String id, Object value) {
 		PropertySourceEditable source = new PropertySourceEditable(context, object, object);
 		source.collectProperties();
-		assertNotNull("property " + id, source.getProperty(id));
 		assertTrue("property " + id + " is editable", source.isEditable(object));
-		source.setPropertyValue(MONITOR, id, value);
+		// by its descriptor: a grant's RLS and columns are hidden from the panel (their tabs edit them)
+		source.setPropertyValue(MONITOR, object, org.jkiss.dbeaver.ext.acl.ui.grant.GrantPage.descriptor(source, object, id), value);
 	}
 
 	/** What Save previews: every command's statements, in order. */
@@ -353,6 +353,43 @@ public class LiveEditTest {
 		} finally {
 			run(acl, "DROP VIRTUAL TABLE IF EXISTS scratch.t008_half");
 		}
+	}
+
+	/** Spec 008.1 addendum: a grant checked with the node (platform.check_grant) before it is written. */
+	@Test
+	public void aGrantIsCheckedBeforeItIsWritten() throws Exception {
+		LiveTreeTest.assumeNode();
+		AclDataSource acl = steward();
+		AclRole analyst = find(acl.getAccessRoles(MONITOR), "analyst");
+		assertNotNull(analyst);
+		AclObjectGrant orders = find(analyst.getObjectGrants(MONITOR), "sales.orders");
+		assertNotNull("dev/node.sh grants analyst sales.orders", orders);
+		List<String> columns = new ArrayList<>();
+		for (Map<String, Object> row : orders.check(MONITOR, orders.getRls(), "")) {
+			if ("column".equals(String.valueOf(row.get("item")))) {
+				columns.add(String.valueOf(row.get("name")));
+			}
+		}
+		assertEquals("no list: every column the object exposes", List.of("id", "tenant", "amount"), columns);
+		String status = null;
+		String message = null;
+		for (Map<String, Object> row : orders.check(MONITOR, "nope > 1", "")) {
+			if ("rls".equals(String.valueOf(row.get("item")))) {
+				status = String.valueOf(row.get("status"));
+				message = String.valueOf(row.get("message"));
+			}
+		}
+		assertEquals("refused", status);
+		assertTrue(message, message.contains("does not bind against it"));
+		String mask = null;
+		for (Map<String, Object> row : orders.check(MONITOR, "", "id, amount = 0")) {
+			if ("column".equals(String.valueOf(row.get("item"))) && "amount".equals(String.valueOf(row.get("name")))) {
+				mask = String.valueOf(row.get("message"));
+			}
+		}
+		assertEquals("a mask is answered with its column", "0", mask);
+		assertEquals("nothing written", "tenant = acl_claim('tenant')",
+		             rows(acl, PlatformSql.view("object_grants", "role", "analyst", "object", "orders")).get(0).get("rls"));
 	}
 
 	@Test

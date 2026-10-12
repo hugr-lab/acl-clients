@@ -58,6 +58,11 @@ Built against DBeaver CE 26.2.2 (Java 21).
     schema or object grant is written again whole (the grammar has no ALTER for it - a GRANT replaces it).
   - Capabilities are boxes: **Unstated** (the grant names none - every data capability for a catalog grant, the
     catalog grant's for a schema or object grant) or each one ticked.
+  - A grant's **Row filter** and **Columns** are tabs of its editor: the predicate in an editor of its own beside the
+    object's columns; the columns as a tree (a STRUCT's fields too) - each Visible, Masked (with its expression) or
+    Hidden, the `COLUMNS (…)` it writes shown under it. **Check with the node** asks the node what writing the grant
+    would say - the predicate binds, each column the role would read with its type - and writes nothing (a node with
+    duckdb-acl spec 122).
   - Before a save, the plugin reads the object again: a property someone changed meanwhile is shown and you are asked
     whether to save over it.
   - Statements run one by one; when the node refuses one, the error lists those that ran before it (a management

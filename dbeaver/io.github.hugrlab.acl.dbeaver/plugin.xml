@@ -226,6 +226,23 @@
 		<manager class="org.jkiss.dbeaver.ext.acl.model.edit.AclManagers$ObjectGrants" objectType="org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant"/>
 	</extension>
 
+	<!-- spec 008.1 addendum: a grant's row filter and column list in tabs of their own, each with Check (the node's
+	     platform.check_grant) -->
+	<extension point="org.jkiss.dbeaver.databaseEditor">
+		<editor id="io.github.hugrlab.acl.grant.rowfilter" class="org.jkiss.dbeaver.ext.acl.ui.grant.GrantRowFilterPage"
+		        main="false" label="Row filter" description="The grant's predicate - and Check" position="additions_end"
+		        icon="#filter" type="folder">
+			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant"/>
+			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant"/>
+		</editor>
+		<editor id="io.github.hugrlab.acl.grant.columns" class="org.jkiss.dbeaver.ext.acl.ui.grant.GrantColumnsPage"
+		        main="false" label="Columns" description="What the role reads of each column - and Check"
+		        position="additions_end" icon="#columns" type="folder">
+			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclCatalogGrant"/>
+			<objectType name="org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant"/>
+		</editor>
+	</extension>
+
 	<extension point="org.jkiss.dbeaver.generic.meta">
 		<meta id="duckdb_acl_jdbc"
 		      class="org.jkiss.dbeaver.ext.acl.model.AclMetaModel"
