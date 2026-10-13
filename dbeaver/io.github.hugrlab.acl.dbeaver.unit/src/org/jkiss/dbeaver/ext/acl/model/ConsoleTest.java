@@ -31,6 +31,21 @@ public class ConsoleTest {
 		assertTrue("a point grant: any catalog", point.mayCall("grant_catalog", "sales"));
 	}
 
+	/** Spec 125: the node says what it is and what it grants; an older node, which says neither, keeps today's. */
+	@Test
+	public void theNodeSaysWhatItIs() {
+		ConsoleInfo open = new ConsoleInfo(Set.of("policy"), Set.of(), Set.of(), Set.of(), "standalone",
+		                                   List.of("observe", "operate", "policy", "manage", "passthrough"));
+		assertTrue(open.standalone());
+		assertEquals("the node's own scopes, in its order", List.of("observe", "operate", "policy", "manage", "passthrough"),
+		             open.grantableScopes());
+		ConsoleInfo cluster = new ConsoleInfo(Set.of(), Set.of(), Set.of(), Set.of(), "cluster", List.of("cluster"));
+		assertFalse(cluster.standalone());
+		ConsoleInfo older = info(Set.of(), Set.of(), Set.of(), Set.of());
+		assertFalse("an older node is not known to be standalone", older.standalone());
+		assertEquals(List.of("observe", "operate", "cluster", "policy", "manage", "passthrough"), older.grantableScopes());
+	}
+
 	@Test
 	public void whatIsOffered() {
 		ConsoleInfo policy = info(Set.of("policy"), Set.of(), Set.of("roles", "catalogs"), Set.of("view_as", "console_info"));

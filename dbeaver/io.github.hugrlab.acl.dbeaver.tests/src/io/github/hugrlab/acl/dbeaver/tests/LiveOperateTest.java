@@ -101,12 +101,23 @@ public class LiveOperateTest {
 	}
 
 	private static boolean clusterNode(AclDataSource acl) {
-		try {
-			acl.platformRows(MONITOR, PlatformSql.view("drift"));
-			return true;
-		} catch (Exception standalone) {
-			return false;
-		}
+		return acl.console() != null && "cluster".equals(acl.console().deployment()); // spec 125: the node says
+	}
+
+	/** Spec 125: the node says what it is and which scopes it grants - the plugin reads them, never guesses. */
+	@Test
+	public void theNodeSaysWhatItIs() throws Exception {
+		LiveTreeTest.assumeNode();
+		AclDataSource acl = ops();
+		org.jkiss.dbeaver.ext.acl.model.ConsoleInfo console = acl.console();
+		assertNotNull("console_info answered", console);
+		assertNotNull("the deployment", console.deployment());
+		assertNotNull("the scopes", console.scopes());
+		assertTrue(console.scopes().contains("passthrough"));
+		boolean cluster = "cluster".equals(console.deployment());
+		assertEquals("drift is offered exactly on a cluster node", cluster, console.myViews().contains("drift"));
+		assertEquals("the profile's writes too", cluster, console.myFunctions().contains("cluster_setting"));
+		assertEquals(cluster, acl.clusterNode());
 	}
 
 	@Test

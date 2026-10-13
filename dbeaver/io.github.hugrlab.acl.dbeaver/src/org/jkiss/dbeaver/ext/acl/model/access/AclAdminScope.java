@@ -81,7 +81,10 @@ public class AclAdminScope extends AclPlatformObject {
 
 		@Override
 		public Object[] getPossibleValues(AclAdminScope object) {
-			return new Object[] {"observe", "operate", "cluster", "policy", "manage", "passthrough"};
+			// spec 125: the node's own vocabulary - an open node does not offer what only a platform node grants
+			org.jkiss.dbeaver.ext.acl.model.ConsoleInfo console = object.getDataSource().console();
+			return console != null ? console.grantableScopes().toArray()
+			                       : new Object[] {"observe", "operate", "cluster", "policy", "manage", "passthrough"};
 		}
 	}
 }

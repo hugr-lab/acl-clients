@@ -117,7 +117,8 @@ public class AclResourceGroup extends AclPlatformObject {
 	}
 
 	@Property(viewable = true, editable = true, updatable = true, order = 8, name = "Default",
-	          description = "The group of the principals bound to none (at most one)")
+	          description = "The group of the principals bound to none (at most one)",
+	          hideExpr = "!object.dataSource.clusterNode()") // spec 125: a node-group concept (spec 096)
 	public boolean isDefault() {
 		return edited("default", Boolean.TRUE.equals(row.get("is_default")));
 	}
