@@ -1,5 +1,6 @@
 package io.github.hugrlab.acl.dbeaver.tests;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -93,7 +94,11 @@ public class LiveAccessControlTest {
 		assertTrue(child(child(access, "Node"), "Load").getChildren(new VoidProgressMonitor())[0].getNodeDisplayName()
 		    .startsWith("node"));
 		assertTrue(tree, tree.contains("  Cluster  ["));
-		assertTrue(tree, tree.contains("    Drift  ["));
+		// spec 125: drift is offered exactly on a cluster node - a standalone one says it is and drops the folder
+		org.jkiss.dbeaver.ext.acl.model.AclDataSource acl =
+		    (org.jkiss.dbeaver.ext.acl.model.AclDataSource) ((org.jkiss.dbeaver.model.navigator.DBNDatabaseNode) access)
+		        .getDataSource();
+		assertEquals(tree, acl.clusterNode(), tree.contains("    Drift  ["));
 		assertFalse("the cluster bundle reads no policy view", tree.contains("  Roles  ["));
 	}
 

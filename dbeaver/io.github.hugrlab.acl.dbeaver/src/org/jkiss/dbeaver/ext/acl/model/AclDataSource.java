@@ -30,7 +30,8 @@ import org.jkiss.dbeaver.ext.acl.model.access.*;
  */
 public class AclDataSource extends GenericDataSource {
 	private static final Log log = Log.getLog(AclDataSource.class);
-	static final String CONSOLE_SQL = "SELECT bundles, admin_catalogs, my_views, my_functions FROM platform.console_info()";
+	// all its columns, read by name: a node older than spec 125 lacks `deployment` and `scopes`
+	static final String CONSOLE_SQL = "SELECT * FROM platform.console_info()";
 
 	/** The Main page's "trust the node's certificate" (a provider property - spec 003 addendum). */
 	public static final String PROP_TRUST_CERTIFICATE = "acl.trustCertificate";
@@ -50,8 +51,12 @@ public class AclDataSource extends GenericDataSource {
 		String mode = configuration.getProperty("acl.mode");
 		boolean data = mode == null || mode.isEmpty() || "data".equals(mode);
 		String viewAs = configuration.getProperty("acl.viewAs");
-		console = data && (viewAs == null || viewAs.isEmpty()) ? readConsole(monitor) : null;
+		readsConsole = data && (viewAs == null || viewAs.isEmpty());
+		console = readsConsole ? readConsole(monitor) : null;
 	}
+
+	/** Whether this connection reads console_info at all (data mode, no view-as). */
+	private boolean readsConsole;
 
 	/** Whether the connection trusts the node's certificate unchecked (the Main page's TLS choice). */
 	public static boolean trustsCertificate(DBPConnectionConfiguration configuration) {
@@ -90,6 +95,11 @@ public class AclDataSource extends GenericDataSource {
 
 	// --- spec 007.3: the Access control branch - shown only where console_info answered, each folder only where the
 	// principal reads its view (the node judges every read again) ------------------------------------------------
+
+	/** Whether the node is a cluster node, or an older one that does not say (spec 125: node-group options). */
+	public boolean clusterNode() {
+		return console == null || !console.standalone();
+	}
 
 	/** Whether the Access control branch is shown: the node answered console_info for this principal. */
 	public boolean isAccessControl() {
@@ -228,10 +238,13 @@ public class AclDataSource extends GenericDataSource {
 
 	@org.jkiss.dbeaver.model.meta.Association
 	public List<AclDriftEntry> getAccessDrift(DBRProgressMonitor monitor) throws DBException {
+		if (console != null && console.standalone()) {
+			return List.of(); // a standalone node has no profile to drift from (spec 118.2), and says so (spec 125)
+		}
 		try {
 			return accessRows(monitor, "drift", PlatformSql.view("drift"), r -> new AclDriftEntry(this, this, r));
 		} catch (DBException e) {
-			// a standalone node has no profile to drift from (duckdb-acl spec 118.2 refuses the view there): nothing
+			// a node older than spec 125 does not say it is standalone; it refuses the view there (spec 118.2): nothing
 			if (String.valueOf(e.getMessage()).contains("this node is standalone")) {
 				return List.of();
 			}
@@ -244,6 +257,9 @@ public class AclDataSource extends GenericDataSource {
 		synchronized (this) {
 			access.clear();
 		}
+		if (readsConsole) {
+			console = readConsole(monitor); // spec 125: a node whose parts changed is seen without a reconnect
+		}
 		return super.refreshObject(monitor);
 	}
 
@@ -252,8 +268,17 @@ public class AclDataSource extends GenericDataSource {
 		     JDBCPreparedStatement statement = session.prepareStatement(CONSOLE_SQL);
 		     JDBCResultSet rs = statement.executeQuery()) {
 			if (rs.next()) {
-				return new ConsoleInfo(strings(rs.getObject(1)), strings(rs.getObject(2)), strings(rs.getObject(3)),
-				                       strings(rs.getObject(4)));
+				java.util.Map<String, Object> row = new java.util.HashMap<>();
+				java.sql.ResultSetMetaData meta = rs.getMetaData();
+				for (int i = 1; i <= meta.getColumnCount(); i++) {
+					row.put(meta.getColumnLabel(i).toLowerCase(java.util.Locale.ROOT), rs.getObject(i));
+				}
+				Object scopes = row.get("scopes");
+				Object deployment = row.get("deployment");
+				return new ConsoleInfo(strings(row.get("bundles")), strings(row.get("admin_catalogs")),
+				                       strings(row.get("my_views")), strings(row.get("my_functions")),
+				                       deployment == null ? null : deployment.toString(),
+				                       scopes == null ? null : List.copyOf(strings(scopes)));
 			}
 		} catch (Exception e) {
 			log.debug("duckdb-acl: no console info (" + e.getMessage() + ")");
