@@ -1,0 +1,34 @@
+# A metadata ingestion of one duckdb-acl node (acl-clients spec 005): `metadata ingest -c examples/ingest.yaml`
+# with the connector installed (pip install acl-openmetadata). No credential is a value here: the node's token is
+# read from the variable tokenEnv names (or a client secret from clientSecretEnv), the OpenMetadata bot's JWT from
+# ${OM_JWT} - set them where the workflow runs.
+source:
+  type: customDatabase
+  serviceName: acl_dev
+  serviceConnection:
+    config:
+      type: CustomDatabase
+      sourcePythonClass: acl_openmetadata.source.AclNodeSource
+      connectionOptions:
+        uri: grpc+tls://localhost:32800
+        # either a token in a variable ...
+        tokenEnv: ACL_NODE_TOKEN
+        # ... or OAuth client credentials against the node's issuer (the secret in a variable):
+        # issuer: https://idp.example/realms/prod
+        # clientId: acl-om
+        # clientSecretEnv: ACL_OM_CLIENT_SECRET
+        insecure: "false"
+        # a physical source's OpenLineage namespace -> the OpenMetadata FQN prefix of its datasets
+        sourceServices: '{"postgres://pg.example:5432": "pg_prod"}'
+  sourceConfig:
+    config:
+      type: DatabaseMetadata
+sink:
+  type: metadata-rest
+  config: {}
+workflowConfig:
+  openMetadataServerConfig:
+    hostPort: http://localhost:8585/api
+    authProvider: openmetadata
+    securityConfig:
+      jwtToken: ${OM_JWT}

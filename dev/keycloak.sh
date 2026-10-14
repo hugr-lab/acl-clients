@@ -81,3 +81,18 @@ rid=$(curl -sf "$KC/admin/realms/$REALM/roles/curator" -H "$AUTH" | python3 -c '
 curl -s -o /dev/null -X POST "$KC/admin/realms/$REALM/users/$uid/role-mappings/realm" -H "$AUTH" \
 	-H "Content-Type: application/json" -d "[{\"id\":\"$rid\",\"name\":\"curator\"}]"
 echo "  user curator1 (role curator): $([ "$created" = 201 ] && echo created || echo converged)"
+# spec 005: the OpenMetadata connector's service principal - a confidential client `acl-om` whose service account holds
+# the realm role `om_connector` (dev/node.sh grants it select + lineage, ACL_OPENMETADATA=1). Its secret stays in
+# Keycloak: dev/openmetadata-e2e.sh reads it through the admin API into the run's environment only
+code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$KC/admin/realms/$REALM/roles" -H "$AUTH" \
+	-H "Content-Type: application/json" -d '{"name":"om_connector"}')
+code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$KC/admin/realms/$REALM/clients" -H "$AUTH" \
+	-H "Content-Type: application/json" -d '{
+	"clientId":"acl-om","publicClient":false,"serviceAccountsEnabled":true,
+	"standardFlowEnabled":false,"directAccessGrantsEnabled":false}')
+cid=$(curl -sf "$KC/admin/realms/$REALM/clients?clientId=acl-om" -H "$AUTH" | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["id"])')
+said=$(curl -sf "$KC/admin/realms/$REALM/clients/$cid/service-account-user" -H "$AUTH" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+rid=$(curl -sf "$KC/admin/realms/$REALM/roles/om_connector" -H "$AUTH" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+curl -s -o /dev/null -X POST "$KC/admin/realms/$REALM/users/$said/role-mappings/realm" -H "$AUTH" \
+	-H "Content-Type: application/json" -d "[{\"id\":\"$rid\",\"name\":\"om_connector\"}]"
+echo "  client acl-om (client credentials, role om_connector): $([ "$code" = 201 ] && echo created || echo converged)"

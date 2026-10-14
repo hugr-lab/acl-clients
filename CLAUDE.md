@@ -33,7 +33,10 @@ dbeaver/              the DBeaver plugin (spec 007): Tycho against one DBeaver r
                                    our navigator tree (no visibleIf - DBeaver's JEXL allows only its own packages)
   io.github.hugrlab.acl.dbeaver.tests  SWTBot UI tests in a real DBeaver; Live* need ACL_E2E_URL (dev/node.sh)
   .feature / .site                 the feature and the p2 repository (zipped: the release asset)
-dev/                  keycloak.sh, node.sh [ACL_PIPELINES=1] [ACL_METADATA=1], token.sh, jdbc-e2e.sh, marquez.sh, pipelines-e2e.sh
+integrations/openmetadata/  spec 005: the OpenMetadata connector (acl_openmetadata.source.AclNodeSource, a CustomDatabase
+                      Source over the door; types.py duckdb types -> columns, node.py the door + the principal's surfaces)
+dev/                  keycloak.sh, node.sh [ACL_PIPELINES=1] [ACL_METADATA=1] [ACL_OPENMETADATA=1], token.sh, jdbc-e2e.sh,
+                      marquez.sh, pipelines-e2e.sh, openmetadata.sh, openmetadata-e2e.sh
 specs/NNN-slug/spec.md
 ```
 
