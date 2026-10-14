@@ -3,8 +3,8 @@
 - **Status**: planned (owner, 2026-10-09: the integration lives here, in acl-clients; implemented after
   the current plan)
 - **Date**: 2026-10-09
-- **Node side**: duckdb-acl specs 107 / 112 (lineage), 113 (DDL names); a node function for definition
-  lineage (a duckdb-acl spec of its own)
+- **Node side**: duckdb-acl specs 107 / 112 (lineage), 113 (DDL names); the node function for definition
+  lineage is duckdb-acl spec 129 (`acl_lineage_definitions([catalog])`, the explicit `lineage` capability)
 - **Found by**: the OpenMetadata spike of 2026-10-09 (OpenMetadata 2.0.5 in docker, the dev node with
   acl-otel)
 
@@ -45,9 +45,11 @@ in `integrations/openmetadata/`, installed into OpenMetadata's ingestion image o
   (nested STRUCT / LIST fields as children), comments; objects no longer listed are removed. The FQN is
   `<service>.<vcat>.<schema>.<object>` - what OpenMetadata maps the node's OpenLineage names to, so
   acl-otel's runtime runs land on these entities.
-- **Definition lineage.** A node function (duckdb-acl) that answers a catalog's definition edges on
-  demand - what the `DATASET` events carry, not from the ring - and the connector writes them through
-  OpenMetadata's lineage API (virtual object <- physical source, column by column). A physical source
+- **Definition lineage.** duckdb-acl spec 129's `acl_lineage_definitions([catalog])` answers a catalog's
+  definition edges on demand - what the `DATASET` events carry, not from the ring - and the connector writes them
+  through OpenMetadata's lineage API (virtual object <- physical source, column by column). The connector's role
+  holds the explicit `lineage` capability on each catalog it syncs (`GRANT CATALOG c TO ROLE om WITH (select,
+  lineage)`); it reads only what the role sees. A physical source
   resolves when OpenMetadata knows it (its own connector, or the identity of duckdb-acl spec 112 §9).
 - **Later:** per-role tags (`acl.role.<r>`), the connector's own test-connection, a profiler.
 

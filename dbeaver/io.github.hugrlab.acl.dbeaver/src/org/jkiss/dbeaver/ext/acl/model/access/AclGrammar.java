@@ -18,9 +18,9 @@ public final class AclGrammar {
 	private AclGrammar() {
 	}
 
-	/** Every capability a grant may name (duckdb-acl spec 012 / 016 / 050 / 052 / 082 / 009), in the node's order. */
+	/** Every capability a grant may name (duckdb-acl spec 012 / 016 / 050 / 052 / 082 / 129 / 009), in the node's order. */
 	public static final List<String> CAPABILITIES = List.of("select", "insert", "update", "delete", "merge", "create",
-	                                                        "drop", "temp", "explain", "secrets", "manage");
+	                                                        "drop", "temp", "explain", "secrets", "lineage", "manage");
 
 	private static final Pattern PLAIN = Pattern.compile("[a-z_][a-z0-9_]*");
 

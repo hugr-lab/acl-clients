@@ -43,6 +43,8 @@ public class EditStatementsTest {
 		assertEquals("\"My Cat\".\"Order Items\"", AclGrammar.inCatalog("My Cat", "Order Items"));
 		assertEquals("'it''s'", AclGrammar.literal("it's"));
 		assertEquals(" WITH (select, insert)", AclGrammar.grantCaps(Set.of("insert", "select")));
+		// duckdb-acl spec 129: lineage is a capability of the node's own, written in the node's order
+		assertEquals(" WITH (select, lineage, manage)", AclGrammar.grantCaps(Set.of("manage", "lineage", "select")));
 		assertEquals(" CAPS '{}'", AclGrammar.grantCaps(Set.of()));
 		assertEquals("", AclGrammar.grantCaps(null));
 		assertEquals("'{\"select\": true, \"manage\": true}'", AclGrammar.capsJson(Set.of("manage", "select")));

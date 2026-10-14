@@ -191,7 +191,17 @@ public abstract class AclGrantObject extends AclPlatformObject {
 		setCap("secrets", held);
 	}
 
-	@Property(viewable = false, editable = true, updatable = true, order = 31, category = "Capabilities", name = "manage",
+	@Property(viewable = false, editable = true, updatable = true, order = 31, category = "Capabilities", name = "lineage",
+	          description = "The catalog's definition lineage (acl_lineage_definitions): an edge names physical objects")
+	public boolean isCapLineage() {
+		return has("lineage");
+	}
+
+	public void setCapLineage(boolean held) {
+		setCap("lineage", held);
+	}
+
+	@Property(viewable = false, editable = true, updatable = true, order = 32, category = "Capabilities", name = "manage",
 	          description = "Administer this catalog (a catalog grant)")
 	public boolean isCapManage() {
 		return has("manage");
