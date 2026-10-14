@@ -347,8 +347,10 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
   (a MAP) reads back into the properties; a source's options (JSON) as ATTACH writes them. "Applied here" lists the
   effective items, read only (`AclClusterEffective`). The answer a CLUSTER statement gives (class, applied here, note)
   is not shown yet - the items' Class column says how a change reaches the nodes.
-- **Dev**: `ACL_CLUSTER=1 dev/node.sh` makes a cluster node (`acl_deployment = 'cluster'`); ops1 holds the cluster
-  bundle.
+- **Dev**: `ACL_CLUSTER=1 dev/node.sh` makes a cluster node; ops1 holds the cluster bundle. Since 2026-10-14 it runs
+  hugr-node's hugr_node (`HUGR_REPO`, built with `HUGR_NODE_DEV=1` - hugr-node spec 004): the cluster part left
+  duckdb-acl (its spec 127), and a hugr_node node is a cluster node by construction (hugr-node spec 002 removed
+  `acl_deployment`, which the mode used to set).
 - **Tests**: unit `EditStatementsTest.nodeAndCluster`; live `LiveOperateTest` (ops1: analyst2's session found by its
   appearance, its audit and profile levels set, killed; drain then resume; on a cluster node an item made, read back,
   dropped through the editor's path, and the drift's statement into the profile).
