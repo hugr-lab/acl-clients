@@ -10,6 +10,9 @@
 #       by acl-otel when ACL_OTEL names its built extension
 #   ACL_CLUSTER=1 dev/node.sh                      # a cluster node (acl_deployment = 'cluster'): the profile's
 #       CLUSTER writes and its drift (the DBeaver plugin's 008.3 - ops1 holds the cluster bundle)
+#   ACL_OPENMETADATA=1 dev/node.sh                 # + spec 005's connector: ACL_METADATA's objects, a lineage
+#       namespace (acl://dev), the role om_connector (Keycloak's client acl-om) with select + lineage on sales and
+#       inventory - what dev/openmetadata-e2e.sh ingests
 #   ACL_METADATA=1 dev/node.sh                     # + what a tool's tree shows (spec 006): nested types with a
 #       COMMENT (a STRUCT in a LIST too), a view, table functions, a nested schema sales.raw.eu, a second
 #       catalog, a masked column
@@ -60,6 +63,7 @@ SET GLOBAL acl_lineage_level = 'on';
 SET GLOBAL acl_lineage_namespace = 'acl://dev';"
 	PIPELINES_SERVE="SELECT acl_quack_serve('quack:0.0.0.0:$QUACK_PORT', 'dev-quack-server-token', '$WORK/node.crt', '$WORK/node.key');"
 fi
+[ -n "${ACL_OPENMETADATA:-}" ] && ACL_METADATA=1
 METADATA=""
 if [ -n "${ACL_METADATA:-}" ]; then
 	# spec 006: every kind of object a JDBC tool lists, granted to the ordinary role analyst
@@ -99,6 +103,17 @@ ACL ADMIN CREATE VIRTUAL TABLE inventory.products AS memory.main.products COMMEN
 ACL ADMIN GRANT CATALOG inventory TO ROLE analyst WITH (select);
 SET GLOBAL acl_allow_anonymous_admin = false;"
 fi
+OPENMETADATA=""
+if [ -n "${ACL_OPENMETADATA:-}" ]; then
+	# spec 005: the connector reads what its role sees, and the definition lineage where it holds `lineage`
+	# (duckdb-acl spec 129) - names under the namespace OpenMetadata's service mapping meets
+	OPENMETADATA="SET GLOBAL acl_lineage_namespace = 'acl://dev';
+SET GLOBAL acl_allow_anonymous_admin = true;
+ACL ADMIN CREATE ROLE om_connector;
+ACL ADMIN GRANT CATALOG sales TO ROLE om_connector WITH (select, lineage) MAIN;
+ACL ADMIN GRANT CATALOG inventory TO ROLE om_connector WITH (select, lineage);
+SET GLOBAL acl_allow_anonymous_admin = false;"
+fi
 cat > "$WORK/node.sql" <<SQL
 LOAD httpfs;
 $OTEL
@@ -136,6 +151,7 @@ ACL ADMIN MAP CLAIM 'curator' FROM CLIENT '$KC_REALM' TO ROLE curator;
 SET GLOBAL acl_allow_anonymous_admin = false;
 $PIPELINES
 $METADATA
+$OPENMETADATA
 SELECT acl_flight_serve('grpc+tls://0.0.0.0:$PORT', '$WORK/node.crt', '$WORK/node.key');
 $PIPELINES_SERVE
 SELECT 'node up: grpc+tls://localhost:$PORT' AS status;

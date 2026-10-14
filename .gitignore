@@ -19,3 +19,7 @@ dbeaver/.dbeaver/
 dbeaver/io.github.hugrlab.acl.jdbc/lib/*.jar
 dbeaver/**/target/
 dbeaver/io.github.hugrlab.acl.dbeaver.tests/screenshots/
+# spec 005: OpenMetadata's dev volumes (dev/openmetadata-compose.yml binds them next to it), Python's artefacts
+dev/docker-volume/
+*.egg-info/
+.pytest_cache/

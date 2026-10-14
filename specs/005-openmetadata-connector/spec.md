@@ -1,7 +1,6 @@
 # Spec 005: an OpenMetadata connector for duckdb-acl nodes
 
-- **Status**: planned (owner, 2026-10-09: the integration lives here, in acl-clients; implemented after
-  the current plan)
+- **Status**: implemented (owner, 2026-10-09: the integration lives here, in acl-clients; built 2026-10-14)
 - **Date**: 2026-10-09
 - **Node side**: duckdb-acl specs 107 / 112 (lineage), 113 (DDL names); the node function for definition
   lineage is duckdb-acl spec 129 (`acl_lineage_definitions([catalog])`, the explicit `lineage` capability)
@@ -74,3 +73,36 @@ OpenMetadata - the runs' edges on the connector's entities.
   changes what every backend sees.
 - **Upstream: `DatasetEvent` support in OpenMetadata** - the right layer for the static picture; not
   filed (owner, 2026-10-09: wait).
+
+## As built (2026-10-14)
+
+- `integrations/openmetadata/` (MIT, `acl-openmetadata` 0.1.0, openmetadata-ingestion ~=2.0.5, Python 3.10-3.11):
+  `acl_openmetadata.source.AclNodeSource` - a CustomDatabase `Source`: the service, a database per catalog
+  (`duckdb_databases()`'s comment its description), the schemas of `information_schema.schemata`, the tables and
+  views of `information_schema.tables` (VIEW -> `TableType.View`, `TABLE_COMMENT` the description), the columns of
+  `information_schema.columns` (`types.py`: duckdb's type text parsed - STRUCT / UNION fields as children, `T[]` and
+  `T[n]` as ARRAY with their element type, MAP, DECIMAL's precision and scale, duckdb's own scalars mapped before
+  OpenMetadata's ColumnTypeParser, an unbounded VARCHAR with the length 1 OpenMetadata requires, the node's text the
+  display); then the deletions (walked down: databases by service, schemas by database, tables by schema - what the
+  node no longer lists, soft-deleted); then the lineage: `acl_lineage_definitions()` planned into table edges with
+  column lineage (`plan_lineage`: DIRECT edges into a field are column lineage, a nested field path a nested column,
+  an INDIRECT edge draws the table edge), each end resolved by FQN, written as `AddLineageRequest`
+  (`ViewLineage`). A role without `lineage` syncs the catalog and logs that no lineage follows.
+- **The connection** (`node.py`): ADBC Flight SQL, the cookie middleware (one door session), autocommit (reads only),
+  a bearer from `tokenEnv` or OAuth client credentials (`issuer` + `clientId` + `clientSecretEnv`, the endpoint by
+  discovery). A credential as a connection option (`token`, `clientSecret`, `password`, `secret`) is refused:
+  OpenMetadata stores connection options in the clear.
+- **dev**: `dev/openmetadata-compose.yml` (the 2.0.5 release's postgres compose without Airflow, the server on
+  127.0.0.1:8585), `dev/openmetadata.sh`, the Keycloak client `acl-om` (client credentials, the realm role
+  `om_connector` - `dev/keycloak.sh`), `ACL_OPENMETADATA=1 dev/node.sh` (ACL_METADATA's objects, the namespace
+  `acl://dev`, the role `om_connector` with select + lineage on sales and inventory), `dev/openmetadata-e2e.sh` +
+  `dev/openmetadata_e2e.py`: the physical side made in OpenMetadata (`dev_memory.memory.*`, as its own connector
+  would), then the ingestion and its checks - the service; a table under `<service>.<catalog>.<schema>` with a STRUCT
+  column's fields, the type text (lower-cased by OpenMetadata), the comment; a View; the nested schema `"raw.eu"`; a
+  catalog without a grant absent; the second catalog; the definition lineage table <- source, column by column, a
+  view's; a re-run keeping the entity; an object dropped on the node (a steward's `DROP VIRTUAL TABLE`) soft-deleted,
+  restored on the node and back. The credentials (the ingestion bot's JWT, acl-om's secret, the steward's token) are
+  fetched into the run's environment, never written.
+- CI: the connector's unit tests (Python 3.11).
+- Found: OpenMetadata 2.0.5's python client answers None for `get_by_name(..., include="all")`; the lineage API's
+  edges name entity ids.

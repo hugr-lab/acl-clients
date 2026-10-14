@@ -77,6 +77,22 @@ jobs:
           name: acl-dbeaver-p2
           path: dbeaver/io.github.hugrlab.acl.dbeaver.site/target/*.zip
 
+  openmetadata:
+    # spec 005: the OpenMetadata connector's unit tests (types, lineage planning, no credential as a value); its
+    # end to end (dev/openmetadata-e2e.sh) needs OpenMetadata, Keycloak and a node - a developer's machine
+    name: OpenMetadata connector
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Unit tests
+        working-directory: integrations/openmetadata
+        run: |
+          pip install -q -e ".[test]"
+          python -m pytest -q tests
+
   examples:
     name: Examples build
     runs-on: ubuntu-latest
