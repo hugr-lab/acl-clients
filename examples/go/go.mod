@@ -1,6 +1,6 @@
 module github.com/hugr-lab/acl-clients/examples/go
 
-go 1.26.1
+go 1.27.3
 
 require (
 	github.com/apache/arrow-adbc/go/adbc v1.12.0
