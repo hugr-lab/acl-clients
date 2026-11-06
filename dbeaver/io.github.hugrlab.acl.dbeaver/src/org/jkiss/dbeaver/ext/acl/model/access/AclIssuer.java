@@ -100,9 +100,12 @@ public class AclIssuer extends AclPlatformObject {
 
 	@Override
 	public List<String> createStatements() throws DBException {
-		StringBuilder sql = new StringBuilder("CREATE ISSUER ").append(AclGrammar.ident(getName()));
+		String name = AclGrammar.ident(getName());
+		StringBuilder sql = new StringBuilder("CREATE ISSUER ").append(name);
 		if (!AclGrammar.isBlank(getUrl())) {
 			sql.append(" URL ").append(AclGrammar.literal(getUrl().trim()));
+		} else if (name.startsWith("\"")) {
+			sql.append(" URL ''"); // the node reads a quoted name with no URL as the short form's URL
 		}
 		if (!AclGrammar.isBlank(getSecret())) {
 			sql.append(' ').append(fromSecret(getSecret(), getSecretService()));
@@ -114,6 +117,13 @@ public class AclIssuer extends AclPlatformObject {
 	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) {
 		String alter = "ALTER ISSUER " + AclGrammar.ident(getName());
 		List<String> out = new ArrayList<>();
+		boolean toSecret = changed.contains("url") && AclGrammar.isBlank(getUrl()) && !AclGrammar.isBlank(getSecret())
+		                   && (changed.contains("secret") || changed.contains("secretService"));
+		if (toSecret) {
+			// from a URL to a secret carrying it: one statement - the node judges each, and either half alone is refused
+			out.add(alter + " SET URL '' " + fromSecret(getSecret(), getSecretService()));
+			return out;
+		}
 		if (changed.contains("url")) {
 			out.add(alter + " SET URL " + AclGrammar.literal(getUrl() == null ? "" : getUrl().trim()));
 		}

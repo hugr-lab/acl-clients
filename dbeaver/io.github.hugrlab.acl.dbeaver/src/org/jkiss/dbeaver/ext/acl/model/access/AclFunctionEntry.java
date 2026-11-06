@@ -207,7 +207,7 @@ public class AclFunctionEntry extends AclPlatformObject {
 		StringBuilder sql = new StringBuilder("CREATE VIRTUAL ").append(kindWord()).append(' ').append(target());
 		String comment = getComment();
 		if (isAlias()) {
-			sql.append(" ALIAS OF ").append(AclGrammar.path(required(getTarget(), "an alias's physical function (Target)")));
+			sql.append(" ALIAS OF ").append(AclGrammar.functionPath(required(getTarget(), "an alias's physical function (Target)")));
 			if (!AclGrammar.isBlank(comment)) {
 				sql.append(" COMMENT ").append(AclGrammar.literal(comment));
 			}
@@ -239,7 +239,7 @@ public class AclFunctionEntry extends AclPlatformObject {
 			out.add(alter + " SET MACRO " + getTemplate().trim());
 		}
 		if (changed.contains("target") && isAlias()) {
-			out.add(alter + " SET ALIAS OF " + AclGrammar.path(getTarget().trim()));
+			out.add(alter + " SET ALIAS OF " + AclGrammar.functionPath(getTarget().trim()));
 		}
 		if (changed.contains("primaryKey") && isTable()) {
 			String key = getPrimaryKey(monitor);

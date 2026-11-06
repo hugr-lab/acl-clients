@@ -60,7 +60,7 @@ public class AclAdminScope extends AclPlatformObject {
 	}
 
 	private String bundle() {
-		return AclGrammar.ident(edited("name", text("scope")));
+		return AclGrammar.word(edited("name", text("scope"))); // a scope is a word: `policy`, `cluster` are keywords
 	}
 
 	@Override

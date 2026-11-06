@@ -245,7 +245,7 @@ public class AclClusterItem extends AclPlatformObject {
 			                            + AclGrammar.literal(getVersion() == null ? "" : getVersion().trim())
 			                            + (AclGrammar.isBlank(getRepository()) ? "" : " FROM " + AclGrammar.ident(getRepository().trim()))
 			                            + inGroup() + comment());
-			default -> List.of("CLUSTER SET " + AclGrammar.ident(getName()) + " = " + AclDriftEntry.value(getValue()) + inGroup());
+			default -> List.of("CLUSTER SET " + AclGrammar.word(getName()) + " = " + AclDriftEntry.value(getValue()) + inGroup());
 		};
 	}
 
@@ -269,7 +269,7 @@ public class AclClusterItem extends AclPlatformObject {
 		return switch (getKind()) {
 			case "source" -> List.of("CLUSTER DETACH " + AclGrammar.ident(getName()) + inGroup());
 			case "extension" -> List.of("CLUSTER REMOVE EXTENSION " + AclGrammar.ident(getName()) + inGroup());
-			default -> List.of("CLUSTER RESET " + AclGrammar.ident(getName()) + inGroup());
+			default -> List.of("CLUSTER RESET " + AclGrammar.word(getName()) + inGroup());
 		};
 	}
 

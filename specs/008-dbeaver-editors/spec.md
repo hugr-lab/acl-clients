@@ -181,7 +181,8 @@ A PR each, with three review passes and the build, UI tests and install check gr
   (`OSGI-INF/l10n/bundle`): DBeaver reads it for every property it collects to edit.
 - **The composer** (`AclGrammar` + each class's `createStatements` / `alterStatements(changed)` / `dropStatements`):
   names from the rows' canonical keys, a part quoted when it is not a plain lower-case name or is a duckdb reserved
-  word (the grammar's own words read as names - checked on the node); text as `'…'`, quotes doubled; a user's clause
+  word (the grammar's own words read as names - checked on the node; since 2026-11-06 as duckdb's writer quotes
+  one, see "Names as duckdb writes them" below); text as `'…'`, quotes doubled; a user's clause
   (RLS, COLUMNS, claims, view SQL, key) written as typed - the preview shows it.
   - **Role**: `CREATE ROLE r [CLAIMS (…)]` + `ALTER ROLE r SET COMMENT` (CREATE has no comment clause); `SET CLAIMS (…)`
     / `''`, `SET COMMENT`; `DROP ROLE`. The default claims are one text property, the list form
@@ -372,3 +373,39 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
   schemas, functions, references and grants.
 - Tests: `LiveConsoleTest.aFunctionsDefinitionTab`; `LiveEditTest` - an expansion record's columns, a mapping without
   its scope refused by name.
+
+### Names as duckdb writes them (2026-11-06, duckdb-acl spec 150 4a)
+
+- The node now reads a name in a management statement exactly as duckdb reads an identifier: a reserved word and a
+  word only a function or a type may be (`full`, `left`, `join`) are no names bare. The composer's `AclGrammar.ident`
+  quotes a part as duckdb's own writer does (`KeywordHelper::RequiresQuotes`, capitals allowed): bare only a plain
+  word that is no duckdb keyword of any category (`duckdb_keywords()` at duckdb v2.0.0). That is also how the node
+  writes a name back in a repair statement, so a finding's alternatives find the object again (`c."data"`, `Sales`
+  where `c.data` / `"Sales"` missed).
+- Not every word is a name: an admin scope and a cluster setting's name are WORDS to the node (`AclGrammar.word`: as
+  they are - `policy`, `cluster`, `schema` are keywords, and the node refuses a quoted word). A column in a column list
+  (a grant's, a relation's) keeps the spelling it had (`fieldIdent` - lower-case words bare, anything else quoted), and
+  a relation's stored rename keeps its physical side AS WRITTEN while it stays a rename (`RelationColumns`): the node
+  reads those with duckdb's parser and its spec 102 path reader, and there a spelling changes meaning - a quoted
+  physical column is a computed reading (the relation read-only), a bare one a rename (writable), so an edit of
+  another column re-spelling `n = "name"` as `n = name` gave the relation writes (and `s = Sales` as `s = "Sales"`
+  took them). A physical function's name is quoted only where the node does not read it bare (`functionParts`:
+  `system.main.upper`, `left`, `"left".main.f`) - its spelling changes nothing there but how it shows.
+- `CREATE ISSUER "<name>"` with no URL is the node's short form (the quoted name IS the URL), so a quoted name with
+  no URL (an issuer whose URL is its secret's) is written `CREATE ISSUER "admin" URL '' FROM SECRET s`.
+- Found by the reviews beside it, fixed: a relation WITH a list never composes back to none - an edit that left every
+  column as itself (a mark cleared, an edit reverted) wrote `SET COLUMNS ''`, the alias form, writable and open to new
+  source columns, where the list was read-only; an issuer moved from a URL to a secret carrying it is ONE statement
+  (`ALTER ISSUER kc SET URL '' FROM SECRET s` - the node judges each statement, and either half alone is refused).
+- Known: against a node before 4a the repair alternatives miss a keyword-named object (that node wrote `c.data`), and
+  the keyword list is duckdb v2.0.0's - a pin bump compares it with `duckdb_keywords()`. A new rename of a source
+  column named like a function-only keyword composes `l = left`, which the node refuses (the read-only `l = "left"`
+  is the one spelling it takes - fails closed); the Columns model keeps one entry per source column (`n = name, m =
+  "name"` loses one at an edit); changing a function grant's Allowed re-grants without its kind, which fails for a
+  function the node does not have; the node cannot move an issuer from a secret carrying its URL back to a URL by
+  ALTER (`SET URL` is "both", `DROP FROM SECRET` "no URL" - duckdb-acl follow-up).
+- Tests: `EditStatementsTest.namesAndLiterals` (`full`, `left`, `data`, `Default`, `Sales`, `9t`, `größe`), the
+  scope `policy` and the setting `schema` as words, `RepairStatementsTest.alternatives` (the node's spelling of a
+  keyword and a capital), `RelationColumnsTest.keywordColumnsKeepTheirSpelling` (a stored rename's spelling
+  through another column's edit, a later list, a list kept a list), `EditStatementsTest.identity` (`URL ''`, the
+  move to a secret), `functionPath` cases.

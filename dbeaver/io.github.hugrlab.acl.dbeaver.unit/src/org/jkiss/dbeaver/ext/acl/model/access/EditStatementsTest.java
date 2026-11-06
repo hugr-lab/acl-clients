@@ -37,6 +37,20 @@ public class EditStatementsTest {
 		assertEquals("analyst", AclGrammar.ident("analyst"));
 		assertEquals("\"Mixed Case\"", AclGrammar.ident("Mixed Case"));
 		assertEquals("\"order\"", AclGrammar.ident("order"));
+		// duckdb-acl spec 150 4a: quoted as duckdb's writer quotes - every keyword (a function-only word like `full` or
+		// `left` is no name bare), capitals bare - so the composer's spelling is the node's in a repair text
+		assertEquals("\"full\"", AclGrammar.ident("full"));
+		assertEquals("\"left\"", AclGrammar.ident("left"));
+		assertEquals("\"data\"", AclGrammar.ident("data"));
+		assertEquals("\"Default\"", AclGrammar.ident("Default"));
+		assertEquals("Sales", AclGrammar.ident("Sales"));
+		assertEquals("\"9t\"", AclGrammar.ident("9t"));
+		assertEquals("\"größe\"", AclGrammar.ident("größe"));
+		// a physical function's name: quoted only where the node does not read it bare
+		assertEquals("system.main.upper", AclGrammar.functionPath("system.main.upper"));
+		assertEquals("left", AclGrammar.functionPath("left"));
+		assertEquals("\"left\".main.f", AclGrammar.functionPath("left.main.f"));
+		assertEquals("\"select\"", AclGrammar.functionPath("select"));
 		assertEquals("\"say \"\"hi\"\"\"", AclGrammar.ident("say \"hi\""));
 		assertEquals("raw.eu.events", AclGrammar.path("raw.eu.events"));
 		assertEquals("\"a.b\"", AclGrammar.path("\"a.b\""));
@@ -285,11 +299,21 @@ public class EditStatementsTest {
 		issuer.setSecret("kc_keys");
 		issuer.setSecretService("corp");
 		assertEquals(List.of("CREATE ISSUER kc URL 'https://kc/realms/x' FROM SECRET kc_keys IN corp"), issuer.createStatements());
+		// a quoted name with no URL would be the short form's URL - `URL ''` keeps it a name (the URL is the secret's)
+		AclIssuer keyword = new AclIssuer(null, null, Map.of());
+		keyword.setName("admin");
+		keyword.setSecret("kc_keys");
+		assertEquals(List.of("CREATE ISSUER \"admin\" URL '' FROM SECRET kc_keys"), keyword.createStatements());
 		AclIssuer stored = new AclIssuer(null, null, row("name", "kc", "url", "https://a", "secret", "s"));
 		stored.setUrl("https://b");
 		stored.setSecret("");
 		assertEquals(List.of("ALTER ISSUER kc SET URL 'https://b'", "ALTER ISSUER kc DROP FROM SECRET"),
 		             stored.alterStatements(null, Set.of("url", "secret")));
+		// from a URL to a secret carrying it: one statement (either half alone is refused by the node)
+		AclIssuer moving = new AclIssuer(null, null, row("name", "kc", "url", "https://a"));
+		moving.setUrl("");
+		moving.setSecret("kc_keys");
+		assertEquals(List.of("ALTER ISSUER kc SET URL '' FROM SECRET kc_keys"), moving.alterStatements(null, Set.of("url", "secret")));
 
 		AclClient client = new AclClient(null, stored, Map.of());
 		client.setName("desktop");
@@ -385,6 +409,10 @@ public class EditStatementsTest {
 		scope.setName("observe");
 		assertEquals(List.of("GRANT ADMIN observe TO ROLE auditor"), scope.createStatements());
 		assertEquals(List.of("REVOKE ADMIN observe FROM ROLE auditor"), scope.dropStatements());
+		// a scope is a word to the node, never a quoted name - `policy` and `cluster` are duckdb keywords
+		scope.setName("policy");
+		assertEquals(List.of("GRANT ADMIN policy TO ROLE auditor"), scope.createStatements());
+		assertEquals(List.of("REVOKE ADMIN policy FROM ROLE auditor"), scope.dropStatements());
 		AclPlatformGrant view = new AclPlatformGrant(null, role, Map.of());
 		view.setObject("sessions");
 		assertEquals(List.of("GRANT VIEW platform.sessions TO ROLE auditor"), view.createStatements());
@@ -425,6 +453,12 @@ public class EditStatementsTest {
 		threads.setValue("2GB");
 		assertEquals(List.of("CLUSTER SET threads = '2GB' IN GROUP g1"), threads.createStatements());
 		assertEquals(List.of("CLUSTER RESET threads IN GROUP g1"), threads.dropStatements());
+		// a setting's name is a word too (`schema`, `user` are keywords; `TimeZone` keeps its capitals)
+		AclClusterItem schema = new AclClusterItem(null, null, Map.of());
+		schema.setName("schema");
+		schema.setValue("main");
+		assertEquals(List.of("CLUSTER SET schema = 'main'"), schema.createStatements());
+		assertEquals(List.of("CLUSTER RESET schema"), schema.dropStatements());
 		AclClusterItem source = new AclClusterItem(null, null, Map.of());
 		source.setKind("source");
 		source.setName("pg");

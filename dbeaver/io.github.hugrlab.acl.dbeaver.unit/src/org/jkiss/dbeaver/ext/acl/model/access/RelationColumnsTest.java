@@ -15,6 +15,30 @@ public class RelationColumnsTest {
 		    new String[] {"amount", "INTEGER"}, new String[] {"ssn", "VARCHAR"}, new String[] {"Odd Name", "VARCHAR"}));
 	}
 
+	/** duckdb-acl spec 150 4a: a keyword-named column keeps its spelling - a quote decides a relation's writability. */
+	@Test
+	public void keywordColumnsKeepTheirSpelling() {
+		RelationColumns table = new RelationColumns(List.of(new String[] {"id", "INTEGER"}, new String[] {"name", "VARCHAR"},
+		    new String[] {"Sales", "INTEGER"}));
+		for (String list : new String[] {"i = id, n = name", "i = id, s = \"Sales\"", "i = id, s = Sales",
+		                                 "i = id, n = \"name\""}) {
+			table.apply(list);
+			assertEquals(list, table.compose());
+		}
+		// an edit of another column keeps a stored rename's physical side as written
+		table.apply("i = id, n = \"name\"");
+		table.columns().get(0).as = "ident";
+		assertEquals("ident = id, n = \"name\"", table.compose());
+		// a later list forgets it: a new rename is written by the rule
+		table.apply("i = id, name");
+		table.columns().get(1).as = "n";
+		assertEquals("i = id, n = name", table.compose());
+		// a list never collapses to none (the alias form - writable): every column as itself stays listed
+		table.apply("id, name, \"Sales\" NOT NULL");
+		table.columns().get(2).nullable = "";
+		assertEquals("id, name, \"Sales\"", table.compose());
+	}
+
 	@Test
 	public void noListIsTheAliasForm() {
 		RelationColumns table = orders();

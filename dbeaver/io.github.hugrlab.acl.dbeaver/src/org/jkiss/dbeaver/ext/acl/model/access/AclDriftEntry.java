@@ -66,7 +66,7 @@ public class AclDriftEntry extends AclPlatformObject implements Operable {
 		}
 		String name = AclGrammar.ident(getName());
 		return switch (String.valueOf(text("kind"))) {
-			case "setting" -> List.of("CLUSTER SET " + name + " = " + value(text("node_value")));
+			case "setting" -> List.of("CLUSTER SET " + AclGrammar.word(getName()) + " = " + value(text("node_value")));
 			case "database" -> List.of("CLUSTER ATTACH " + AclGrammar.literal(text("node_value")) + " AS " + name
 			                           + " (TYPE <type>, SECRET <secret>)",
 			                           "CLUSTER ATTACH " + AclGrammar.literal(text("node_value")) + " AS " + name + " (TYPE <type>)");

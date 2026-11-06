@@ -19,6 +19,15 @@ public class RepairStatementsTest {
 		assertEquals(List.of("ALTER VIRTUAL SCHEMA c.raw REFRESH"),
 		             RepairStatements.alternatives("ALTER VIRTUAL SCHEMA c.raw REFRESH", "c.raw"));
 		assertEquals(List.of(), RepairStatements.alternatives("", "c.x"));
+		// the node names a keyword or a capital as duckdb's writer does (duckdb-acl spec 150 4a), and so does the composer
+		assertEquals(List.of("REPAIR VIRTUAL TABLE c.\"data\" REMAP (b = <column>)",
+		                     "REPAIR VIRTUAL TABLE c.\"data\" DROP MISSING COLUMNS"),
+		             RepairStatements.alternatives("REPAIR VIRTUAL TABLE c.\"data\" REMAP (b = <column>)  -- or DROP MISSING COLUMNS",
+		                                           AclGrammar.inCatalog("c", "data")));
+		assertEquals(List.of("REPAIR VIRTUAL TABLE Sales.\"order\" REMAP (b = <column>)",
+		                     "REPAIR VIRTUAL TABLE Sales.\"order\" DROP MISSING COLUMNS"),
+		             RepairStatements.alternatives("REPAIR VIRTUAL TABLE Sales.\"order\" REMAP (b = <column>)  -- or DROP MISSING COLUMNS",
+		                                           AclGrammar.inCatalog("Sales", "order")));
 	}
 
 	@Test

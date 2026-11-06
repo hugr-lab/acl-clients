@@ -19,6 +19,9 @@ public final class RelationColumns {
 		public String as;               // the name the virtual table gives it
 		public String expression = "";  // a mask over the physical row; empty = the column itself
 		public String nullable = "";    // "", "NOT NULL" or "NULL"
+		// the physical side of a stored rename as written (`n = "name"`): written back as it was - the node reads a
+		// quoted physical column as a computed reading (read-only) and a bare one as a rename (writable)
+		String renamedFrom;
 
 		Column(String name, String type) {
 			this.name = name;
@@ -42,6 +45,9 @@ public final class RelationColumns {
 	private final List<Column> columns = new ArrayList<>();
 	private final List<Computed> computed = new ArrayList<>();
 	private final List<String> unknown = new ArrayList<>();
+	// whether the applied text was a list: a relation with one never goes back to none by an edit - no list is the
+	// alias form (writable, every source column as it comes), a list of every column as itself is read-only
+	private boolean listed;
 
 	/** The source's columns - (name, type) as the node lists them. */
 	public RelationColumns(List<String[]> physical) {
@@ -101,11 +107,13 @@ public final class RelationColumns {
 				items.add(item.trim());
 			}
 		}
+		listed = !items.isEmpty();
 		for (Column column : columns) {
 			column.exposed = items.isEmpty();
 			column.as = column.name;
 			column.expression = "";
 			column.nullable = "";
+			column.renamedFrom = null;
 		}
 		for (String item : items) {
 			String[] marked = mark(item);
@@ -132,6 +140,7 @@ public final class RelationColumns {
 				renamed.exposed = true; // new_name = column
 				renamed.as = unquote(left);
 				renamed.nullable = marked[1];
+				renamed.renamedFrom = right;
 			} else if (target != null) {
 				target.exposed = true; // a mask over the physical row
 				target.expression = right;
@@ -151,7 +160,7 @@ public final class RelationColumns {
 			plain &= column.exposed && column.as.equals(column.name) && column.expression.isEmpty()
 			         && column.nullable.isEmpty();
 		}
-		if (plain) {
+		if (plain && !listed) {
 			return "";
 		}
 		List<String> items = new ArrayList<>();
@@ -159,16 +168,16 @@ public final class RelationColumns {
 			if (!column.exposed) {
 				continue;
 			}
-			String item = AclGrammar.ident(column.as);
+			String item = AclGrammar.fieldIdent(column.as);
 			if (!column.expression.isEmpty()) {
 				item += " = " + column.expression;
 			} else if (!column.as.equals(column.name)) {
-				item += " = " + AclGrammar.ident(column.name);
+				item += " = " + (column.renamedFrom != null ? column.renamedFrom : AclGrammar.fieldIdent(column.name));
 			}
 			items.add(item + (column.nullable.isEmpty() ? "" : " " + column.nullable));
 		}
 		for (Computed made : computed) {
-			items.add(AclGrammar.ident(made.name) + " = " + made.expression
+			items.add(AclGrammar.fieldIdent(made.name) + " = " + made.expression
 			          + (made.nullable.isEmpty() ? "" : " " + made.nullable));
 		}
 		items.addAll(unknown);
