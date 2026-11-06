@@ -55,7 +55,7 @@ public final class GrantColumns {
 	/** The object's columns - (name, type) as the node answers them. */
 	public GrantColumns(List<String[]> exposed) {
 		for (String[] column : exposed) {
-			columns.add(node(column[0], AclGrammar.ident(column[0]), column[1]));
+			columns.add(node(column[0], AclGrammar.fieldIdent(column[0]), column[1]));
 		}
 	}
 
@@ -80,7 +80,7 @@ public final class GrantColumns {
 			for (String field : split(inner.substring(7, inner.length() - 1), ',')) {
 				String[] nameType = fieldNameType(field.trim());
 				if (nameType != null) {
-					String child = path + (list ? "[]" : "") + "." + AclGrammar.ident(nameType[0]);
+					String child = path + (list ? "[]" : "") + "." + AclGrammar.fieldIdent(nameType[0]);
 					made.children.add(node(nameType[0], child, nameType[1]));
 				}
 			}

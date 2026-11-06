@@ -37,6 +37,15 @@ public class EditStatementsTest {
 		assertEquals("analyst", AclGrammar.ident("analyst"));
 		assertEquals("\"Mixed Case\"", AclGrammar.ident("Mixed Case"));
 		assertEquals("\"order\"", AclGrammar.ident("order"));
+		// duckdb-acl spec 150 4a: quoted as duckdb's writer quotes - every keyword (a function-only word like `full` or
+		// `left` is no name bare), capitals bare - so the composer's spelling is the node's in a repair text
+		assertEquals("\"full\"", AclGrammar.ident("full"));
+		assertEquals("\"left\"", AclGrammar.ident("left"));
+		assertEquals("\"data\"", AclGrammar.ident("data"));
+		assertEquals("\"Default\"", AclGrammar.ident("Default"));
+		assertEquals("Sales", AclGrammar.ident("Sales"));
+		assertEquals("\"9t\"", AclGrammar.ident("9t"));
+		assertEquals("\"größe\"", AclGrammar.ident("größe"));
 		assertEquals("\"say \"\"hi\"\"\"", AclGrammar.ident("say \"hi\""));
 		assertEquals("raw.eu.events", AclGrammar.path("raw.eu.events"));
 		assertEquals("\"a.b\"", AclGrammar.path("\"a.b\""));
@@ -241,7 +250,7 @@ public class EditStatementsTest {
 		alias2.setName("rng");
 		alias2.setForm("alias");
 		alias2.setTarget("range");
-		assertEquals(List.of("CREATE VIRTUAL TABLE FUNCTION c.rng ALIAS OF range"), alias2.createStatements());
+		assertEquals(List.of("CREATE VIRTUAL TABLE FUNCTION c.rng ALIAS OF \"range\""), alias2.createStatements());
 		AclFunctionEntry storedFn = new AclFunctionEntry(null, catalog, row("catalog", "c", "name", "sh", "kind", "scalar",
 		                                                                   "form", "macro", "template", "upper(acl_arg(1))"));
 		storedFn.setTemplate("lower(acl_arg(1))");
@@ -346,7 +355,7 @@ public class EditStatementsTest {
 		assertEquals(List.of("ALTER FUNCTION CATEGORY mine ADD (range TABLE)"), member.createStatements());
 		AclCategoryMember storedMember = new AclCategoryMember(null, storedCategory, row("database", "system", "schema",
 		                                                                                 "main", "name", "upper", "kind", "scalar"));
-		assertEquals(List.of("ALTER FUNCTION CATEGORY mine DROP (system.main.upper)"), storedMember.dropStatements());
+		assertEquals(List.of("ALTER FUNCTION CATEGORY mine DROP (\"system\".main.upper)"), storedMember.dropStatements());
 
 		AclFunctionGrant grant = new AclFunctionGrant(null, null, Map.of());
 		grant.setCategory("mine");
@@ -356,7 +365,7 @@ public class EditStatementsTest {
 		assertEquals(List.of("DENY FUNCTION CATEGORY mine TO ROLE analyst"), grant.createStatements());
 		AclFunctionGrant everyone = new AclFunctionGrant(null, null, row("role", "", "database", "system", "schema", "main",
 		                                                                 "name", "lower", "kind", "scalar", "allowed", true));
-		assertEquals(List.of("REVOKE FUNCTION system.main.lower FROM ALL ROLES"), everyone.dropStatements());
+		assertEquals(List.of("REVOKE FUNCTION \"system\".main.lower FROM ALL ROLES"), everyone.dropStatements());
 
 		AclResourceGroup group = new AclResourceGroup(null, null, Map.of());
 		group.setName("g");

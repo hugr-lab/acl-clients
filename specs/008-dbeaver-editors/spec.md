@@ -181,7 +181,8 @@ A PR each, with three review passes and the build, UI tests and install check gr
   (`OSGI-INF/l10n/bundle`): DBeaver reads it for every property it collects to edit.
 - **The composer** (`AclGrammar` + each class's `createStatements` / `alterStatements(changed)` / `dropStatements`):
   names from the rows' canonical keys, a part quoted when it is not a plain lower-case name or is a duckdb reserved
-  word (the grammar's own words read as names - checked on the node); text as `'…'`, quotes doubled; a user's clause
+  word (the grammar's own words read as names - checked on the node; since 2026-11-06 as duckdb's writer quotes
+  one, see "Names as duckdb writes them" below); text as `'…'`, quotes doubled; a user's clause
   (RLS, COLUMNS, claims, view SQL, key) written as typed - the preview shows it.
   - **Role**: `CREATE ROLE r [CLAIMS (…)]` + `ALTER ROLE r SET COMMENT` (CREATE has no comment clause); `SET CLAIMS (…)`
     / `''`, `SET COMMENT`; `DROP ROLE`. The default claims are one text property, the list form
@@ -372,3 +373,17 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
   schemas, functions, references and grants.
 - Tests: `LiveConsoleTest.aFunctionsDefinitionTab`; `LiveEditTest` - an expansion record's columns, a mapping without
   its scope refused by name.
+
+### Names as duckdb writes them (2026-11-06, duckdb-acl spec 150 4a)
+
+- The node now reads a name in a management statement exactly as duckdb reads an identifier: a reserved word and a
+  word only a function or a type may be (`full`, `left`, `join`) are no names bare. The composer's `AclGrammar.ident`
+  quotes a part as duckdb's own writer does (`KeywordHelper::RequiresQuotes`, capitals allowed): bare only a plain
+  word that is no duckdb keyword of any category (`duckdb_keywords()` at duckdb v2.0.0). That is also how the node
+  writes a name back in a repair statement, so a finding's alternatives find the object again (`c."data"`, `Sales`
+  where `c.data` / `"Sales"` missed).
+- A grant's column list keeps its own spelling (`AclGrammar.fieldIdent` - lower-case words bare, reserved words
+  quoted): a stored list is matched against it, and its reader is the node's spec 102 path reader, not the
+  management grammar (duckdb-acl 4e moves it; this follows).
+- Tests: `EditStatementsTest.namesAndLiterals` (`full`, `left`, `data`, `Default`, `Sales`, `9t`, `größe`),
+  `RepairStatementsTest.alternatives` (the node's spelling of a keyword and a capital).
