@@ -309,6 +309,11 @@ public class EditStatementsTest {
 		stored.setSecret("");
 		assertEquals(List.of("ALTER ISSUER kc SET URL 'https://b'", "ALTER ISSUER kc DROP FROM SECRET"),
 		             stored.alterStatements(null, Set.of("url", "secret")));
+		// from a URL to a secret carrying it: one statement (either half alone is refused by the node)
+		AclIssuer moving = new AclIssuer(null, null, row("name", "kc", "url", "https://a"));
+		moving.setUrl("");
+		moving.setSecret("kc_keys");
+		assertEquals(List.of("ALTER ISSUER kc SET URL '' FROM SECRET kc_keys"), moving.alterStatements(null, Set.of("url", "secret")));
 
 		AclClient client = new AclClient(null, stored, Map.of());
 		client.setName("desktop");

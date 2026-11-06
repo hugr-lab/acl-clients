@@ -29,6 +29,14 @@ public class RelationColumnsTest {
 		table.apply("i = id, n = \"name\"");
 		table.columns().get(0).as = "ident";
 		assertEquals("ident = id, n = \"name\"", table.compose());
+		// a later list forgets it: a new rename is written by the rule
+		table.apply("i = id, name");
+		table.columns().get(1).as = "n";
+		assertEquals("i = id, n = name", table.compose());
+		// a list never collapses to none (the alias form - writable): every column as itself stays listed
+		table.apply("id, name, \"Sales\" NOT NULL");
+		table.columns().get(2).nullable = "";
+		assertEquals("id, name, \"Sales\"", table.compose());
 	}
 
 	@Test

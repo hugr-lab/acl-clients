@@ -45,6 +45,9 @@ public final class RelationColumns {
 	private final List<Column> columns = new ArrayList<>();
 	private final List<Computed> computed = new ArrayList<>();
 	private final List<String> unknown = new ArrayList<>();
+	// whether the applied text was a list: a relation with one never goes back to none by an edit - no list is the
+	// alias form (writable, every source column as it comes), a list of every column as itself is read-only
+	private boolean listed;
 
 	/** The source's columns - (name, type) as the node lists them. */
 	public RelationColumns(List<String[]> physical) {
@@ -104,6 +107,7 @@ public final class RelationColumns {
 				items.add(item.trim());
 			}
 		}
+		listed = !items.isEmpty();
 		for (Column column : columns) {
 			column.exposed = items.isEmpty();
 			column.as = column.name;
@@ -156,7 +160,7 @@ public final class RelationColumns {
 			plain &= column.exposed && column.as.equals(column.name) && column.expression.isEmpty()
 			         && column.nullable.isEmpty();
 		}
-		if (plain) {
+		if (plain && !listed) {
 			return "";
 		}
 		List<String> items = new ArrayList<>();

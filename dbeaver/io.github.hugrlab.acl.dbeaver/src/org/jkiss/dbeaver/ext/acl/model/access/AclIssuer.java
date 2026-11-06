@@ -117,6 +117,13 @@ public class AclIssuer extends AclPlatformObject {
 	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) {
 		String alter = "ALTER ISSUER " + AclGrammar.ident(getName());
 		List<String> out = new ArrayList<>();
+		boolean toSecret = changed.contains("url") && AclGrammar.isBlank(getUrl()) && !AclGrammar.isBlank(getSecret())
+		                   && (changed.contains("secret") || changed.contains("secretService"));
+		if (toSecret) {
+			// from a URL to a secret carrying it: one statement - the node judges each, and either half alone is refused
+			out.add(alter + " SET URL '' " + fromSecret(getSecret(), getSecretService()));
+			return out;
+		}
 		if (changed.contains("url")) {
 			out.add(alter + " SET URL " + AclGrammar.literal(getUrl() == null ? "" : getUrl().trim()));
 		}

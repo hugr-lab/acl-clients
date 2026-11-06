@@ -393,9 +393,19 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
   `system.main.upper`, `left`, `"left".main.f`) - its spelling changes nothing there but how it shows.
 - `CREATE ISSUER "<name>"` with no URL is the node's short form (the quoted name IS the URL), so a quoted name with
   no URL (an issuer whose URL is its secret's) is written `CREATE ISSUER "admin" URL '' FROM SECRET s`.
+- Found by the reviews beside it, fixed: a relation WITH a list never composes back to none - an edit that left every
+  column as itself (a mark cleared, an edit reverted) wrote `SET COLUMNS ''`, the alias form, writable and open to new
+  source columns, where the list was read-only; an issuer moved from a URL to a secret carrying it is ONE statement
+  (`ALTER ISSUER kc SET URL '' FROM SECRET s` - the node judges each statement, and either half alone is refused).
 - Known: against a node before 4a the repair alternatives miss a keyword-named object (that node wrote `c.data`), and
-  the keyword list is duckdb v2.0.0's - a pin bump compares it with `duckdb_keywords()`.
+  the keyword list is duckdb v2.0.0's - a pin bump compares it with `duckdb_keywords()`. A new rename of a source
+  column named like a function-only keyword composes `l = left`, which the node refuses (the read-only `l = "left"`
+  is the one spelling it takes - fails closed); the Columns model keeps one entry per source column (`n = name, m =
+  "name"` loses one at an edit); changing a function grant's Allowed re-grants without its kind, which fails for a
+  function the node does not have; the node cannot move an issuer from a secret carrying its URL back to a URL by
+  ALTER (`SET URL` is "both", `DROP FROM SECRET` "no URL" - duckdb-acl follow-up).
 - Tests: `EditStatementsTest.namesAndLiterals` (`full`, `left`, `data`, `Default`, `Sales`, `9t`, `größe`), the
   scope `policy` and the setting `schema` as words, `RepairStatementsTest.alternatives` (the node's spelling of a
   keyword and a capital), `RelationColumnsTest.keywordColumnsKeepTheirSpelling` (a stored rename's spelling
-  through another column's edit), `EditStatementsTest.identity` (`URL ''`), `functionPath` cases.
+  through another column's edit, a later list, a list kept a list), `EditStatementsTest.identity` (`URL ''`, the
+  move to a secret), `functionPath` cases.
