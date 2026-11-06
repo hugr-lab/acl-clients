@@ -19,6 +19,9 @@ public final class RelationColumns {
 		public String as;               // the name the virtual table gives it
 		public String expression = "";  // a mask over the physical row; empty = the column itself
 		public String nullable = "";    // "", "NOT NULL" or "NULL"
+		// the physical side of a stored rename as written (`n = "name"`): written back as it was - the node reads a
+		// quoted physical column as a computed reading (read-only) and a bare one as a rename (writable)
+		String renamedFrom;
 
 		Column(String name, String type) {
 			this.name = name;
@@ -106,6 +109,7 @@ public final class RelationColumns {
 			column.as = column.name;
 			column.expression = "";
 			column.nullable = "";
+			column.renamedFrom = null;
 		}
 		for (String item : items) {
 			String[] marked = mark(item);
@@ -132,6 +136,7 @@ public final class RelationColumns {
 				renamed.exposed = true; // new_name = column
 				renamed.as = unquote(left);
 				renamed.nullable = marked[1];
+				renamed.renamedFrom = right;
 			} else if (target != null) {
 				target.exposed = true; // a mask over the physical row
 				target.expression = right;
@@ -163,7 +168,7 @@ public final class RelationColumns {
 			if (!column.expression.isEmpty()) {
 				item += " = " + column.expression;
 			} else if (!column.as.equals(column.name)) {
-				item += " = " + AclGrammar.fieldIdent(column.name);
+				item += " = " + (column.renamedFrom != null ? column.renamedFrom : AclGrammar.fieldIdent(column.name));
 			}
 			items.add(item + (column.nullable.isEmpty() ? "" : " " + column.nullable));
 		}

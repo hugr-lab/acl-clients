@@ -100,9 +100,12 @@ public class AclIssuer extends AclPlatformObject {
 
 	@Override
 	public List<String> createStatements() throws DBException {
-		StringBuilder sql = new StringBuilder("CREATE ISSUER ").append(AclGrammar.ident(getName()));
+		String name = AclGrammar.ident(getName());
+		StringBuilder sql = new StringBuilder("CREATE ISSUER ").append(name);
 		if (!AclGrammar.isBlank(getUrl())) {
 			sql.append(" URL ").append(AclGrammar.literal(getUrl().trim()));
+		} else if (name.startsWith("\"")) {
+			sql.append(" URL ''"); // the node reads a quoted name with no URL as the short form's URL
 		}
 		if (!AclGrammar.isBlank(getSecret())) {
 			sql.append(' ').append(fromSecret(getSecret(), getSecretService()));

@@ -46,6 +46,11 @@ public class EditStatementsTest {
 		assertEquals("Sales", AclGrammar.ident("Sales"));
 		assertEquals("\"9t\"", AclGrammar.ident("9t"));
 		assertEquals("\"größe\"", AclGrammar.ident("größe"));
+		// a physical function's name: quoted only where the node does not read it bare
+		assertEquals("system.main.upper", AclGrammar.functionPath("system.main.upper"));
+		assertEquals("left", AclGrammar.functionPath("left"));
+		assertEquals("\"left\".main.f", AclGrammar.functionPath("left.main.f"));
+		assertEquals("\"select\"", AclGrammar.functionPath("select"));
 		assertEquals("\"say \"\"hi\"\"\"", AclGrammar.ident("say \"hi\""));
 		assertEquals("raw.eu.events", AclGrammar.path("raw.eu.events"));
 		assertEquals("\"a.b\"", AclGrammar.path("\"a.b\""));
@@ -294,6 +299,11 @@ public class EditStatementsTest {
 		issuer.setSecret("kc_keys");
 		issuer.setSecretService("corp");
 		assertEquals(List.of("CREATE ISSUER kc URL 'https://kc/realms/x' FROM SECRET kc_keys IN corp"), issuer.createStatements());
+		// a quoted name with no URL would be the short form's URL - `URL ''` keeps it a name (the URL is the secret's)
+		AclIssuer keyword = new AclIssuer(null, null, Map.of());
+		keyword.setName("admin");
+		keyword.setSecret("kc_keys");
+		assertEquals(List.of("CREATE ISSUER \"admin\" URL '' FROM SECRET kc_keys"), keyword.createStatements());
 		AclIssuer stored = new AclIssuer(null, null, row("name", "kc", "url", "https://a", "secret", "s"));
 		stored.setUrl("https://b");
 		stored.setSecret("");

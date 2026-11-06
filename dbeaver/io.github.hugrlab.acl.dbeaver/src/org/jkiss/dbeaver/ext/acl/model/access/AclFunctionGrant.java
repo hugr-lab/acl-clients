@@ -58,8 +58,7 @@ public class AclFunctionGrant extends AclPlatformObject {
 		if (text("name") == null) {
 			return edited("function", "");
 		}
-		return AclGrammar.fieldIdent(text("database")) + "." + AclGrammar.fieldIdent(text("schema")) + "."
-		       + AclGrammar.fieldIdent(text("name"))
+		return AclGrammar.functionParts(List.of(text("database"), text("schema"), text("name")))
 		       + ("table".equals(text("kind")) ? " TABLE" : "");
 	}
 

@@ -20,10 +20,15 @@ public class RelationColumnsTest {
 	public void keywordColumnsKeepTheirSpelling() {
 		RelationColumns table = new RelationColumns(List.of(new String[] {"id", "INTEGER"}, new String[] {"name", "VARCHAR"},
 		    new String[] {"Sales", "INTEGER"}));
-		for (String list : new String[] {"i = id, n = name", "i = id, s = \"Sales\""}) {
+		for (String list : new String[] {"i = id, n = name", "i = id, s = \"Sales\"", "i = id, s = Sales",
+		                                 "i = id, n = \"name\""}) {
 			table.apply(list);
 			assertEquals(list, table.compose());
 		}
+		// an edit of another column keeps a stored rename's physical side as written
+		table.apply("i = id, n = \"name\"");
+		table.columns().get(0).as = "ident";
+		assertEquals("ident = id, n = \"name\"", table.compose());
 	}
 
 	@Test

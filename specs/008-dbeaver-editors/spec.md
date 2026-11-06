@@ -383,15 +383,19 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
   writes a name back in a repair statement, so a finding's alternatives find the object again (`c."data"`, `Sales`
   where `c.data` / `"Sales"` missed).
 - Not every word is a name: an admin scope and a cluster setting's name are WORDS to the node (`AclGrammar.word`: as
-  they are - `policy`, `cluster`, `schema` are keywords, and the node refuses a quoted word). A column's name in a
-  column list (a grant's, a relation's) and a physical function's parts keep their earlier spelling
-  (`AclGrammar.fieldIdent` / `functionPath` - lower-case words bare, anything else quoted): the node reads those with
-  duckdb's parser and its spec 102 path reader, and there a spelling changes meaning - a quoted physical column in a
-  relation's list is a computed reading (the relation read-only), a bare one a rename (writable), so re-spelling a
-  stored `n = name` as `n = "name"` would silently take the relation's writes away (and `s = "Sales"` -> `s = Sales`
-  give them).
+  they are - `policy`, `cluster`, `schema` are keywords, and the node refuses a quoted word). A column in a column list
+  (a grant's, a relation's) keeps the spelling it had (`fieldIdent` - lower-case words bare, anything else quoted), and
+  a relation's stored rename keeps its physical side AS WRITTEN while it stays a rename (`RelationColumns`): the node
+  reads those with duckdb's parser and its spec 102 path reader, and there a spelling changes meaning - a quoted
+  physical column is a computed reading (the relation read-only), a bare one a rename (writable), so an edit of
+  another column re-spelling `n = "name"` as `n = name` gave the relation writes (and `s = Sales` as `s = "Sales"`
+  took them). A physical function's name is quoted only where the node does not read it bare (`functionParts`:
+  `system.main.upper`, `left`, `"left".main.f`) - its spelling changes nothing there but how it shows.
+- `CREATE ISSUER "<name>"` with no URL is the node's short form (the quoted name IS the URL), so a quoted name with
+  no URL (an issuer whose URL is its secret's) is written `CREATE ISSUER "admin" URL '' FROM SECRET s`.
 - Known: against a node before 4a the repair alternatives miss a keyword-named object (that node wrote `c.data`), and
   the keyword list is duckdb v2.0.0's - a pin bump compares it with `duckdb_keywords()`.
 - Tests: `EditStatementsTest.namesAndLiterals` (`full`, `left`, `data`, `Default`, `Sales`, `9t`, `größe`), the
   scope `policy` and the setting `schema` as words, `RepairStatementsTest.alternatives` (the node's spelling of a
-  keyword and a capital), `RelationColumnsTest.keywordColumnsKeepTheirSpelling`.
+  keyword and a capital), `RelationColumnsTest.keywordColumnsKeepTheirSpelling` (a stored rename's spelling
+  through another column's edit), `EditStatementsTest.identity` (`URL ''`), `functionPath` cases.

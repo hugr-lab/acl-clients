@@ -88,6 +88,21 @@ public final class AclGrammar {
 	    "xmlserialize xmltable year years yes zone";
 	private static final Set<String> KEYWORDS = Set.of(KEYWORD_LIST.split(" "));
 
+	/**
+	 * The keywords duckdb takes as no identifier - a reserved word or one only a function or a type may be (no
+	 * `unreserved` / `column_name` row in `duckdb_keywords()` at duckdb v2.0.0): what the node refuses bare first in a
+	 * qualified name.
+	 */
+	private static final String NOT_NAME_LIST =
+	    "all analyse analyze and anti any array as asc asof asymmetric at authorization binary both by case cast " +
+	    "check collate collation column concurrently constraint create cross default deferrable desc describe " +
+	    "distinct do else end except false fetch for foreign freeze from full glob group having ilike in " +
+	    "initially inner intersect into is isnull join lambda lateral leading left like limit natural not notnull " +
+	    "null offset on only or order outer overlaps pivot pivot_longer pivot_wider placing positional primary " +
+	    "qualify references returning right select semi show similar some summarize symmetric table tablesample " +
+	    "then to trailing true union unique unpack unpivot using variadic verbose when where window with";
+	private static final Set<String> NOT_NAMES = Set.of(NOT_NAME_LIST.split(" "));
+
 	/** One name part as an identifier, as duckdb writes one: bare when plain and no keyword, else in `"`, doubled inside. */
 	public static String ident(String part) {
 		if (PLAIN.matcher(part).matches() && !KEYWORDS.contains(part.toLowerCase(Locale.ROOT))) {
@@ -98,7 +113,7 @@ public final class AclGrammar {
 
 	/**
 	 * A column's name in a column list (a grant's, a relation's - duckdb-acl spec 102's path reader and duckdb's parser
-	 * read it, not the management grammar) or a part of a physical function's name, as they have always been written:
+	 * read it, not the management grammar), as it has always been written:
 	 * lower-case words bare, anything else quoted. Here a spelling changes meaning - a quoted physical column in a
 	 * relation's list is a computed reading (the relation read-only), a bare one a rename (writable) - so a composer
 	 * that re-spells a stored list must spell it as it was.
@@ -110,15 +125,24 @@ public final class AclGrammar {
 		return "\"" + part.replace("\"", "\"\"") + "\"";
 	}
 
-	/** A physical function's key (`system.main.upper`, `range`) as its parts, each as {@link #fieldIdent}. */
+	/** A physical function's key (`system.main.upper`, `range`) as {@link #functionParts}. */
 	public static String functionPath(String key) {
 		List<String> parts = SchemaPath.parts(key);
-		if (parts == null) {
-			return fieldIdent(key);
-		}
+		return parts == null ? fieldIdent(key) : functionParts(parts);
+	}
+
+	/**
+	 * A physical function's name, its parts quoted only where the node does not read them bare (its spelling changes
+	 * nothing but how it shows): lower-case words bare - a lone name may be a keyword a function may be (`left`), the
+	 * first part of a qualified one no keyword duckdb takes as no identifier (`"left".main.f`); anything else quoted.
+	 */
+	public static String functionParts(List<String> parts) {
 		List<String> out = new ArrayList<>();
-		for (String part : parts) {
-			out.add(fieldIdent(part));
+		for (int i = 0; i < parts.size(); i++) {
+			String part = parts.get(i);
+			boolean bare = PLAIN_FIELD.matcher(part).matches()
+			               && !(i == 0 && (parts.size() == 1 ? RESERVED : NOT_NAMES).contains(part));
+			out.add(bare ? part : "\"" + part.replace("\"", "\"\"") + "\"");
 		}
 		return String.join(".", out);
 	}
