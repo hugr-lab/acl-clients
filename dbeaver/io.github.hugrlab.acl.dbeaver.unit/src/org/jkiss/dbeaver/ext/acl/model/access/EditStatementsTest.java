@@ -250,7 +250,7 @@ public class EditStatementsTest {
 		alias2.setName("rng");
 		alias2.setForm("alias");
 		alias2.setTarget("range");
-		assertEquals(List.of("CREATE VIRTUAL TABLE FUNCTION c.rng ALIAS OF \"range\""), alias2.createStatements());
+		assertEquals(List.of("CREATE VIRTUAL TABLE FUNCTION c.rng ALIAS OF range"), alias2.createStatements());
 		AclFunctionEntry storedFn = new AclFunctionEntry(null, catalog, row("catalog", "c", "name", "sh", "kind", "scalar",
 		                                                                   "form", "macro", "template", "upper(acl_arg(1))"));
 		storedFn.setTemplate("lower(acl_arg(1))");
@@ -355,7 +355,7 @@ public class EditStatementsTest {
 		assertEquals(List.of("ALTER FUNCTION CATEGORY mine ADD (range TABLE)"), member.createStatements());
 		AclCategoryMember storedMember = new AclCategoryMember(null, storedCategory, row("database", "system", "schema",
 		                                                                                 "main", "name", "upper", "kind", "scalar"));
-		assertEquals(List.of("ALTER FUNCTION CATEGORY mine DROP (\"system\".main.upper)"), storedMember.dropStatements());
+		assertEquals(List.of("ALTER FUNCTION CATEGORY mine DROP (system.main.upper)"), storedMember.dropStatements());
 
 		AclFunctionGrant grant = new AclFunctionGrant(null, null, Map.of());
 		grant.setCategory("mine");
@@ -365,7 +365,7 @@ public class EditStatementsTest {
 		assertEquals(List.of("DENY FUNCTION CATEGORY mine TO ROLE analyst"), grant.createStatements());
 		AclFunctionGrant everyone = new AclFunctionGrant(null, null, row("role", "", "database", "system", "schema", "main",
 		                                                                 "name", "lower", "kind", "scalar", "allowed", true));
-		assertEquals(List.of("REVOKE FUNCTION \"system\".main.lower FROM ALL ROLES"), everyone.dropStatements());
+		assertEquals(List.of("REVOKE FUNCTION system.main.lower FROM ALL ROLES"), everyone.dropStatements());
 
 		AclResourceGroup group = new AclResourceGroup(null, null, Map.of());
 		group.setName("g");
@@ -394,6 +394,10 @@ public class EditStatementsTest {
 		scope.setName("observe");
 		assertEquals(List.of("GRANT ADMIN observe TO ROLE auditor"), scope.createStatements());
 		assertEquals(List.of("REVOKE ADMIN observe FROM ROLE auditor"), scope.dropStatements());
+		// a scope is a word to the node, never a quoted name - `policy` and `cluster` are duckdb keywords
+		scope.setName("policy");
+		assertEquals(List.of("GRANT ADMIN policy TO ROLE auditor"), scope.createStatements());
+		assertEquals(List.of("REVOKE ADMIN policy FROM ROLE auditor"), scope.dropStatements());
 		AclPlatformGrant view = new AclPlatformGrant(null, role, Map.of());
 		view.setObject("sessions");
 		assertEquals(List.of("GRANT VIEW platform.sessions TO ROLE auditor"), view.createStatements());
@@ -434,6 +438,12 @@ public class EditStatementsTest {
 		threads.setValue("2GB");
 		assertEquals(List.of("CLUSTER SET threads = '2GB' IN GROUP g1"), threads.createStatements());
 		assertEquals(List.of("CLUSTER RESET threads IN GROUP g1"), threads.dropStatements());
+		// a setting's name is a word too (`schema`, `user` are keywords; `TimeZone` keeps its capitals)
+		AclClusterItem schema = new AclClusterItem(null, null, Map.of());
+		schema.setName("schema");
+		schema.setValue("main");
+		assertEquals(List.of("CLUSTER SET schema = 'main'"), schema.createStatements());
+		assertEquals(List.of("CLUSTER RESET schema"), schema.dropStatements());
 		AclClusterItem source = new AclClusterItem(null, null, Map.of());
 		source.setKind("source");
 		source.setName("pg");

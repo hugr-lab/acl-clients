@@ -39,7 +39,8 @@ public class AclCategoryMember extends AclPlatformObject {
 		if (text("name") == null) {
 			return edited("function", "");
 		}
-		return AclGrammar.ident(text("database")) + "." + AclGrammar.ident(text("schema")) + "." + AclGrammar.ident(text("name"))
+		return AclGrammar.fieldIdent(text("database")) + "." + AclGrammar.fieldIdent(text("schema")) + "."
+		       + AclGrammar.fieldIdent(text("name"))
 		       + ("table".equals(text("kind")) ? " TABLE" : "");
 	}
 

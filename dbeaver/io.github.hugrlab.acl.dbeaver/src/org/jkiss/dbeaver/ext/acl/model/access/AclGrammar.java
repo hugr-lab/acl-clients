@@ -26,8 +26,11 @@ public final class AclGrammar {
 	/** A word duckdb's own writer leaves bare (`KeywordHelper::RequiresQuotes`, capitals allowed). */
 	private static final Pattern PLAIN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
-	/** A field path's word as a grant's column list has always been written (lower-case). */
+	/** A column's or a function's word as it has always been written (lower-case). */
 	private static final Pattern PLAIN_FIELD = Pattern.compile("[a-z_][a-z0-9_]*");
+
+	/** A word the node reads as a word, never a name (a scope, a setting): ASCII letters, digits, `_`. */
+	private static final Pattern WORD = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
 	/** duckdb's reserved words (`duckdb_keywords()`, category reserved): never written bare in a column list. */
 	private static final Set<String> RESERVED = Set.of("all", "analyse", "analyze", "and", "any", "array", "as", "asc",
@@ -94,15 +97,38 @@ public final class AclGrammar {
 	}
 
 	/**
-	 * One part of a field path in a grant's column list (duckdb-acl spec 102), as the list has always been written - a
-	 * stored list is matched against these spellings, so they stay what an earlier list holds (duckdb-acl spec 150 4e
-	 * moves that reader to duckdb's tokens; this follows it then).
+	 * A column's name in a column list (a grant's, a relation's - duckdb-acl spec 102's path reader and duckdb's parser
+	 * read it, not the management grammar) or a part of a physical function's name, as they have always been written:
+	 * lower-case words bare, anything else quoted. Here a spelling changes meaning - a quoted physical column in a
+	 * relation's list is a computed reading (the relation read-only), a bare one a rename (writable) - so a composer
+	 * that re-spells a stored list must spell it as it was.
 	 */
 	public static String fieldIdent(String part) {
 		if (PLAIN_FIELD.matcher(part).matches() && !RESERVED.contains(part)) {
 			return part;
 		}
 		return "\"" + part.replace("\"", "\"\"") + "\"";
+	}
+
+	/** A physical function's key (`system.main.upper`, `range`) as its parts, each as {@link #fieldIdent}. */
+	public static String functionPath(String key) {
+		List<String> parts = SchemaPath.parts(key);
+		if (parts == null) {
+			return fieldIdent(key);
+		}
+		List<String> out = new ArrayList<>();
+		for (String part : parts) {
+			out.add(fieldIdent(part));
+		}
+		return String.join(".", out);
+	}
+
+	/**
+	 * A word the node reads as a word - an admin scope, a setting's name (duckdb-acl spec 150: the scanner's words, never
+	 * a quoted name): as it is, when it is one; quoted otherwise, which the node refuses where it reads a word.
+	 */
+	public static String word(String text) {
+		return text != null && WORD.matcher(text).matches() ? text : ident(text == null ? "" : text);
 	}
 
 	/** A canonical key (`raw.eu.events`, `"a.b"`) as a dotted path of identifiers; the key as one part if malformed. */

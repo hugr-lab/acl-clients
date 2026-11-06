@@ -382,8 +382,16 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
   word that is no duckdb keyword of any category (`duckdb_keywords()` at duckdb v2.0.0). That is also how the node
   writes a name back in a repair statement, so a finding's alternatives find the object again (`c."data"`, `Sales`
   where `c.data` / `"Sales"` missed).
-- A grant's column list keeps its own spelling (`AclGrammar.fieldIdent` - lower-case words bare, reserved words
-  quoted): a stored list is matched against it, and its reader is the node's spec 102 path reader, not the
-  management grammar (duckdb-acl 4e moves it; this follows).
-- Tests: `EditStatementsTest.namesAndLiterals` (`full`, `left`, `data`, `Default`, `Sales`, `9t`, `größe`),
-  `RepairStatementsTest.alternatives` (the node's spelling of a keyword and a capital).
+- Not every word is a name: an admin scope and a cluster setting's name are WORDS to the node (`AclGrammar.word`: as
+  they are - `policy`, `cluster`, `schema` are keywords, and the node refuses a quoted word). A column's name in a
+  column list (a grant's, a relation's) and a physical function's parts keep their earlier spelling
+  (`AclGrammar.fieldIdent` / `functionPath` - lower-case words bare, anything else quoted): the node reads those with
+  duckdb's parser and its spec 102 path reader, and there a spelling changes meaning - a quoted physical column in a
+  relation's list is a computed reading (the relation read-only), a bare one a rename (writable), so re-spelling a
+  stored `n = name` as `n = "name"` would silently take the relation's writes away (and `s = "Sales"` -> `s = Sales`
+  give them).
+- Known: against a node before 4a the repair alternatives miss a keyword-named object (that node wrote `c.data`), and
+  the keyword list is duckdb v2.0.0's - a pin bump compares it with `duckdb_keywords()`.
+- Tests: `EditStatementsTest.namesAndLiterals` (`full`, `left`, `data`, `Default`, `Sales`, `9t`, `größe`), the
+  scope `policy` and the setting `schema` as words, `RepairStatementsTest.alternatives` (the node's spelling of a
+  keyword and a capital), `RelationColumnsTest.keywordColumnsKeepTheirSpelling`.

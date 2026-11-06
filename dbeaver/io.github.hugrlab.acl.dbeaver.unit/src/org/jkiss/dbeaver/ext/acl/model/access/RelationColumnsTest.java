@@ -15,6 +15,17 @@ public class RelationColumnsTest {
 		    new String[] {"amount", "INTEGER"}, new String[] {"ssn", "VARCHAR"}, new String[] {"Odd Name", "VARCHAR"}));
 	}
 
+	/** duckdb-acl spec 150 4a: a keyword-named column keeps its spelling - a quote decides a relation's writability. */
+	@Test
+	public void keywordColumnsKeepTheirSpelling() {
+		RelationColumns table = new RelationColumns(List.of(new String[] {"id", "INTEGER"}, new String[] {"name", "VARCHAR"},
+		    new String[] {"Sales", "INTEGER"}));
+		for (String list : new String[] {"i = id, n = name", "i = id, s = \"Sales\""}) {
+			table.apply(list);
+			assertEquals(list, table.compose());
+		}
+	}
+
 	@Test
 	public void noListIsTheAliasForm() {
 		RelationColumns table = orders();

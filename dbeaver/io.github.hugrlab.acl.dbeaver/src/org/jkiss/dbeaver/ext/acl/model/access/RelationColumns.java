@@ -159,16 +159,16 @@ public final class RelationColumns {
 			if (!column.exposed) {
 				continue;
 			}
-			String item = AclGrammar.ident(column.as);
+			String item = AclGrammar.fieldIdent(column.as);
 			if (!column.expression.isEmpty()) {
 				item += " = " + column.expression;
 			} else if (!column.as.equals(column.name)) {
-				item += " = " + AclGrammar.ident(column.name);
+				item += " = " + AclGrammar.fieldIdent(column.name);
 			}
 			items.add(item + (column.nullable.isEmpty() ? "" : " " + column.nullable));
 		}
 		for (Computed made : computed) {
-			items.add(AclGrammar.ident(made.name) + " = " + made.expression
+			items.add(AclGrammar.fieldIdent(made.name) + " = " + made.expression
 			          + (made.nullable.isEmpty() ? "" : " " + made.nullable));
 		}
 		items.addAll(unknown);
