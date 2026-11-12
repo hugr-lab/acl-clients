@@ -439,3 +439,12 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
   `s = {'a': 1, 'b': 2}` (accepted by the node since 4e) is one item, not two.
 - Tests: `EditStatementsTest` (the quoted form, a stored list with a space, a keyword and a list mask),
   `GrantColumnsTest.roundTrips` (a struct literal in a mask).
+
+### A column's name in a list is duckdb's column name (2026-11-12, duckdb-acl spec 150 4f)
+
+- The node reads an object's own `COLUMNS (…)` (CREATE VIRTUAL TABLE, SET COLUMNS) by a rule too, a name as duckdb
+  reads a column's name: a reserved word and a word only a function or a type may be (`left`, `full`, `at`) are refused
+  bare. `AclGrammar.fieldIdent` quoted only the reserved words, so a source column named `left` made a statement the
+  node refuses (a grant's list since 4e too); it quotes every word duckdb takes as no name now (`NOT_NAMES`). A quoted
+  physical column on the expression side (`x = "left"`) is still a rename on the node (a plain column reference).
+- Tests: `RelationColumnsTest.aFunctionOrTypeKeywordIsQuoted`.

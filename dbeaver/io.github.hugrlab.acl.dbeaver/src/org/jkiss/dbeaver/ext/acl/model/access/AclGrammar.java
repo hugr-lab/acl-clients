@@ -119,7 +119,9 @@ public final class AclGrammar {
 	 * that re-spells a stored list must spell it as it was.
 	 */
 	public static String fieldIdent(String part) {
-		if (PLAIN_FIELD.matcher(part).matches() && !RESERVED.contains(part)) {
+		// duckdb-acl spec 150 4e / 4f: a list's name is duckdb's column name - a reserved word and one only a function
+		// or a type may be (`left`, `full`, `at`) are quoted
+		if (PLAIN_FIELD.matcher(part).matches() && !NOT_NAMES.contains(part)) {
 			return part;
 		}
 		return "\"" + part.replace("\"", "\"\"") + "\"";
