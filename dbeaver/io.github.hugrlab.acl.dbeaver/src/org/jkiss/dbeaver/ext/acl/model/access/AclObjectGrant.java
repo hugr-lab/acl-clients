@@ -139,7 +139,9 @@ public class AclObjectGrant extends AclGrantObject implements AclPolicyGrant {
 			sql.append(" RLS (").append(getRls().trim()).append(')');
 		}
 		if (!AclGrammar.isBlank(getColumns())) {
-			sql.append(" COLUMNS (").append(getColumns().trim()).append(')');
+			// the list as the node stores it (`odd name`, a keyword bare) is no `COLUMNS (…)` the node's rule reads since
+			// duckdb-acl spec 150 4e: written back as the quoted list, which takes the stored spelling as it is
+			sql.append(" COLUMNS ").append(AclGrammar.literal(getColumns().trim()));
 		}
 		return sql.toString();
 	}

@@ -48,7 +48,9 @@ public class GrantColumnsTest {
 	public void roundTrips() {
 		for (String list : new String[] {"id, ssn = NULL", "id, address", "id, address.city, address.geo.lat",
 		                                 "id, address, address.zip = '***'", "items[].price", "\"Mixed\"",
-		                                 "id, ssn = left(ssn, 1) || '***'"}) {
+		                                 "id, ssn = left(ssn, 1) || '***'",
+		                                 // a struct literal's commas are its own (duckdb-acl spec 150 4e)
+		                                 "id, ssn = struct_extract({'a': 'x', 'b': 'y'}, 'a')"}) {
 			GrantColumns tree = orders();
 			tree.apply(list);
 			assertEquals(list, tree.compose());

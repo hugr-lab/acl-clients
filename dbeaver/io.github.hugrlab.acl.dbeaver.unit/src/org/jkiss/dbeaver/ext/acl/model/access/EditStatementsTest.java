@@ -115,7 +115,7 @@ public class EditStatementsTest {
 		made.setMain(true);
 		made.setRls("amount > 0");
 		made.setColumns("id, ssn = NULL");
-		assertEquals(List.of("GRANT CATALOG sales TO ROLE \"Mixed Case\" WITH (select, insert) MAIN RLS (amount > 0) COLUMNS (id, ssn = NULL)"),
+		assertEquals(List.of("GRANT CATALOG sales TO ROLE \"Mixed Case\" WITH (select, insert) MAIN RLS (amount > 0) COLUMNS 'id, ssn = NULL'"),
 		             made.createStatements());
 		made.setCapsUnstated(false);
 		assertTrue(made.createStatements().get(0).contains(" CAPS '{}'"));
@@ -165,7 +165,12 @@ public class EditStatementsTest {
 		                                                           "orders", "rls", "id > 0"));
 		assertEquals("NULL caps: the catalog grant's", "unstated: the catalog grant's", stored.getCaps());
 		stored.setColumns("id, amount");
-		assertEquals(List.of("GRANT OBJECT sales.orders TO ROLE analyst RLS (id > 0) COLUMNS (id, amount)"),
+		assertEquals(List.of("GRANT OBJECT sales.orders TO ROLE analyst RLS (id > 0) COLUMNS 'id, amount'"),
+		             stored.alterStatements(null, Set.of("columns")));
+		// the stored spelling goes back as it is (a name with a space bare, a keyword bare, a mask with quotes)
+		stored.setColumns("id, odd name, order, tags = ['a', 'b']");
+		assertEquals(List.of("GRANT OBJECT sales.orders TO ROLE analyst RLS (id > 0) COLUMNS "
+		                     + "'id, odd name, order, tags = [''a'', ''b'']'"),
 		             stored.alterStatements(null, Set.of("columns")));
 		assertEquals(List.of("REVOKE OBJECT sales.orders FROM ROLE analyst"), stored.dropStatements());
 	}
