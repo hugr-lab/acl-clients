@@ -419,3 +419,10 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
   a word cannot hold double-quoted (`"custom:tenant" = 'x'`, `'admin' IN "cognito:groups"`, `"tenant id" = 'tid'`).
 - Tests: `EditStatementsTest.identity` (the three forms, read by the node as written).
 
+
+### A role's claims read back as the node reads them (2026-11-12, duckdb-acl spec 150 4d)
+
+- The node reads a role's CLAIMS list by a rule now: a claim's name is a word or quoted, as an attribute's. The
+  read-back wrote a stored name bare, so `custom:tenant` or `tenant id` failed at the next edit of the claims.
+  `AclRole.claimItem` writes the name through `AclClient.attributeName` (`"custom:tenant" = 'acme'`).
+- Tests: `EditStatementsTest.aRole` (a word, a name with `:`, a name with a space).
