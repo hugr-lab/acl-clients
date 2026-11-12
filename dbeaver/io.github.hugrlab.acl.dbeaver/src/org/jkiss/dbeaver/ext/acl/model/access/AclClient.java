@@ -84,12 +84,29 @@ public class AclClient extends AclPlatformObject {
 		};
 	}
 
+	private static final java.util.regex.Pattern DOTTED_WORDS =
+	    java.util.regex.Pattern.compile("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*");
+	private static final java.util.regex.Pattern WORD = java.util.regex.Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+
+	/**
+	 * A claim path as REQUIRE's left side reads it (duckdb-acl spec 150 4c): words joined by `.` bare, anything else
+	 * (`custom:tenant`, `https://acme/roles`) double-quoted - a single-quoted one would be the contains form.
+	 */
+	static String claimPath(String path) {
+		return DOTTED_WORDS.matcher(path).matches() ? path : "\"" + path.replace("\"", "\"\"") + "\"";
+	}
+
+	/** An attribute's name: a word bare, anything else double-quoted (`"tenant id"`). */
+	static String attributeName(String name) {
+		return WORD.matcher(name).matches() ? name : "\"" + name.replace("\"", "\"\"") + "\"";
+	}
+
 	/** REQUIRE's conditions as the grammar writes them: `tier = 'gold'`, `'x' IN groups`, `region IN ('eu')`, `mail LIKE '%@x'`. */
 	static String requires(Object value) {
 		List<String> out = new ArrayList<>();
 		for (Object item : PlatformValues.items(value)) {
 			Map<?, ?> condition = PlatformValues.fieldsOf(item);
-			String path = String.valueOf(condition.get("path"));
+			String path = claimPath(String.valueOf(condition.get("path")));
 			String op = String.valueOf(condition.get("op"));
 			String values = PlatformValues.quotedList(condition.get("values"));
 			out.add(switch (op) {
@@ -108,7 +125,7 @@ public class AclClient extends AclPlatformObject {
 		List<String> out = new ArrayList<>();
 		for (Object item : PlatformValues.items(value)) {
 			Map<?, ?> attribute = PlatformValues.fieldsOf(item);
-			String name = String.valueOf(attribute.get("name"));
+			String name = attributeName(String.valueOf(attribute.get("name")));
 			Object constant = attribute.get("constant");
 			List<Object> paths = PlatformValues.items(attribute.get("paths"));
 			if (constant != null) {

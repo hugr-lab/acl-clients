@@ -409,3 +409,13 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
   keyword and a capital), `RelationColumnsTest.keywordColumnsKeepTheirSpelling` (a stored rename's spelling
   through another column's edit, a later list, a list kept a list), `EditStatementsTest.identity` (`URL ''`, the
   move to a secret), `functionPath` cases.
+
+### A client's lists read back as the node reads them (2026-11-12, duckdb-acl spec 150 4c)
+
+- The node reads a client's lists by rules now: a REQUIRE path is words joined by `.` or double-quoted (a
+  single-quoted one is the contains form's value), an attribute name a word or quoted. The read-back wrote both bare
+  whatever they held, so a stored `custom:tenant` / `cognito:groups` (already refused before) or a name like
+  `tenant id` failed at the next edit of the clause. `AclClient.claimPath` / `attributeName` write a path or a name
+  a word cannot hold double-quoted (`"custom:tenant" = 'x'`, `'admin' IN "cognito:groups"`, `"tenant id" = 'tid'`).
+- Tests: `EditStatementsTest.identity` (the three forms, read by the node as written).
+

@@ -339,6 +339,16 @@ public class EditStatementsTest {
 		                                                         "implicit", false));
 		assertEquals("region IN ('eu', 'us')", storedClient.getRequires());
 		assertEquals("fixed = CONSTANT 'v'", storedClient.getAttributes());
+		// a stored path or name a word cannot hold is written back double-quoted, as the node reads it (duckdb-acl 4c)
+		assertEquals("\"custom:tenant\" = 'x'", AclClient.requires(List.of(Map.of("path", "custom:tenant", "op", "eq",
+		                                                                             "values", List.of("x")))));
+		assertEquals("'admin' IN \"cognito:groups\"", AclClient.requires(List.of(Map.of("path", "cognito:groups",
+		                                                                                 "op", "contains", "values",
+		                                                                                 List.of("admin")))));
+		assertEquals("realm_access.roles = 'x'", AclClient.requires(List.of(Map.of("path", "realm_access.roles", "op",
+		                                                                          "eq", "values", List.of("x")))));
+		assertEquals("\"tenant id\" = 'tid'", AclClient.attributes(List.of(Map.of("name", "tenant id", "paths",
+		                                                                          List.of("tid")))));
 		storedClient.setAzp("");
 		storedClient.setTokenType("");
 		assertEquals(List.of("ALTER CLIENT desktop SET AZP ()", "ALTER CLIENT desktop SET TOKEN TYPE ''"),
