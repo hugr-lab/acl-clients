@@ -83,6 +83,11 @@ public class EditStatementsTest {
 		             stored.alterStatements(null, Set.of("comment", "defaultClaims")));
 		assertEquals(List.of("ALTER ROLE analyst SET COMMENT 'new'"), stored.alterStatements(null, Set.of("comment")));
 		assertEquals(List.of("DROP ROLE analyst"), stored.dropStatements());
+
+		// a stored claim reads back as the node's rule reads it: a name a word cannot hold double-quoted
+		assertEquals("tenant = 'acme'", AclRole.claimItem("tenant", "acme"));
+		assertEquals("\"custom:tenant\" = 'a''b'", AclRole.claimItem("custom:tenant", "a'b"));
+		assertEquals("\"tenant id\" = 'eu-west'", AclRole.claimItem("tenant id", "eu-west"));
 	}
 
 	@Test

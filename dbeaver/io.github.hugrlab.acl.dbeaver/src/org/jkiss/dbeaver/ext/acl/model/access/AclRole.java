@@ -56,9 +56,15 @@ public class AclRole extends AclPlatformObject {
 	private String storedClaims(DBRProgressMonitor monitor) throws DBException {
 		List<String> pairs = new ArrayList<>();
 		for (AclRoleClaim claim : getClaims(monitor)) {
-			pairs.add(claim.getName() + " = " + AclGrammar.literal(claim.text("value")));
+			pairs.add(claimItem(claim.getName(), claim.text("value")));
 		}
 		return String.join(", ", pairs);
+	}
+
+	/** One claim as CLAIMS (…) reads it (duckdb-acl spec 150 4d): its name as an attribute's - a word bare, anything
+	 *  else double-quoted (`"custom:tenant"`) -, its value quoted. */
+	static String claimItem(String name, String value) {
+		return AclClient.attributeName(name) + " = " + AclGrammar.literal(value);
 	}
 
 	@Override
