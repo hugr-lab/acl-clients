@@ -426,3 +426,16 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
   read-back wrote a stored name bare, so `custom:tenant` or `tenant id` failed at the next edit of the claims.
   `AclRole.claimItem` writes the name through `AclClient.attributeName` (`"custom:tenant" = 'acme'`).
 - Tests: `EditStatementsTest.aRole` (a word, a name with `:`, a name with a space).
+
+### A grant's column list written back as the node stores it (2026-11-12, duckdb-acl spec 150 4e)
+
+- The node reads a grant's `COLUMNS (…)` by a rule now: each name part an identifier as duckdb reads one, a mask
+  duckdb's expression. The node stores a name bare when its list reads it back so (`odd name`, a keyword), and the
+  editors wrote the stored text back as `COLUMNS (<stored>)` - a column with a space or a keyword failed at the next
+  edit of the grant (an object grant is written whole, a caps change included). `AclObjectGrant` and
+  `AclCatalogGrant` write the list as the quoted form, `COLUMNS '<list>'`, which takes the stored spelling as it is
+  (on a node before 4e too).
+- The Columns tab's split counts a struct literal's `{ }` as it counted `( )` and `[ ]`: a mask
+  `s = {'a': 1, 'b': 2}` (accepted by the node since 4e) is one item, not two.
+- Tests: `EditStatementsTest` (the quoted form, a stored list with a space, a keyword and a list mask),
+  `GrantColumnsTest.roundTrips` (a struct literal in a mask).

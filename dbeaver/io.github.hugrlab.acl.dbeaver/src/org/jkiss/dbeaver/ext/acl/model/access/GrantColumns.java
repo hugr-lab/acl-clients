@@ -111,7 +111,7 @@ public final class GrantColumns {
 		return space < 0 ? null : new String[] {field.substring(0, space), field.substring(space + 1).trim()};
 	}
 
-	/** Split at a delimiter outside quotes and brackets. */
+	/** Split at a delimiter outside quotes and brackets ( ( ), [ ], { } ). */
 	static List<String> split(String text, char delimiter) {
 		List<String> out = new ArrayList<>();
 		int depth = 0;
@@ -131,10 +131,10 @@ public final class GrantColumns {
 			} else if (c == '\'' || c == '"') {
 				quote = c;
 				part.append(c);
-			} else if (c == '(' || c == '[') {
+			} else if (c == '(' || c == '[' || c == '{') { // a struct literal's `{…}` too (duckdb-acl spec 150 4e)
 				depth++;
 				part.append(c);
-			} else if (c == ')' || c == ']') {
+			} else if (c == ')' || c == ']' || c == '}') {
 				depth--;
 				part.append(c);
 			} else if (c == delimiter && depth == 0) {
