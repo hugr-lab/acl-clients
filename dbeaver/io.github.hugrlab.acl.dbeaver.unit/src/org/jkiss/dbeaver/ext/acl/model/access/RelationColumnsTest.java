@@ -40,6 +40,19 @@ public class RelationColumnsTest {
 	}
 
 	@Test
+	public void aFunctionOrTypeKeywordIsQuoted() {
+		// duckdb-acl spec 150 4f: the node reads a list's name as duckdb's column name, which `left` is not
+		RelationColumns table = new RelationColumns(List.of(new String[] {"id", "INTEGER"}, new String[] {"left", "VARCHAR"},
+		    new String[] {"name", "VARCHAR"}));
+		table.apply("");
+		table.columns().get(1).expression = "'***'";
+		assertEquals("id, \"left\" = '***', name", table.compose());
+		assertEquals("\"full\"", AclGrammar.fieldIdent("full"));
+		assertEquals("\"at\"", AclGrammar.fieldIdent("at"));
+		assertEquals("name", AclGrammar.fieldIdent("name"));
+	}
+
+	@Test
 	public void noListIsTheAliasForm() {
 		RelationColumns table = orders();
 		table.apply("");
