@@ -134,6 +134,10 @@ ACL ADMIN CREATE VIRTUAL TABLE sales.orders AS memory.main.orders;
 ACL ADMIN CREATE ROLE analyst;
 ACL ADMIN GRANT CATALOG sales TO ROLE analyst WITH (select) MAIN;
 ACL ADMIN GRANT TABLE sales.orders TO ROLE analyst WITH (select) RLS (tenant = acl_claim('tenant'));
+-- spec 009: a table loaded by its key (duckdb-acl spec 173) - ingest on top of the verbs a load runs
+CREATE TABLE stock(sku VARCHAR, qty INTEGER);
+ACL ADMIN CREATE VIRTUAL TABLE sales.stock AS memory.main.stock PRIMARY KEY (sku);
+ACL ADMIN GRANT TABLE sales.stock TO ROLE analyst WITH (select, insert, update, merge, delete, ingest);
 -- duckdb-acl spec 095: the realm's keys by its OIDC discovery; the one client runs every flow, the
 -- door's password handshake included (a node runs it as exactly one client)
 ACL ADMIN CREATE ISSUER '$KC_REALM' AUDIENCES ('account') ROLE CLAIM 'realm_access.roles'

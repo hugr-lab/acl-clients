@@ -95,6 +95,24 @@ The connection is Arrow's, wrapped where the door needs it said differently:
 - **A prepared statement** refuses the methods that take SQL text (`executeQuery(String)`,
   `addBatch(String)`, ...), as JDBC 4.3 says.
 
+## Bulk ingest and a load by key (spec 009)
+
+JDBC has no call for a bulk load, so the driver's connection offers Flight SQL's ingest as `AclIngest`:
+
+```java
+AclIngest ingest = connection.unwrap(AclIngest.class);
+long rows = ingest.ingest("stock", arrowIpcStream, AclIngest.Mode.MERGE);   // or ingest(catalog, schema, table, ...)
+```
+
+The rows are an Arrow IPC stream (an `InputStream`), so your own Arrow version never meets the driver's
+shaded one. `Mode` is `APPEND`, `CREATE`, `REPLACE` - the protocol's own - or `MERGE` / `REMOVE`, the
+node's loads by the table's declared `PRIMARY KEY` (duckdb-acl spec 173, the option `acl.mode`): `MERGE`
+updates the rows whose key the stream carries and inserts the rest (a key given twice - its last row),
+`REMOVE` deletes them. Every load needs the `ingest` capability on top of its verb (`insert`, `merge`,
+`delete`). The load runs on the connection's session with its token and headers, in a transaction of its
+own: the node refuses it while the connection has one open. Arrow's JDBC driver keeps its Flight SQL
+client private, so the driver reaches it by reflection, pinned with the Arrow version in `pom.xml`.
+
 ## The IdP's client
 
 The browser and device sign-ins run as the client id the door names (`ALTER ISSUER ... CLIENT ID`) or
