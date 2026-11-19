@@ -23,12 +23,18 @@ open a second Flight connection of its own - another session, its own sign-in, w
   (append options + `acl.mode` = `merge` / `remove`). Returns the rows the node reports.
 - **The rows are an Arrow IPC stream**: the format, not a Java type - the driver's Arrow is shaded, so a caller's
   `VectorSchemaRoot` could never be passed, and any Arrow version (or another language's bytes) writes the format.
-- **On the connection's own client** (`FlightIngest`): the handler's `sqlClient` and `getOptions()` (bearer,
-  headers) reached by reflection from `ArrowFlightConnection.getClientHandler()`; its middleware carries the
+- **On the connection's own client** (`FlightIngest`): the handler's `sqlClient.client` (the `FlightClient`) and
+  `getOptions()` (bearer, headers) reached by reflection from `ArrowFlightConnection.getClientHandler()`; its middleware carries the
   session cookie, so the load is the connection's session - its USE, its view-as (the node refuses a write there),
   its token. A missing member fails by name ("built against another Arrow version"), pinned with `arrow.version`
   like `FlightDiscovery`'s shaded names.
-- A refusal (Arrow's `FlightRuntimeException`) is an `SQLException` with the node's reason.
+- **The DoPut is driven here** (`CommandStatementIngest` packed as Arrow does, `startPut`, a batch per
+  `loadNextBatch`), not by Arrow's `executeIngest`: a stream that fails after the put began (a truncated file, a
+  source that drops) must cancel the call (`error()`), and Arrow's rethrows with the call left open - the door then
+  waits for the next batch holding the session's lock, and every later statement of the connection hangs (found by
+  the review).
+- A refusal (Arrow's `FlightRuntimeException`) is an `SQLException` with the node's reason; a failure of Arrow's own
+  takes the first message down its causes (its status carries none).
 - **Not here**: `temporary` (spec 173 refuses it for a load by key; a staged temp is plain SQL's), the protocol's
   transaction id (the node refuses a load inside an open transaction - spec 055), the `acl.mode` connection
   property (data / manage / native, spec 006 - a different thing; the ingest's mode is the call's argument).
@@ -37,7 +43,10 @@ open a second Flight connection of its own - another session, its own sign-in, w
 
 - `AclIngestTest`: an in-process Flight SQL server (Arrow's shaded `NoOpFlightSqlProducer`) behind Arrow's real
   JDBC connection - each mode's table options and `acl.mode`, catalog / schema present or absent, the row count,
-  a refusal's text in the `SQLException`, a missing table / stream and an unreadable stream refused.
+  a refusal's text in the `SQLException`, a missing table / stream and an unreadable stream refused; the
+  connection's headers on every put (a server middleware); a stream cut in its second batch - the server sees the
+  call end, the reason is said, the next load on the connection runs (fails without the fix: no reason, the call
+  left open).
 - e2e (`LiveDoorE2ETest.aLoadByKey`, dev node's `sales.stock`, key `sku`): merge with a key twice (the last row),
   merge over existing keys (updated), remove, append, and a merge into `orders` (no `ingest`, no key) refused.
 

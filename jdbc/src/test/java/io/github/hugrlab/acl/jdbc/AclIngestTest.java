@@ -15,7 +15,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.arrow.driver.jdbc.ArrowFlightJdbcDriver;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.CallHeaders;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.CallStatus;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.FlightMethod;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.FlightServerMiddleware;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.FlightServer;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.Location;
@@ -41,6 +44,8 @@ class AclIngestTest {
 	static final class Recorder extends NoOpFlightSqlProducer {
 		final List<CommandStatementIngest> commands = new ArrayList<>();
 		final List<Long> rows = new ArrayList<>();
+		/** A stream that ended in an error: the client cancelled it (or it broke) - the call is over either way. */
+		final java.util.concurrent.CountDownLatch failed = new java.util.concurrent.CountDownLatch(1);
 		final BufferAllocator allocator;
 
 		Recorder(BufferAllocator allocator) {
@@ -57,8 +62,14 @@ class AclIngestTest {
 					return;
 				}
 				long n = 0;
-				while (stream.next()) {
-					n += stream.getRoot().getRowCount();
+				try {
+					while (stream.next()) {
+						n += stream.getRoot().getRowCount();
+					}
+				} catch (RuntimeException e) {
+					failed.countDown();
+					ack.onError(e);
+					return;
 				}
 				commands.add(command);
 				rows.add(n);
@@ -76,14 +87,36 @@ class AclIngestTest {
 	private Recorder recorder;
 	private FlightServer server;
 	private Connection arrow;
+	private final List<String> probes = new java.util.concurrent.CopyOnWriteArrayList<>();
 
 	@BeforeEach
 	void serve() throws Exception {
 		allocator = new RootAllocator();
 		recorder = new Recorder(allocator);
-		server = FlightServer.builder(allocator, Location.forGrpcInsecure("localhost", 0), recorder).build().start();
+		server = FlightServer.builder(allocator, Location.forGrpcInsecure("localhost", 0), recorder)
+		             .middleware(FlightServerMiddleware.Key.of("probe"), (info, incoming, context) -> {
+			             if (info.method() == FlightMethod.DO_PUT) {
+				             probes.add(String.valueOf(incoming.get("x-acl-probe")));
+			             }
+			             return new FlightServerMiddleware() {
+				             @Override
+				             public void onBeforeSendingHeaders(CallHeaders outgoing) {
+				             }
+
+				             @Override
+				             public void onCallCompleted(CallStatus status) {
+				             }
+
+				             @Override
+				             public void onCallErrored(Throwable err) {
+				             }
+			             };
+		             })
+		             .build()
+		             .start();
 		Properties p = new Properties();
 		p.setProperty("useEncryption", "false");
+		p.setProperty("x-acl-probe", "carried"); // Arrow sends a property it does not know as a header
 		arrow = new ArrowFlightJdbcDriver().connect("jdbc:arrow-flight-sql://localhost:" + server.getPort(), p);
 	}
 
@@ -92,6 +125,31 @@ class AclIngestTest {
 		arrow.close();
 		server.close();
 		allocator.close();
+	}
+
+	/** Two batches of the ids, cut in the middle of the second: the schema and the first batch read, then a failure. */
+	private static byte[] truncated(long... ids) throws Exception {
+		byte[] one = stream(ids);
+		byte[] two = streamTwice(ids);
+		return java.util.Arrays.copyOf(two, one.length + (two.length - one.length) / 2);
+	}
+
+	private static byte[] streamTwice(long... ids) throws Exception {
+		try (RootAllocator a = new RootAllocator(); BigIntVector id = new BigIntVector("id", a)) {
+			id.allocateNew(ids.length);
+			for (int i = 0; i < ids.length; i++) {
+				id.set(i, ids[i]);
+			}
+			id.setValueCount(ids.length);
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			try (VectorSchemaRoot root = VectorSchemaRoot.of(id); ArrowStreamWriter w = new ArrowStreamWriter(root, null, out)) {
+				w.start();
+				w.writeBatch();
+				w.writeBatch();
+				w.end();
+			}
+			return out.toByteArray();
+		}
 	}
 
 	private static byte[] stream(long... ids) throws Exception {
@@ -147,6 +205,20 @@ class AclIngestTest {
 		assertEquals(TableExistsOption.TABLE_EXISTS_OPTION_REPLACE,
 		             recorder.commands.get(4).getTableDefinitionOptions().getIfExists());
 		assertEquals(List.of(3L, 1L, 2L, 1L, 1L), recorder.rows);
+		// the connection's call options travel: its headers (the bearer, x-acl-view-as) ride every put
+		assertEquals(List.of("carried", "carried", "carried", "carried", "carried"), probes);
+	}
+
+	/** The review's finding: a stream that breaks after the put began cancels the call, so the session is free. */
+	@Test
+	void aStreamThatBreaksMidwayCancelsTheCall() throws Exception {
+		AclIngest ingest = new AclConnection(arrow, AclConfig.Mode.DATA, false);
+		SQLException e = assertThrows(SQLException.class,
+		                              () -> ingest.ingest("stock", new ByteArrayInputStream(truncated(1, 2, 3)), Mode.MERGE));
+		assertTrue(!String.valueOf(e.getMessage()).isBlank(), "the reason is said");
+		assertTrue(recorder.failed.await(5, java.util.concurrent.TimeUnit.SECONDS), "the server saw the call end");
+		assertEquals(List.of(), recorder.rows);
+		assertEquals(2, ingest.ingest("stock", new ByteArrayInputStream(stream(1, 2)), Mode.APPEND));
 	}
 
 	@Test

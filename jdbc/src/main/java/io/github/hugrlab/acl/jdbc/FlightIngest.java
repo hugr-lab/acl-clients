@@ -1,13 +1,20 @@
 package io.github.hugrlab.acl.jdbc;
 
 import org.apache.arrow.driver.jdbc.ArrowFlightConnection;
+import org.apache.arrow.driver.jdbc.shaded.com.google.protobuf.Any;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.CallOption;
-import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.sql.FlightSqlClient;
-import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.sql.FlightSqlClient.ExecuteIngestOptions;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.FlightClient;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.FlightDescriptor;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.PutResult;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.SyncPutListener;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.sql.impl.FlightSql.CommandStatementIngest;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.sql.impl.FlightSql.DoPutUpdateResult;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.sql.impl.FlightSql.CommandStatementIngest.TableDefinitionOptions;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.sql.impl.FlightSql.CommandStatementIngest.TableDefinitionOptions.TableExistsOption;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.sql.impl.FlightSql.CommandStatementIngest.TableDefinitionOptions.TableNotExistOption;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.vector.ipc.ArrowStreamReader;
 
 import java.io.InputStream;
@@ -19,7 +26,7 @@ import java.sql.SQLException;
 import java.util.Map;
 
 /**
- * The bulk ingest call (spec 009), on the Flight SQL client Arrow's connection already holds: its middleware keeps
+ * The bulk ingest call (spec 009), on the Flight client Arrow's connection already holds: its middleware keeps
  * the session's cookie and its call options carry the bearer and the headers ({@code x-acl-view-as}), so the load
  * is the connection's own. Arrow keeps that client private (its JDBC driver has no ingest), so it is reached by
  * reflection - pinned with the driver's Arrow version like {@link FlightDiscovery}'s shaded names, and failing by
@@ -67,20 +74,67 @@ final class FlightIngest {
 			throw new SQLException("ingest: an Arrow stream and a mode are required");
 		}
 		Object handler = handlerOf(arrow);
-		FlightSqlClient client = (FlightSqlClient) read(handler, "sqlClient");
+		FlightClient client = (FlightClient) read(read(handler, "sqlClient"), "client");
 		CallOption[] options = (CallOption[]) call(handler, "getOptions");
-		Command command = command(mode);
-		ExecuteIngestOptions ingest = new ExecuteIngestOptions(table, command.table(), false, blankToNull(catalog),
-		                                                       blankToNull(schema), command.options());
-		try (RootAllocator allocator = new RootAllocator(); ArrowStreamReader reader = new ArrowStreamReader(rows,
-		                                                                                                    allocator)) {
-			return client.executeIngest(reader, ingest, options);
-		} catch (RuntimeException e) {
-			// a node's refusal arrives as Arrow's FlightRuntimeException: its message is the door's reason
-			throw new SQLException(e.getMessage(), e);
-		} catch (Exception e) {
-			throw new SQLException("ingest: " + e.getMessage(), e);
+		CommandStatementIngest.Builder command = CommandStatementIngest.newBuilder().setTable(table);
+		Command parts = command(mode);
+		command.setTableDefinitionOptions(parts.table()).setTemporary(false).putAllOptions(parts.options());
+		if (blankToNull(catalog) != null) {
+			command.setCatalog(catalog);
 		}
+		if (blankToNull(schema) != null) {
+			command.setSchema(schema);
+		}
+		FlightDescriptor descriptor = FlightDescriptor.command(Any.pack(command.build()).toByteArray());
+		try (RootAllocator allocator = new RootAllocator();
+		     ArrowStreamReader reader = new ArrowStreamReader(rows, allocator)) {
+			return put(client, descriptor, reader, options);
+		} catch (SQLException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new SQLException(reason(e), e);
+		}
+	}
+
+	/**
+	 * The DoPut, driven here rather than by Arrow's {@code executeIngest}: a stream that fails after the put began
+	 * (a truncated file, a source that drops) must CANCEL the call - Arrow's rethrows and leaves it open, and the door
+	 * then waits for the next batch holding the session, so every later statement of the connection hangs.
+	 */
+	private static long put(FlightClient client, FlightDescriptor descriptor, ArrowStreamReader reader,
+	                        CallOption[] options) throws Exception {
+		VectorSchemaRoot root = reader.getVectorSchemaRoot(); // the schema is read here, before the call
+		SyncPutListener answer = new SyncPutListener();
+		FlightClient.ClientStreamListener put = client.startPut(descriptor, root, answer, options);
+		try {
+			while (reader.loadNextBatch()) {
+				put.putNext();
+			}
+			put.completed();
+		} catch (Throwable e) {
+			put.error(e);
+			throw e;
+		}
+		put.getResult(); // the call's outcome: a refusal throws here with the node's reason
+		try (PutResult result = answer.read()) {
+			if (result == null) {
+				throw new SQLException("ingest: the node answered no row count");
+			}
+			ArrowBuf metadata = result.getApplicationMetadata();
+			return DoPutUpdateResult.parseFrom(metadata.nioBuffer()).getRecordCount();
+		} finally {
+			answer.close();
+		}
+	}
+
+	/** The first message down the causes: a refusal's is the door's reason; Arrow's own failures carry none on top. */
+	static String reason(Throwable e) {
+		for (Throwable t = e; t != null; t = t.getCause()) {
+			if (t.getMessage() != null && !t.getMessage().isBlank()) {
+				return t == e ? t.getMessage() : "ingest: " + t.getMessage();
+			}
+		}
+		return "ingest: " + e.getClass().getSimpleName();
 	}
 
 	private static String blankToNull(String s) {
