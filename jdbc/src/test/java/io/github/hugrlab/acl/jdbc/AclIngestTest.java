@@ -88,6 +88,7 @@ class AclIngestTest {
 	private FlightServer server;
 	private Connection arrow;
 	private final List<String> probes = new java.util.concurrent.CopyOnWriteArrayList<>();
+	private final List<String> cookies = new java.util.concurrent.CopyOnWriteArrayList<>();
 
 	@BeforeEach
 	void serve() throws Exception {
@@ -97,10 +98,12 @@ class AclIngestTest {
 		             .middleware(FlightServerMiddleware.Key.of("probe"), (info, incoming, context) -> {
 			             if (info.method() == FlightMethod.DO_PUT) {
 				             probes.add(String.valueOf(incoming.get("x-acl-probe")));
+				             cookies.add(String.valueOf(incoming.get("cookie")));
 			             }
 			             return new FlightServerMiddleware() {
 				             @Override
 				             public void onBeforeSendingHeaders(CallHeaders outgoing) {
+					             outgoing.insert("set-cookie", "acl_session=s1"); // as the door hands out its session
 				             }
 
 				             @Override
@@ -207,6 +210,8 @@ class AclIngestTest {
 		assertEquals(List.of(3L, 1L, 2L, 1L, 1L), recorder.rows);
 		// the connection's call options travel: its headers (the bearer, x-acl-view-as) ride every put
 		assertEquals(List.of("carried", "carried", "carried", "carried", "carried"), probes);
+		// and the session's cookie: the first put earns it, every later one carries it (the connection's middleware)
+		assertEquals(List.of("null", "acl_session=s1", "acl_session=s1", "acl_session=s1", "acl_session=s1"), cookies);
 	}
 
 	/** The review's finding: a stream that breaks after the put began cancels the call, so the session is free. */
@@ -215,7 +220,7 @@ class AclIngestTest {
 		AclIngest ingest = new AclConnection(arrow, AclConfig.Mode.DATA, false);
 		SQLException e = assertThrows(SQLException.class,
 		                              () -> ingest.ingest("stock", new ByteArrayInputStream(truncated(1, 2, 3)), Mode.MERGE));
-		assertTrue(!String.valueOf(e.getMessage()).isBlank(), "the reason is said");
+		assertTrue(String.valueOf(e.getMessage()).startsWith("ingest: "), e.getMessage());
 		assertTrue(recorder.failed.await(5, java.util.concurrent.TimeUnit.SECONDS), "the server saw the call end");
 		assertEquals(List.of(), recorder.rows);
 		assertEquals(2, ingest.ingest("stock", new ByteArrayInputStream(stream(1, 2)), Mode.APPEND));

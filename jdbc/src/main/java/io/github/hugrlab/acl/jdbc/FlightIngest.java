@@ -5,6 +5,7 @@ import org.apache.arrow.driver.jdbc.shaded.com.google.protobuf.Any;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.CallOption;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.FlightDescriptor;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.PutResult;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.SyncPutListener;
 import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.sql.impl.FlightSql.CommandStatementIngest;
@@ -105,33 +106,42 @@ final class FlightIngest {
 	                        CallOption[] options) throws Exception {
 		VectorSchemaRoot root = reader.getVectorSchemaRoot(); // the schema is read here, before the call
 		SyncPutListener answer = new SyncPutListener();
-		FlightClient.ClientStreamListener put = client.startPut(descriptor, root, answer, options);
 		try {
-			while (reader.loadNextBatch()) {
-				put.putNext();
+			FlightClient.ClientStreamListener put = client.startPut(descriptor, root, answer, options);
+			try {
+				while (reader.loadNextBatch()) {
+					put.putNext();
+				}
+				put.completed();
+			} catch (Throwable e) {
+				try {
+					put.error(e);
+				} catch (Throwable cancelling) {
+					e.addSuppressed(cancelling);
+				}
+				throw e;
 			}
-			put.completed();
-		} catch (Throwable e) {
-			put.error(e);
-			throw e;
-		}
-		put.getResult(); // the call's outcome: a refusal throws here with the node's reason
-		try (PutResult result = answer.read()) {
-			if (result == null) {
-				throw new SQLException("ingest: the node answered no row count");
+			put.getResult(); // the call's outcome: a refusal throws here with the node's reason
+			try (PutResult result = answer.read()) {
+				if (result == null) {
+					throw new SQLException("ingest: the node answered no row count");
+				}
+				ArrowBuf metadata = result.getApplicationMetadata();
+				return DoPutUpdateResult.parseFrom(metadata.nioBuffer()).getRecordCount();
 			}
-			ArrowBuf metadata = result.getApplicationMetadata();
-			return DoPutUpdateResult.parseFrom(metadata.nioBuffer()).getRecordCount();
 		} finally {
-			answer.close();
+			answer.close(); // a result queued before a failure too: its buffer is the connection allocator's
 		}
 	}
 
-	/** The first message down the causes: a refusal's is the door's reason; Arrow's own failures carry none on top. */
+	/**
+	 * The first message down the causes: a node's refusal (Arrow's FlightRuntimeException) is the door's reason as it
+	 * said it; anything else - the stream, Arrow's own failures, which carry no message on top - is the driver's.
+	 */
 	static String reason(Throwable e) {
 		for (Throwable t = e; t != null; t = t.getCause()) {
 			if (t.getMessage() != null && !t.getMessage().isBlank()) {
-				return t == e ? t.getMessage() : "ingest: " + t.getMessage();
+				return t == e && e instanceof FlightRuntimeException ? t.getMessage() : "ingest: " + t.getMessage();
 			}
 		}
 		return "ingest: " + e.getClass().getSimpleName();
