@@ -44,8 +44,6 @@ class AclIngestTest {
 	static final class Recorder extends NoOpFlightSqlProducer {
 		final List<CommandStatementIngest> commands = new ArrayList<>();
 		final List<Long> rows = new ArrayList<>();
-		/** A stream that ended in an error: the client cancelled it (or it broke) - the call is over either way. */
-		final java.util.concurrent.CountDownLatch failed = new java.util.concurrent.CountDownLatch(1);
 		final BufferAllocator allocator;
 
 		Recorder(BufferAllocator allocator) {
@@ -67,7 +65,6 @@ class AclIngestTest {
 						n += stream.getRoot().getRowCount();
 					}
 				} catch (RuntimeException e) {
-					failed.countDown();
 					ack.onError(e);
 					return;
 				}
@@ -89,6 +86,8 @@ class AclIngestTest {
 	private Connection arrow;
 	private final List<String> probes = new java.util.concurrent.CopyOnWriteArrayList<>();
 	private final List<String> cookies = new java.util.concurrent.CopyOnWriteArrayList<>();
+	/** A put the server saw end in an error - whether or not its handler ran (a cancel may come first). */
+	private final java.util.concurrent.CountDownLatch putsEnded = new java.util.concurrent.CountDownLatch(1);
 
 	@BeforeEach
 	void serve() throws Exception {
@@ -100,6 +99,7 @@ class AclIngestTest {
 				             probes.add(String.valueOf(incoming.get("x-acl-probe")));
 				             cookies.add(String.valueOf(incoming.get("cookie")));
 			             }
+			             boolean put = info.method() == FlightMethod.DO_PUT;
 			             return new FlightServerMiddleware() {
 				             @Override
 				             public void onBeforeSendingHeaders(CallHeaders outgoing) {
@@ -108,10 +108,16 @@ class AclIngestTest {
 
 				             @Override
 				             public void onCallCompleted(CallStatus status) {
+					             if (put && status.code() != org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.flight.FlightStatusCode.OK) {
+						             putsEnded.countDown();
+					             }
 				             }
 
 				             @Override
 				             public void onCallErrored(Throwable err) {
+					             if (put) {
+						             putsEnded.countDown();
+					             }
 				             }
 			             };
 		             })
@@ -220,8 +226,8 @@ class AclIngestTest {
 		AclIngest ingest = new AclConnection(arrow, AclConfig.Mode.DATA, false);
 		SQLException e = assertThrows(SQLException.class,
 		                              () -> ingest.ingest("stock", new ByteArrayInputStream(truncated(1, 2, 3)), Mode.MERGE));
+		assertTrue(putsEnded.await(10, java.util.concurrent.TimeUnit.SECONDS), "the server saw the call end");
 		assertTrue(String.valueOf(e.getMessage()).startsWith("ingest: "), e.getMessage());
-		assertTrue(recorder.failed.await(5, java.util.concurrent.TimeUnit.SECONDS), "the server saw the call end");
 		assertEquals(List.of(), recorder.rows);
 		assertEquals(2, ingest.ingest("stock", new ByteArrayInputStream(stream(1, 2)), Mode.APPEND));
 	}
