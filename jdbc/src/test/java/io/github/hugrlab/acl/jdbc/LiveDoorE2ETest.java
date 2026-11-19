@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.hugrlab.acl.jdbc.AclIngest.Mode;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -11,6 +14,12 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.UUID;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.vector.IntVector;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.driver.jdbc.shaded.org.apache.arrow.vector.ipc.ArrowStreamWriter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -107,5 +116,60 @@ class LiveDoorE2ETest {
 		}
 		int afterTwo = person.pagesSubmitted;
 		assertTrue(afterTwo >= 1 && afterTwo <= 2, "one sign-in, not two: " + afterTwo);
+	}
+
+	/** An Arrow IPC stream of (sku, qty) rows: "sku=qty" each. */
+	private static ByteArrayInputStream skus(String... rows) throws Exception {
+		try (RootAllocator a = new RootAllocator(); VarCharVector sku = new VarCharVector("sku", a);
+		     IntVector qty = new IntVector("qty", a)) {
+			sku.allocateNew(rows.length);
+			qty.allocateNew(rows.length);
+			for (int i = 0; i < rows.length; i++) {
+				String[] kv = rows[i].split("=");
+				sku.setSafe(i, kv[0].getBytes(java.nio.charset.StandardCharsets.UTF_8));
+				qty.set(i, Integer.parseInt(kv[1]));
+			}
+			sku.setValueCount(rows.length);
+			qty.setValueCount(rows.length);
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			try (VectorSchemaRoot root = VectorSchemaRoot.of(sku, qty);
+			     ArrowStreamWriter w = new ArrowStreamWriter(root, null, out)) {
+				w.start();
+				w.writeBatch();
+				w.end();
+			}
+			return new ByteArrayInputStream(out.toByteArray());
+		}
+	}
+
+	private static List<String> stock(Connection conn, String run) throws SQLException {
+		List<String> out = new ArrayList<>();
+		try (Statement s = conn.createStatement();
+		     ResultSet rs = s.executeQuery("SELECT sku, qty FROM stock WHERE sku LIKE '" + run + "%' ORDER BY sku")) {
+			while (rs.next()) {
+				out.add(rs.getString(1).substring(run.length()) + "=" + rs.getInt(2));
+			}
+		}
+		return out;
+	}
+
+	/** spec 009: a load by key through the driver (duckdb-acl spec 173) - the last row of a key wins. */
+	@Test
+	void aLoadByKey() throws Exception {
+		String run = UUID.randomUUID().toString().substring(0, 8) + "-";
+		try (Connection conn = driver(new TestInteraction()).connect(URL, props("user", "analyst2", "password", "analyst2-pass"))) {
+			AclIngest ingest = conn.unwrap(AclIngest.class);
+			ingest.ingest("stock", skus(run + "a=1", run + "b=2", run + "a=3"), Mode.MERGE);
+			assertEquals(List.of("a=3", "b=2"), stock(conn, run));
+			ingest.ingest("stock", skus(run + "b=5", run + "c=1"), Mode.MERGE);
+			assertEquals(List.of("a=3", "b=5", "c=1"), stock(conn, run));
+			ingest.ingest("sales", null, "stock", skus(run + "a=0"), Mode.REMOVE);
+			assertEquals(List.of("b=5", "c=1"), stock(conn, run));
+			assertEquals(1, ingest.ingest("stock", skus(run + "d=4"), Mode.APPEND));
+			assertEquals(List.of("b=5", "c=1", "d=4"), stock(conn, run));
+			// orders: no ingest granted, no key declared - refused, nothing written
+			SQLException e = assertThrows(SQLException.class, () -> ingest.ingest("orders", skus(run + "x=1"), Mode.MERGE));
+			assertTrue(String.valueOf(e.getMessage()).contains("acl"), e.getMessage());
+		}
 	}
 }

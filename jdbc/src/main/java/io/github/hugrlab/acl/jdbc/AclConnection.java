@@ -23,9 +23,10 @@ import java.sql.Statement;
  * <li>{@code acl.viewAs} declares the view-as mode on every call ({@code x-acl-view-as}, duckdb-acl spec 120.3), so a
  * session the door seats afresh is in it again; the connect makes one call, and a refusal fails it.
  * <li>results carry duckdb's types ({@link AclResultSet}).
+ * <li>{@link AclIngest}: Flight SQL bulk ingest, a load by key included (spec 009).
  * </ul>
  */
-final class AclConnection extends ForwardingConnection {
+final class AclConnection extends ForwardingConnection implements AclIngest {
 	private final AclConfig.Mode mode;
 	private final boolean nestedJson;
 	private volatile boolean warmed;
@@ -286,6 +287,12 @@ final class AclConnection extends ForwardingConnection {
 	    throws SQLException {
 		return new AclCallableStatement(
 		    prepare(sql, () -> delegate.prepareCall(prefix(sql), type, concurrency, holdability)), this, sql);
+	}
+
+	@Override
+	public long ingest(String catalog, String schema, String table, java.io.InputStream arrowStream, Mode mode)
+	    throws SQLException {
+		return call(false, () -> FlightIngest.ingest(delegate, catalog, schema, table, arrowStream, mode));
 	}
 
 	@Override

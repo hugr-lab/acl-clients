@@ -24,6 +24,7 @@ jdbc/                 Maven, Java 17: io.github.hugrlab.acl.jdbc
   AclConnection       Arrow's connection wrapped (spec 006): USE for catalog/schema, acl.mode prefixes
   AclDatabaseMetaData the listings as SQL on the principal's surfaces (MetadataSql), RowsResultSet answers
   AclResultSet, DuckTypes, AclStruct   duckdb's types on results; Forwarding* generated (tools/)
+  AclIngest, FlightIngest  bulk ingest + loads by key (spec 009), on Arrow's own Flight SQL client (reflection)
 examples/{go,python,dotnet,java}
 examples/pipelines/   spark/ (3.5, 4), dbt/, python/ - with lineage (spec 004)
 examples/dbeaver/     drivers.xml - the driver as a DBeaver Generic driver (spec 006)
