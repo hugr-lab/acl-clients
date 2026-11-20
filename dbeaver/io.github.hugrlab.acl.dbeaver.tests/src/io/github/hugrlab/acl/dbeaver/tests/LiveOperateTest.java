@@ -12,6 +12,7 @@ import java.util.Map;
 
 import org.eclipse.swtbot.swt.finder.junit.SWTBotJunit4ClassRunner;
 import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
+import org.jkiss.dbeaver.ext.acl.model.access.AclAnswer;
 import org.jkiss.dbeaver.ext.acl.model.access.AclClusterItem;
 import org.jkiss.dbeaver.ext.acl.model.access.AclDriftEntry;
 import org.jkiss.dbeaver.ext.acl.model.access.AclNodeLoad;
@@ -49,10 +50,14 @@ public class LiveOperateTest {
 		return (AclDataSource) ops.getDataSource();
 	}
 
-	private static void run(AclDataSource acl, String sql) throws Exception {
+	/** Runs it as the operation's dialog does, and answers what the node answered (spec 010). */
+	private static AclAnswer run(AclDataSource acl, String sql) throws Exception {
 		try (JDBCSession session = DBUtils.openUtilSession(MONITOR, acl, "t008");
 		     JDBCStatement statement = session.createStatement()) {
-			statement.execute(sql);
+			assertTrue(sql + " answers a row", statement.execute(sql));
+			try (java.sql.ResultSet rows = statement.getResultSet()) {
+				return AclAnswer.read(rows);
+			}
 		}
 	}
 
@@ -78,7 +83,7 @@ public class LiveOperateTest {
 			run(acl, session.operation("profile").get(0)); // PROFILE … ON
 			Map<String, Object> row = acl.platformRows(MONITOR, PlatformSql.view("sessions", "id", session.getName())).get(0);
 			assertEquals("all", String.valueOf(row.get("audit_level")).toLowerCase());
-			run(acl, session.operation("kill").get(0));
+			assertTrue("the kill answers ok", run(acl, session.operation("kill").get(0)).ok());
 			assertTrue("killed", acl.platformRows(MONITOR, PlatformSql.view("sessions", "id", session.getName())).isEmpty());
 		} finally {
 			victim.disconnect(MONITOR);
@@ -92,12 +97,16 @@ public class LiveOperateTest {
 		AclDataSource acl = ops();
 		AclNodeLoad node = acl.getAccessNodeLoad(MONITOR).get(0);
 		try {
-			run(acl, node.operation("drain").get(0));
+			AclAnswer drained = run(acl, node.operation("drain").get(0));
+			// spec 010: DRAIN NODE answers (ok, message) - how many sessions remain, in the node's words
+			assertTrue(String.valueOf(drained), drained.ok() && drained.message().matches("\\d+ sessions? still open"));
 			assertEquals(Boolean.TRUE, acl.platformRows(MONITOR, PlatformSql.view("node_load")).get(0).get("draining"));
 		} finally {
-			run(acl, node.operation("resume").get(0));
+			assertEquals(new AclAnswer(true, ""), run(acl, node.operation("resume").get(0)));
 		}
 		assertEquals(Boolean.FALSE, acl.platformRows(MONITOR, PlatformSql.view("node_load")).get(0).get("draining"));
+		// a false says what did not happen, and the plugin reads it as not done
+		assertEquals(new AclAnswer(false, "the node was not draining"), run(acl, node.operation("resume").get(0)));
 	}
 
 	private static boolean clusterNode(AclDataSource acl) {

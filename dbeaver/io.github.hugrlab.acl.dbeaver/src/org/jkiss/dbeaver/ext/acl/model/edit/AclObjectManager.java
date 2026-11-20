@@ -1,5 +1,7 @@
 package org.jkiss.dbeaver.ext.acl.model.edit;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -12,13 +14,17 @@ import org.jkiss.code.NotNull;
 import org.jkiss.code.Nullable;
 import org.jkiss.dbeaver.DBException;
 import org.jkiss.dbeaver.ext.acl.model.AclDataSource;
+import org.jkiss.dbeaver.ext.acl.model.access.AclAnswer;
 import org.jkiss.dbeaver.ext.acl.model.access.AclPlatformObject;
 import org.jkiss.dbeaver.model.DBPDataSource;
 import org.jkiss.dbeaver.model.edit.DBECommand;
 import org.jkiss.dbeaver.model.edit.DBECommandContext;
 import org.jkiss.dbeaver.model.edit.DBEPersistAction;
+import org.jkiss.dbeaver.model.exec.DBCException;
 import org.jkiss.dbeaver.model.exec.DBCExecutionContext;
 import org.jkiss.dbeaver.model.exec.DBCSession;
+import org.jkiss.dbeaver.model.exec.jdbc.JDBCSession;
+import org.jkiss.dbeaver.model.exec.jdbc.JDBCStatement;
 import org.jkiss.dbeaver.model.impl.edit.SQLDatabasePersistAction;
 import org.jkiss.dbeaver.model.impl.sql.edit.SQLObjectEditor;
 import org.jkiss.dbeaver.model.navigator.DBNDatabaseNode;
@@ -26,6 +32,7 @@ import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 import org.jkiss.dbeaver.model.struct.cache.DBSObjectCache;
 import org.jkiss.dbeaver.runtime.DBWorkbench;
+import org.jkiss.dbeaver.ui.UIUtils;
 
 /**
  * How DBeaver writes an object of the Access control branch (spec 008.1): its own create / edit / delete and Save
@@ -35,7 +42,10 @@ import org.jkiss.dbeaver.runtime.DBWorkbench;
  * - before a save of a stored object, a property the user changed whose value on the node moved meanwhile is shown
  *   and asked about (best effort, on the client - spec 008 section 3);
  * - statements run one at a time in auto-commit; at the first refusal the error says which ran before it (a
- *   management batch is not atomic on the node, and a management write is not part of a client transaction).
+ *   management batch is not atomic on the node, and a management write is not part of a client transaction);
+ * - each statement's answer {@code (ok, message)} is read (duckdb-acl spec 179, spec 010 here), and after a command's
+ *   last statement what they said is shown - a false as a warning box, a message (a count, a grant's hint) as a
+ *   notification.
  */
 public abstract class AclObjectManager<T extends AclPlatformObject> extends SQLObjectEditor<T, DBSObject> {
 	/** What each command has run so far, for the error of the statement that fails after them. */
@@ -103,9 +113,69 @@ public abstract class AclObjectManager<T extends AclPlatformObject> extends SQLO
 	}
 
 	private static void add(List<DBEPersistAction> actions, String title, List<String> statements) {
-		for (String statement : statements) {
-			actions.add(new SQLDatabasePersistAction(title, statement));
+		Answers answers = new Answers(title);
+		for (int i = 0; i < statements.size(); i++) {
+			actions.add(new AnsweredAction(title, statements.get(i), answers, i == statements.size() - 1));
 		}
+	}
+
+	/** What one command's statements answered (spec 010), shown after its last statement ran. */
+	private static final class Answers {
+		final String title;
+		final List<String> statements = new ArrayList<>();
+		final List<AclAnswer> answers = new ArrayList<>();
+
+		Answers(String title) {
+			this.title = title;
+		}
+
+		void show() {
+			String text = AclAnswer.report(statements, answers);
+			if (text.isEmpty()) {
+				return;
+			}
+			// after the save, never holding it: what did not happen is a warning to read, what the node only said (a
+			// count, a grant's hint) a notification
+			if (AclAnswer.allOk(answers)) {
+				DBWorkbench.getPlatformUI().showNotification(title, text, false, null);
+			} else {
+				UIUtils.asyncExec(() -> DBWorkbench.getPlatformUI().showWarningMessageBox(title, text));
+			}
+		}
+	}
+
+	/** One of a command's statements; the command's last one shows what they answered. */
+	private static final class AnsweredAction extends SQLDatabasePersistAction {
+		final Answers answers;
+		final boolean last;
+
+		AnsweredAction(String title, String script, Answers answers, boolean last) {
+			super(title, script);
+			this.answers = answers;
+			this.last = last;
+		}
+	}
+
+	/** Runs the statement and reads its answer - DBeaver's own run throws the result away. */
+	private static AclAnswer run(DBCSession session, DBEPersistAction action) throws DBException {
+		if (!(session instanceof JDBCSession jdbc)) {
+			throw new DBException("duckdb-acl: not a JDBC session");
+		}
+		action.beforeExecute(session);
+		AclAnswer answer = null;
+		try (JDBCStatement statement = jdbc.createStatement()) {
+			if (statement.execute(action.getScript())) {
+				try (ResultSet rows = statement.getResultSet()) {
+					answer = AclAnswer.read(rows);
+				}
+			}
+		} catch (SQLException e) {
+			DBCException failed = new DBCException(e, session.getExecutionContext());
+			action.afterExecute(session, failed);
+			throw failed;
+		}
+		action.afterExecute(session, null);
+		return answer;
 	}
 
 	@Override
@@ -179,7 +249,16 @@ public abstract class AclObjectManager<T extends AclPlatformObject> extends SQLO
 	                                 @NotNull DBEPersistAction action) throws DBException {
 		List<String> before = applied.computeIfAbsent(command, c -> new ArrayList<>());
 		try {
-			super.executePersistAction(session, command, action);
+			if (action instanceof AnsweredAction answered) {
+				AclAnswer answer = run(session, action);
+				answered.answers.statements.add(action.getScript());
+				answered.answers.answers.add(answer);
+				if (answered.last) {
+					answered.answers.show();
+				}
+			} else {
+				super.executePersistAction(session, command, action);
+			}
 		} catch (DBException e) {
 			if (before.isEmpty()) {
 				throw e;

@@ -1,5 +1,7 @@
 package org.jkiss.dbeaver.ext.acl.ui;
 
+import java.sql.ResultSet;
+import java.util.Arrays;
 import java.util.List;
 
 import org.eclipse.core.commands.AbstractHandler;
@@ -9,6 +11,7 @@ import org.eclipse.core.runtime.Status;
 import org.eclipse.jface.window.Window;
 import org.eclipse.ui.handlers.HandlerUtil;
 import org.jkiss.code.NotNull;
+import org.jkiss.dbeaver.ext.acl.model.access.AclAnswer;
 import org.jkiss.dbeaver.ext.acl.model.access.AclPlatformObject;
 import org.jkiss.dbeaver.ext.acl.model.access.Operable;
 import org.jkiss.dbeaver.model.DBUtils;
@@ -26,7 +29,8 @@ import org.jkiss.dbeaver.ui.navigator.NavigatorUtils;
 /**
  * An operation of an object of the branch ({@link Operable}, spec 008.2 / 008.3 - a repair, a refresh, a session's kill
  * and levels, drain and resume, a drift entry into the profile): its statements in {@link StatementDialog} - chosen,
- * completed, then run on the connection; the object's parent is read again after it.
+ * completed, then run on the connection; what it answered (spec 010: a false, a message such as drain's count of
+ * sessions still open) is shown, and the object's parent is read again after it.
  */
 public class AclRunHandler extends AbstractHandler {
 	static final String KIND = "io.github.hugrlab.acl.run.kind";
@@ -55,12 +59,22 @@ public class AclRunHandler extends AbstractHandler {
 			@NotNull
 			@Override
 			protected IStatus run(@NotNull DBRProgressMonitor monitor) {
+				AclAnswer answer = null;
 				try (JDBCSession session = DBUtils.openUtilSession(monitor, object.getDataSource(), title);
 				     JDBCStatement run = session.createStatement()) {
-					run.execute(statement);
+					if (run.execute(statement)) {
+						try (ResultSet rows = run.getResultSet()) {
+							answer = AclAnswer.read(rows);
+						}
+					}
 				} catch (Exception e) {
 					UIUtils.asyncExec(() -> DBWorkbench.getPlatformUI().showError(title, "The node refused " + statement, e));
 					return Status.OK_STATUS;
+				}
+				String said = AclAnswer.report(List.of(statement), Arrays.asList(answer));
+				if (!said.isEmpty()) {
+					boolean ok = answer.ok();
+					UIUtils.asyncExec(() -> DBWorkbench.getPlatformUI().showMessageBox(title, said, !ok));
 				}
 				try {
 					DBNDatabaseNode parent = DBWorkbench.getPlatform().getNavigatorModel().getNodeByObject(catalog);
