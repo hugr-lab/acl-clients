@@ -29,6 +29,7 @@ import org.jkiss.dbeaver.model.impl.edit.SQLDatabasePersistAction;
 import org.jkiss.dbeaver.model.impl.sql.edit.SQLObjectEditor;
 import org.jkiss.dbeaver.model.navigator.DBNDatabaseNode;
 import org.jkiss.dbeaver.model.runtime.DBRProgressMonitor;
+import org.jkiss.dbeaver.model.sql.DBSQLException;
 import org.jkiss.dbeaver.model.struct.DBSObject;
 import org.jkiss.dbeaver.model.struct.cache.DBSObjectCache;
 import org.jkiss.dbeaver.runtime.DBWorkbench;
@@ -156,26 +157,38 @@ public abstract class AclObjectManager<T extends AclPlatformObject> extends SQLO
 		}
 	}
 
-	/** Runs the statement and reads its answer - DBeaver's own run throws the result away. */
+	/**
+	 * Runs the statement and reads its answer - DBeaver's own run throws the result away. A refusal is the statement's
+	 * error, as DBeaver raises it; once the statement ran, a failure to read its answer is no refusal (the write stands):
+	 * the answer is then none.
+	 */
 	private static AclAnswer run(DBCSession session, DBEPersistAction action) throws DBException {
 		if (!(session instanceof JDBCSession jdbc)) {
 			throw new DBException("duckdb-acl: not a JDBC session");
 		}
 		action.beforeExecute(session);
-		AclAnswer answer = null;
+		String script = action.getScript();
 		try (JDBCStatement statement = jdbc.createStatement()) {
-			if (statement.execute(action.getScript())) {
-				try (ResultSet rows = statement.getResultSet()) {
-					answer = AclAnswer.read(rows);
-				}
+			boolean rows;
+			try {
+				rows = statement.execute(script);
+			} catch (SQLException | RuntimeException e) {
+				DBCException failed = new DBSQLException(script, e, session.getExecutionContext());
+				action.afterExecute(session, failed);
+				throw failed;
+			}
+			action.afterExecute(session, null);
+			if (!rows) {
+				return null;
+			}
+			try (ResultSet answer = statement.getResultSet()) {
+				return AclAnswer.read(answer);
+			} catch (SQLException | RuntimeException e) {
+				return null; // it ran; what it said is lost, not the write
 			}
 		} catch (SQLException e) {
-			DBCException failed = new DBCException(e, session.getExecutionContext());
-			action.afterExecute(session, failed);
-			throw failed;
+			return null; // closing the statement after it ran
 		}
-		action.afterExecute(session, null);
-		return answer;
 	}
 
 	@Override
@@ -248,24 +261,31 @@ public abstract class AclObjectManager<T extends AclPlatformObject> extends SQLO
 	public void executePersistAction(@NotNull DBCSession session, @NotNull DBECommand<T> command,
 	                                 @NotNull DBEPersistAction action) throws DBException {
 		List<String> before = applied.computeIfAbsent(command, c -> new ArrayList<>());
+		String done = action.getScript();
 		try {
-			if (action instanceof AnsweredAction answered) {
+			if (action instanceof AnsweredAction answered && done != null && !done.isBlank()) {
 				AclAnswer answer = run(session, action);
-				answered.answers.statements.add(action.getScript());
+				answered.answers.statements.add(done);
 				answered.answers.answers.add(answer);
 				if (answered.last) {
 					answered.answers.show();
+				}
+				if (answer != null && !answer.ok()) {
+					done += "  -- not done: " + answer.message();
 				}
 			} else {
 				super.executePersistAction(session, command, action);
 			}
 		} catch (DBException e) {
+			if (action instanceof AnsweredAction answered) {
+				answered.answers.show(); // what the statements before it said is not lost with the save
+			}
 			if (before.isEmpty()) {
 				throw e;
 			}
 			throw new DBException(e.getMessage() + "\n\nApplied before it (a management batch is not atomic):\n  "
 			                      + String.join(";\n  ", before), e);
 		}
-		before.add(action.getScript());
+		before.add(done);
 	}
 }

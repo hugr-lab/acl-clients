@@ -5,6 +5,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.lang.reflect.Proxy;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.util.Arrays;
 import java.util.List;
 
@@ -57,5 +60,35 @@ public class AclAnswerTest {
 		assertTrue(AclAnswer.allOk(Arrays.asList(null, new AclAnswer(true, "x"))));
 		assertEquals("DROP ROLE r\n  not done: the node answered nothing more",
 		             AclAnswer.report(List.of("DROP ROLE r"), List.of(new AclAnswer(false, ""))));
+	}
+
+	/** A result of these columns and rows, as a driver hands it (only what {@link AclAnswer#read} asks). */
+	private static ResultSet rows(List<String> columns, Object[]... rows) {
+		ResultSetMetaData meta = (ResultSetMetaData) Proxy.newProxyInstance(AclAnswerTest.class.getClassLoader(),
+		    new Class<?>[] {ResultSetMetaData.class}, (proxy, method, args) -> switch (method.getName()) {
+			    case "getColumnCount" -> columns.size();
+			    case "getColumnLabel" -> columns.get((Integer) args[0] - 1);
+			    default -> throw new UnsupportedOperationException(method.getName());
+		    });
+		int[] at = {-1};
+		return (ResultSet) Proxy.newProxyInstance(AclAnswerTest.class.getClassLoader(), new Class<?>[] {ResultSet.class},
+		    (proxy, method, args) -> switch (method.getName()) {
+			    case "getMetaData" -> meta;
+			    case "next" -> ++at[0] < rows.length;
+			    case "getObject" -> rows[at[0]][(Integer) args[0] - 1];
+			    default -> throw new UnsupportedOperationException(method.getName());
+		    });
+	}
+
+	@Test
+	public void readFromAResult() throws Exception {
+		// by label, whatever the order and the columns after the pair
+		assertEquals(new AclAnswer(true, "applied"),
+		             AclAnswer.read(rows(List.of("ok", "message", "version"), new Object[] {true, "applied", 7L})));
+		assertEquals(new AclAnswer(false, "nothing changed"),
+		             AclAnswer.read(rows(List.of("message", "ok"), new Object[] {"nothing changed", false})));
+		// no row, or no pair: no answer
+		assertNull(AclAnswer.read(rows(List.of("ok", "message"))));
+		assertNull(AclAnswer.read(rows(List.of("item", "status"), new Object[] {"x", "ok"})));
 	}
 }

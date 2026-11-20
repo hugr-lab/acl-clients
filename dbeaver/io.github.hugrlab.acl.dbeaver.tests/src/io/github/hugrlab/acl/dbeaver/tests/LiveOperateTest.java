@@ -96,17 +96,22 @@ public class LiveOperateTest {
 		LiveTreeTest.assumeNode();
 		AclDataSource acl = ops();
 		AclNodeLoad node = acl.getAccessNodeLoad(MONITOR).get(0);
+		AclAnswer drained;
+		Object draining;
 		try {
-			AclAnswer drained = run(acl, node.operation("drain").get(0));
-			// spec 010: DRAIN NODE answers (ok, message) - how many sessions remain, in the node's words
-			assertTrue(String.valueOf(drained), drained.ok() && drained.message().matches("\\d+ sessions? still open"));
-			assertEquals(Boolean.TRUE, acl.platformRows(MONITOR, PlatformSql.view("node_load")).get(0).get("draining"));
+			drained = run(acl, node.operation("drain").get(0));
+			draining = acl.platformRows(MONITOR, PlatformSql.view("node_load")).get(0).get("draining");
 		} finally {
-			assertEquals(new AclAnswer(true, ""), run(acl, node.operation("resume").get(0)));
+			run(acl, node.operation("resume").get(0)); // whatever was asserted: the node serves the next test
 		}
+		// spec 010: DRAIN NODE answers (ok, message) - how many sessions remain, in the node's words
+		assertTrue(String.valueOf(drained), drained.ok() && drained.message().matches("\\d+ sessions? still open"));
+		assertEquals(Boolean.TRUE, draining);
 		assertEquals(Boolean.FALSE, acl.platformRows(MONITOR, PlatformSql.view("node_load")).get(0).get("draining"));
-		// a false says what did not happen, and the plugin reads it as not done
+		// a resume of a draining node answers ok and nothing more (checked by a drain of its own), and a false says what did not happen, and the plugin reads it as not done
 		assertEquals(new AclAnswer(false, "the node was not draining"), run(acl, node.operation("resume").get(0)));
+		run(acl, node.operation("drain").get(0));
+		assertEquals(new AclAnswer(true, ""), run(acl, node.operation("resume").get(0)));
 	}
 
 	private static boolean clusterNode(AclDataSource acl) {

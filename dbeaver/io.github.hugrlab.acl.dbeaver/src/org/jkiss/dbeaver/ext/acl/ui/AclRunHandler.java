@@ -74,7 +74,13 @@ public class AclRunHandler extends AbstractHandler {
 				String said = AclAnswer.report(List.of(statement), Arrays.asList(answer));
 				if (!said.isEmpty()) {
 					boolean ok = answer.ok();
-					UIUtils.asyncExec(() -> DBWorkbench.getPlatformUI().showMessageBox(title, said, !ok));
+					UIUtils.asyncExec(() -> {
+						if (ok) {
+							DBWorkbench.getPlatformUI().showMessageBox(title, said, false);
+						} else {
+							DBWorkbench.getPlatformUI().showWarningMessageBox(title, said);
+						}
+					});
 				}
 				try {
 					DBNDatabaseNode parent = DBWorkbench.getPlatform().getNavigatorModel().getNodeByObject(catalog);
