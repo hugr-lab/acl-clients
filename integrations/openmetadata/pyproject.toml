@@ -7,6 +7,8 @@ license = "MIT"
 requires-python = ">=3.10,<3.12"
 dependencies = [
     "openmetadata-ingestion~=2.0.5",
+    # ingestion imports pytz without declaring it; pandas 3 no longer brings it
+    "pytz",
     "adbc-driver-flightsql>=1.0",
     "adbc-driver-manager>=1.0",
     "pyarrow>=14",
