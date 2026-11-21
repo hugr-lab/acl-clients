@@ -88,6 +88,8 @@ class AclIngestTest {
 	private final List<String> cookies = new java.util.concurrent.CopyOnWriteArrayList<>();
 	/** A put the server saw end in an error - whether or not its handler ran (a cancel may come first). */
 	private final java.util.concurrent.CountDownLatch putsEnded = new java.util.concurrent.CountDownLatch(1);
+	/** A put the server received: a cancel sent before its headers left ends a call the server never sees. */
+	private final java.util.concurrent.CountDownLatch putsStarted = new java.util.concurrent.CountDownLatch(1);
 
 	@BeforeEach
 	void serve() throws Exception {
@@ -100,6 +102,9 @@ class AclIngestTest {
 				             cookies.add(String.valueOf(incoming.get("cookie")));
 			             }
 			             boolean put = info.method() == FlightMethod.DO_PUT;
+			             if (put) {
+				             putsStarted.countDown();
+			             }
 			             return new FlightServerMiddleware() {
 				             @Override
 				             public void onBeforeSendingHeaders(CallHeaders outgoing) {
@@ -141,6 +146,29 @@ class AclIngestTest {
 		byte[] one = stream(ids);
 		byte[] two = streamTwice(ids);
 		return java.util.Arrays.copyOf(two, one.length + (two.length - one.length) / 2);
+	}
+
+	/**
+	 * The truncated stream, its second batch held back until the server received the put: the call the test judges
+	 * is one the server has (without the gate the cancel could beat the call's headers, and the server saw nothing).
+	 */
+	private java.io.InputStream truncatedOnceTheServerHasTheCall(long... ids) throws Exception {
+		byte[] bytes = truncated(ids);
+		int second = stream(ids).length - 8; // where the one-batch stream's end-of-stream marker (8 bytes) starts
+		return new ByteArrayInputStream(bytes) {
+			@Override
+			public synchronized int read(byte[] b, int off, int len) {
+				if (pos >= second) {
+					try {
+						assertTrue(putsStarted.await(10, java.util.concurrent.TimeUnit.SECONDS), "the server got the put");
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+						throw new IllegalStateException(e);
+					}
+				}
+				return super.read(b, off, len);
+			}
+		};
 	}
 
 	private static byte[] streamTwice(long... ids) throws Exception {
@@ -225,7 +253,7 @@ class AclIngestTest {
 	void aStreamThatBreaksMidwayCancelsTheCall() throws Exception {
 		AclIngest ingest = new AclConnection(arrow, AclConfig.Mode.DATA, false);
 		SQLException e = assertThrows(SQLException.class,
-		                              () -> ingest.ingest("stock", new ByteArrayInputStream(truncated(1, 2, 3)), Mode.MERGE));
+		                              () -> ingest.ingest("stock", truncatedOnceTheServerHasTheCall(1, 2, 3), Mode.MERGE));
 		assertTrue(putsEnded.await(10, java.util.concurrent.TimeUnit.SECONDS), "the server saw the call end");
 		assertTrue(String.valueOf(e.getMessage()).startsWith("ingest: "), e.getMessage());
 		assertEquals(List.of(), recorder.rows);
