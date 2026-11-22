@@ -57,6 +57,10 @@ property the node holds - its masks and versions included - or is not written. A
   written again keeps its masks and versions; an unreadable one is refused; a catalog grant writes no COLUMNS and
   clears a legacy list; every text a literal).
 - Live (`LiveEditTest`, against the dev node): an object grant with a mask and VERSIONS changed in its RLS keeps both.
+- Run 2026-11-22 against a fresh `ACL_CLUSTER=1 ACL_METADATA=1 dev/node.sh` (hugr-node 2cab612): unit 43/43, every
+  Live class but `LiveConsoleTest` green. Its three SWTBot cases (`aRoleThroughDbeaversEditor`: no `Delete` in the
+  context menu; `aGrantsRowFilterAndColumnsTabs`, `aFunctionsDefinitionTab`: no editor opens) fail the same on main on
+  macOS - a UI matter of its own; the Columns tab's new texts there are updated but not run.
 
 ## Alternatives
 
