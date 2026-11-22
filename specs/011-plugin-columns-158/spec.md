@@ -76,12 +76,20 @@ property the node holds - its masks and versions included - or is not written. A
   amount2`): the items keep their order, a second reading of a column is a computed column.
 - `* EXCLUDE ssn` (no parentheses) is read; a column masked anew reads `NULL`; an edit of the Columns tab that writes
   nothing (every column hidden under a list, a mask cleared) is taken back, so the tab shows what Save writes.
-- Re-review: `* EXCLUDE a` takes one name only (`* EXCLUDE a, b` is duckdb's EXCLUDE a, then b); the stale dialog says
-  that saving over an object grant replaces what the node holds, masks included.
-- Left: a mask text the user types with an `E'…'` or `$$…$$` string is split by the tab's own reading of quotes (the
-  node reads it right; the cell shows what was read) - text the node stores is plain `'…'`.
+- Re-review: the stale dialog says that saving over an object grant replaces what the node holds, masks included.
 - Left: a NEW object grant on an object the role already holds a grant on replaces it (the grammar's rule; the plugin
   does not look first) - its masks with it. The tree shows the existing grant; a follow-up may refuse the create.
+
+## After the merge: no text read by the plugin (the owner, 2026-11-22)
+
+The tabs read the grant's and the relation's texts back with a splitter and regular expressions of their own, and so
+read some otherwise than duckdb (`* EXCLUDE a, b`, an `E'…'` or `$$…$$` string in a mask) - against the rule that
+duckdb's parser reads SQL. The node already gives its reading: `platform.object_grants` (the test's mode and names,
+the masks as (column, mask)) and `platform.relation_columns` (name, expr per item). So the tabs are filled from those
+and keep their own state while unsaved; the plugin only composes the text it writes - no splitter, no pattern (the
+texts are not edited by hand: hidden from the properties panel, edited by the tabs alone). A relation item is the
+source's column when the node printed it as one reference (`a` / `"a"`, compared, not read). A cluster source's
+options (JSON) are read by a JSON parser (Gson), not by hand.
 
 ## Alternatives
 

@@ -38,6 +38,7 @@ public class GrantColumnsPage extends PolicyPage {
 	private Text catalogList;
 	private Label hint;
 	private GrantColumns model;
+	private Object lastWritten; // the model's states as last written into the grant
 	private boolean filling;
 
 	@Override
@@ -164,7 +165,7 @@ public class GrantColumnsPage extends PolicyPage {
 			columns = model.composeColumns();
 			masks = model.composeMasks();
 		} catch (IllegalStateException e) {
-			model.apply(grant().getColumns(), grant().getMasks());
+			model.restore(lastWritten);
 			filling = true;
 			laterShown.setSelection(model.laterShown());
 			filling = false;
@@ -174,6 +175,7 @@ public class GrantColumnsPage extends PolicyPage {
 			return;
 		}
 		table.refresh();
+		lastWritten = model.snapshot();
 		show(columns, masks);
 		if (!columns.equals(nonNull(grant().getColumns()))) {
 			set("columns", columns);
@@ -225,8 +227,17 @@ public class GrantColumnsPage extends PolicyPage {
 		if (table.getTable().isDisposed()) {
 			return;
 		}
+		AclObjectGrant grant = (AclObjectGrant) getDatabaseObject();
+		if (model != null && (grant.isEdited("columns") || grant.isEdited("masks"))) {
+			return; // the tab's own edits, not saved yet: kept as they are
+		}
+		// what the node read with duckdb's parser (platform.object_grants), never a text read here; a new grant: none
+		List<String> test = grant.storedTest();
+		List<String[]> masks = grant.storedMaskPairs();
 		model = new GrantColumns(exposed);
-		model.apply(grant().getColumns(), grant().getMasks());
+		model.apply(test == null ? "all" : test.get(0), test == null ? List.of() : test.subList(1, test.size()),
+		            masks == null ? List.of() : masks);
+		lastWritten = model.snapshot();
 		table.setInput(model.columns());
 		filling = true;
 		laterShown.setSelection(model.laterShown());

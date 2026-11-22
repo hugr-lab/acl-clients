@@ -187,7 +187,7 @@ public class RelationColumnsPage extends PolicyPage {
 			return;
 		}
 		inBackground("Read the source's columns", monitor -> new Object[] {relation().physicalColumns(monitor),
-		                                                                  relation().getDeclaredColumns(monitor)},
+		                                                                  relation().declaredRows(monitor)},
 		             this::fill, error -> hint.setText(error));
 	}
 
@@ -201,8 +201,12 @@ public class RelationColumnsPage extends PolicyPage {
 			hint.setText("The source's columns are not listed here (its phys, or a source not granted to you): the "
 			             + "list is kept as written");
 		}
+		if (model != null && relation().isEdited("declaredColumns")) {
+			return; // the tab's own edits, not saved yet: kept as they are
+		}
+		// what the node read with duckdb's parser (platform.relation_columns), never a text read here
 		model = new RelationColumns(physical);
-		model.apply((String) read[1]);
+		model.apply((List<String[]>) read[1]);
 		table.setInput(rows());
 		String list = model.compose();
 		written.setText(list.isEmpty() ? "(none - every column as it is)" : list);

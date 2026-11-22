@@ -2,16 +2,14 @@ package org.jkiss.dbeaver.ext.acl.model.access;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * A virtual table's own column list as the Columns tab edits it (spec 008.2, spec 011 / duckdb-acl spec 158): the
  * physical columns of its source, each exposed or not, under a name, through an expression - and the computed columns
- * the source does not have. Read from and written to the `COLUMNS (…)` text, a SELECT list over the source: `name`,
- * `column AS new_name`, `<expression> AS name` (nullability is the source's). An item it does not take apart - a star,
- * `a.b`, `name: <expr>` - is kept as written, and the items keep their order. A source column a list reads twice is
- * the column once and a computed column after that (`amount, amount AS amount2`).
+ * the source does not have. Filled from the node's reading of the list (`platform.relation_columns`, duckdb's parser)
+ * and written as the `COLUMNS (…)` text, a SELECT list over the source: `name`, `column AS new_name`, `<expression>
+ * AS name` (nullability is the source's); a star item is kept as the node holds it, the items keep their order, and a
+ * source column read twice is the column once and a computed column after that (`amount, amount AS amount2`).
  */
 public final class RelationColumns {
 	/** One physical column. */
@@ -39,12 +37,6 @@ public final class RelationColumns {
 			this.expression = expression;
 		}
 	}
-
-	/** `<left> AS <name>` at the item's end; the name bare or quoted. */
-	private static final Pattern AS_NAME = Pattern.compile("(.*\\S)\\s+AS\\s+(\"(?:[^\"]|\"\")+\"|[A-Za-z_][A-Za-z0-9_$]*)",
-	                                                       Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-	/** One name: a column of the source as written. */
-	private static final Pattern NAME = Pattern.compile("\"(?:[^\"]|\"\")+\"|[A-Za-z_][A-Za-z0-9_$]*");
 
 	private final List<Column> columns = new ArrayList<>();
 	private final List<Computed> computed = new ArrayList<>();
@@ -75,77 +67,67 @@ public final class RelationColumns {
 		return unknown;
 	}
 
-	/** The source's column a name is, when it is one name. */
+	/** The source's column of this name. */
 	private Column physical(String name) {
-		if (!NAME.matcher(name.trim()).matches()) {
-			return null;
-		}
-		String bare = GrantColumns.unquote(name);
 		for (Column column : columns) {
-			if (column.name.equalsIgnoreCase(bare)) {
+			if (column.name.equalsIgnoreCase(name)) {
 				return column;
 			}
 		}
 		return null;
 	}
 
-	/** The states a relation's `COLUMNS` text says; empty = every physical column, as it is (the alias form). */
-	public void apply(String list) {
+	/** The source's column an expression is when the node printed it as one column reference (`a` or `"a"`). */
+	private Column reference(String expr) {
+		for (Column column : columns) {
+			if (expr.equals(column.name) || expr.equals("\"" + column.name.replace("\"", "\"\"") + "\"")) {
+				return column;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * The states the node's reading of a relation's list says - its `platform.relation_columns` rows in order, each
+	 * (name, expr): `expr` empty = the column itself, a NULL name = a star item (its text in `expr`). No rows = every
+	 * physical column, as it is (the alias form). Nothing here reads a text: duckdb's parser did, where it was written.
+	 */
+	public void apply(List<String[]> rows) {
 		computed.clear();
 		unknown.clear();
 		order.clear();
-		List<String> items = new ArrayList<>();
-		for (String item : GrantColumns.split(list == null ? "" : list, ',')) {
-			if (!item.trim().isEmpty()) {
-				items.add(item.trim());
-			}
-		}
-		listed = !items.isEmpty();
+		listed = !rows.isEmpty();
 		for (Column column : columns) {
-			column.exposed = items.isEmpty();
+			column.exposed = rows.isEmpty();
 			column.as = column.name;
 			column.expression = "";
 		}
 		java.util.Set<Column> used = new java.util.HashSet<>();
-		for (String item : items) {
-			Matcher named = AS_NAME.matcher(item);
-			if (!named.matches()) {
-				Column column = physical(item);
-				if (column == null || !used.add(column)) {
-					unknown.add(item); // a star, `a.b`, `name: <expr>` (or a column listed twice): kept as written
-					order.add(item);
-				} else {
-					column.exposed = true;
-					order.add(column);
-				}
+		for (String[] row : rows) {
+			String name = row[0];
+			String expr = row[1] == null ? "" : row[1];
+			if (name == null) {
+				unknown.add(expr); // a star item, as the node keeps it
+				order.add(expr);
 				continue;
 			}
-			String left = named.group(1).trim();
-			String name = GrantColumns.unquote(named.group(2));
-			Column renamed = physical(left);
-			Column target = physical(named.group(2));
+			Column renamed = expr.isEmpty() ? physical(name) : reference(expr);
+			Column target = physical(name);
 			if (renamed != null && used.add(renamed)) {
-				renamed.exposed = true; // column AS new_name
-				renamed.as = name;
+				renamed.exposed = true; // the column itself, or column AS new_name
+				renamed.as = expr.isEmpty() ? renamed.name : name;
 				order.add(renamed);
-			} else if (renamed == null && target != null && used.add(target)) {
+			} else if (renamed == null && !expr.isEmpty() && target != null && used.add(target)) {
 				target.exposed = true; // an expression of the source read as the column
-				target.expression = left;
+				target.expression = expr;
 				order.add(target);
 			} else {
-				Computed made = new Computed(name, left);
+				// a column the source lacks, a computed one, or a source column read twice
+				Computed made = new Computed(name, expr.isEmpty() ? AclGrammar.fieldIdent(name) : expr);
 				computed.add(made);
 				order.add(made);
 			}
 		}
-	}
-
-	private static String item(Column column) {
-		String as = AclGrammar.fieldIdent(column.as);
-		if (!column.expression.isEmpty()) {
-			return column.expression + " AS " + as;
-		}
-		return column.as.equals(column.name) ? as : AclGrammar.fieldIdent(column.name) + " AS " + as;
 	}
 
 	/** The `COLUMNS` text these states write; empty when every column is exposed as it is (the alias form). */
@@ -165,7 +147,7 @@ public final class RelationColumns {
 				}
 			} else if (entry instanceof Computed made) {
 				if (computed.contains(made)) { // one the tab removed is gone
-					items.add(made.expression + " AS " + AclGrammar.fieldIdent(made.name));
+					items.add(computedItem(made));
 				}
 			} else {
 				items.add((String) entry);
@@ -178,9 +160,22 @@ public final class RelationColumns {
 		}
 		for (Computed made : computed) { // added by an edit
 			if (!order.contains(made)) {
-				items.add(made.expression + " AS " + AclGrammar.fieldIdent(made.name));
+				items.add(computedItem(made));
 			}
 		}
 		return String.join(", ", items);
+	}
+
+	private static String computedItem(Computed made) {
+		String as = AclGrammar.fieldIdent(made.name);
+		return made.expression.equals(as) ? as : made.expression + " AS " + as;
+	}
+
+	private static String item(Column column) {
+		String as = AclGrammar.fieldIdent(column.as);
+		if (!column.expression.isEmpty()) {
+			return column.expression + " AS " + as;
+		}
+		return column.as.equals(column.name) ? as : AclGrammar.fieldIdent(column.name) + " AS " + as;
 	}
 }

@@ -24,6 +24,7 @@ Require-Bundle: org.jkiss.dbeaver.model,
  org.eclipse.ui,
  org.eclipse.ui.workbench,
  io.github.hugrlab.acl.jdbc
-Import-Package: org.jkiss.code
+Import-Package: com.google.gson,
+ org.jkiss.code
 Export-Package: org.jkiss.dbeaver.ext.acl.model
 Automatic-Module-Name: io.github.hugrlab.acl.dbeaver

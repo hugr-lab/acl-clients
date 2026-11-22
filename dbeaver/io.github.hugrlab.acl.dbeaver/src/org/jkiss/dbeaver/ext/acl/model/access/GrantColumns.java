@@ -3,16 +3,15 @@ package org.jkiss.dbeaver.ext.acl.model.access;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * An object grant's columns as the Columns tab edits them (spec 011, duckdb-acl spec 158): each column the object
  * exposes - as the node answers them (`platform.check_grant` with no list, duckdb-acl spec 122) - Visible, Masked (the
- * expression the role reads instead) or Hidden. Read from and written to the grant's two texts: its `COLUMNS` test (empty
- * = every column, `a, b`, `* EXCLUDE (a, b)`) and its `MASK` items (`col AS <expr>, …`). The test's mode is what a
- * column the object gains later is: shown under `* EXCLUDE`, hidden under a list of names. A name or a mask of a column
- * the object no longer has is kept as written - the node's check says what it is - never dropped.
+ * expression the role reads instead) or Hidden. Filled from what the node read with duckdb's parser -
+ * `platform.object_grants`' test (mode, names) and masks (column, mask) - and never from a text: this composes the
+ * `COLUMNS` test and the `MASK` items to write, it reads neither. The test's mode is what a column the object gains
+ * later is: shown under `* EXCLUDE`, hidden under a list of names. A name or a mask of a column the object no longer has
+ * is kept - the node's check says what it is - never dropped.
  */
 public final class GrantColumns {
 	public enum Shown {
@@ -32,18 +31,12 @@ public final class GrantColumns {
 		}
 	}
 
-	// `* EXCLUDE (a, b)`, or duckdb's one-name form `* EXCLUDE a`
-	private static final Pattern EXCLUDE = Pattern.compile("\\*\\s*EXCLUDE\\s*(?:\\((.*)\\)|(\"(?:[^\"]|\"\")+\"|[^\\s,()\"]+))",
-	                                                       Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-	private static final Pattern MASK_ITEM = Pattern.compile("(\"(?:[^\"]|\"\")+\"|[^\\s\"]+)\\s+AS\\s+(.+)",
-	                                                         Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-
 	private final List<Node> columns = new ArrayList<>();
 	// names of the test the object lacks, per mode: hidden under EXCLUDE, shown under a list - each kept for its mode,
 	// so switching the mode and back keeps them
 	private final List<String> unknownExcluded = new ArrayList<>();
 	private final List<String> unknownShown = new ArrayList<>();
-	private final List<String> unknownMasks = new ArrayList<>(); // mask items as written
+	private final List<String[]> unknownMasks = new ArrayList<>(); // (column, mask) of a column the object lacks
 	private boolean laterShown = true;
 
 	/** The object's columns - (name, type) as the node answers them. */
@@ -70,63 +63,6 @@ public final class GrantColumns {
 		laterShown = shown;
 	}
 
-	/** Split at a delimiter outside quotes and brackets ( ( ), [ ], { } ). */
-	static List<String> split(String text, char delimiter) {
-		List<String> out = new ArrayList<>();
-		int depth = 0;
-		char quote = 0;
-		StringBuilder part = new StringBuilder();
-		for (int i = 0; i < text.length(); i++) {
-			char c = text.charAt(i);
-			if (quote != 0) {
-				part.append(c);
-				if (c == quote) {
-					if (i + 1 < text.length() && text.charAt(i + 1) == quote) {
-						part.append(text.charAt(++i));
-					} else {
-						quote = 0;
-					}
-				}
-			} else if (c == '\'' || c == '"') {
-				quote = c;
-				part.append(c);
-			} else if (c == '(' || c == '[' || c == '{') {
-				depth++;
-				part.append(c);
-			} else if (c == ')' || c == ']' || c == '}') {
-				depth--;
-				part.append(c);
-			} else if (c == delimiter && depth == 0) {
-				out.add(part.toString());
-				part.setLength(0);
-			} else {
-				part.append(c);
-			}
-		}
-		if (part.length() > 0 || !out.isEmpty()) {
-			out.add(part.toString());
-		}
-		return out;
-	}
-
-	static String unquote(String name) {
-		String bare = name.trim();
-		if (bare.length() >= 2 && bare.startsWith("\"") && bare.endsWith("\"")) {
-			return bare.substring(1, bare.length() - 1).replace("\"\"", "\"");
-		}
-		return bare;
-	}
-
-	private static List<String> names(String list) {
-		List<String> out = new ArrayList<>();
-		for (String item : split(list, ',')) {
-			if (!item.trim().isEmpty()) {
-				out.add(unquote(item));
-			}
-		}
-		return out;
-	}
-
 	private Node column(String name) {
 		for (Node column : columns) {
 			if (column.name.toLowerCase(Locale.ROOT).equals(name.toLowerCase(Locale.ROOT))) {
@@ -136,22 +72,21 @@ public final class GrantColumns {
 		return null;
 	}
 
-	/** The states a grant's `COLUMNS` test and `MASK` items say; both empty = every column, unmasked. */
-	public void apply(String test, String masks) {
+	/**
+	 * The states the node's reading of a grant says: its test's mode (`all`, `only`, `except`) and names, and its masks
+	 * as (column, mask) pairs.
+	 */
+	public void apply(String mode, List<String> names, List<String[]> masks) {
 		unknownExcluded.clear();
 		unknownShown.clear();
 		unknownMasks.clear();
-		String text = test == null ? "" : test.trim();
-		Matcher except = EXCLUDE.matcher(text);
-		boolean all = text.isEmpty() || text.equals("*");
-		laterShown = all || except.matches();
-		String exceptNames = except.matches() ? (except.group(1) != null ? except.group(1) : except.group(2)) : text;
-		List<String> named = all ? List.of() : names(exceptNames);
+		boolean all = mode == null || mode.equals("all");
+		laterShown = all || mode.equals("except");
 		for (Node column : columns) {
 			column.mask = "";
 			column.shown = laterShown ? Shown.VISIBLE : Shown.HIDDEN;
 		}
-		for (String name : named) {
+		for (String name : all ? List.<String>of() : names) {
 			Node column = column(name);
 			if (column == null) {
 				(laterShown ? unknownExcluded : unknownShown).add(name);
@@ -159,17 +94,13 @@ public final class GrantColumns {
 				column.shown = laterShown ? Shown.HIDDEN : Shown.VISIBLE;
 			}
 		}
-		for (String item : split(masks == null ? "" : masks, ',')) {
-			if (item.trim().isEmpty()) {
-				continue;
-			}
-			Matcher m = MASK_ITEM.matcher(item.trim());
-			Node column = m.matches() ? column(unquote(m.group(1))) : null;
+		for (String[] mask : masks) {
+			Node column = column(mask[0]);
 			if (column == null) {
-				unknownMasks.add(item.trim());
+				unknownMasks.add(mask);
 			} else {
 				column.shown = Shown.MASKED; // a mask names a column the grant shows
-				column.mask = m.group(2).trim();
+				column.mask = mask[1];
 			}
 		}
 	}
@@ -180,6 +111,27 @@ public final class GrantColumns {
 		if (shown == Shown.MASKED && (node.mask == null || node.mask.trim().isEmpty())) {
 			node.mask = "NULL";
 		}
+	}
+
+	/** The states as they are now, to put back an edit that writes nothing. */
+	public Object snapshot() {
+		List<Object> out = new ArrayList<>();
+		for (Node column : columns) {
+			out.add(new Object[] {column.shown, column.mask});
+		}
+		out.add(laterShown);
+		return out;
+	}
+
+	@SuppressWarnings("unchecked")
+	public void restore(Object snapshot) {
+		List<Object> saved = (List<Object>) snapshot;
+		for (int i = 0; i < columns.size(); i++) {
+			Object[] state = (Object[]) saved.get(i);
+			columns.get(i).shown = (Shown) state[0];
+			columns.get(i).mask = (String) state[1];
+		}
+		laterShown = (Boolean) saved.get(columns.size());
 	}
 
 	/**
@@ -215,7 +167,9 @@ public final class GrantColumns {
 				items.add(AclGrammar.fieldIdent(column.name) + " AS " + column.mask.trim());
 			}
 		}
-		items.addAll(unknownMasks);
+		for (String[] mask : unknownMasks) {
+			items.add(AclGrammar.fieldIdent(mask[0]) + " AS " + mask[1]);
+		}
 		return String.join(", ", items);
 	}
 }

@@ -106,42 +106,42 @@ public class AclObjectGrant extends AclGrantObject implements AclPolicyGrant {
 	}
 
 	/**
-	 * The test as the node prints it, from the view's STRUCT(mode, names): empty = every column; null = not read -
-	 * NULL, or any shape this does not read whole (fail closed: a test read as "every column" would widen it).
+	 * The test as the node read it (duckdb's parser): [mode, names…] from the view's STRUCT(mode, names); null = not
+	 * read - NULL, or any shape this does not read whole (fail closed: a test read as "every column" would widen it).
 	 */
-	private String storedColumns() {
+	public List<String> storedTest() {
 		Map<?, ?> fields = struct(row.get("columns"));
 		if (fields == null || !(fields.get("mode") instanceof Object modeValue)) {
 			return null;
 		}
 		String mode = modeValue.toString();
+		List<String> out = new ArrayList<>(List.of(mode));
 		if (mode.equals("all")) {
-			return "";
+			return out;
 		}
 		List<Object> listed = list(fields.get("names"));
 		if (listed == null || listed.isEmpty() || !(mode.equals("only") || mode.equals("except"))) {
 			return null;
 		}
-		List<String> names = new ArrayList<>();
 		for (Object name : listed) {
 			if (name == null) {
 				return null;
 			}
-			names.add(AclGrammar.fieldIdent(name.toString()));
+			out.add(name.toString());
 		}
-		return mode.equals("only") ? String.join(", ", names) : "* EXCLUDE (" + String.join(", ", names) + ")";
+		return out;
 	}
 
 	/**
-	 * The masks as written (`col AS <expr>, …`), from the view's LIST(STRUCT(column, mask)); null = not read whole
-	 * (NULL, another shape, an item without its column or mask) - a mask dropped would show its column.
+	 * The masks as the node read them: (column, mask) pairs from the view's LIST(STRUCT(column, mask)); null = not
+	 * read whole (NULL, another shape, an item without its column or mask) - a mask dropped would show its column.
 	 */
-	private String storedMasks() {
+	public List<String[]> storedMaskPairs() {
 		List<Object> listed = list(row.get("masks"));
 		if (listed == null) {
 			return null;
 		}
-		List<String> items = new ArrayList<>();
+		List<String[]> out = new ArrayList<>();
 		for (Object item : listed) {
 			Map<?, ?> fields = struct(item);
 			Object column = fields == null ? null : fields.get("column");
@@ -149,7 +149,37 @@ public class AclObjectGrant extends AclGrantObject implements AclPolicyGrant {
 			if (column == null || mask == null) {
 				return null;
 			}
-			items.add(AclGrammar.fieldIdent(column.toString()) + " AS " + mask);
+			out.add(new String[] {column.toString(), mask.toString()});
+		}
+		return out;
+	}
+
+	/** The test as it is written (`a, b`, `* EXCLUDE (a, b)`; empty = every column); null = not read. */
+	private String storedColumns() {
+		List<String> test = storedTest();
+		if (test == null) {
+			return null;
+		}
+		List<String> names = new ArrayList<>();
+		for (String name : test.subList(1, test.size())) {
+			names.add(AclGrammar.fieldIdent(name));
+		}
+		return switch (test.get(0)) {
+			case "only" -> String.join(", ", names);
+			case "except" -> "* EXCLUDE (" + String.join(", ", names) + ")";
+			default -> "";
+		};
+	}
+
+	/** The masks as they are written (`col AS <expr>, …`); null = not read. */
+	private String storedMasks() {
+		List<String[]> pairs = storedMaskPairs();
+		if (pairs == null) {
+			return null;
+		}
+		List<String> items = new ArrayList<>();
+		for (String[] pair : pairs) {
+			items.add(AclGrammar.fieldIdent(pair[0]) + " AS " + pair[1]);
 		}
 		return String.join(", ", items);
 	}
