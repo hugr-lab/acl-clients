@@ -33,7 +33,7 @@ public final class GrantColumns {
 	}
 
 	// `* EXCLUDE (a, b)`, or duckdb's one-name form `* EXCLUDE a`
-	private static final Pattern EXCLUDE = Pattern.compile("\\*\\s*EXCLUDE\\s*(?:\\((.*)\\)|(\\S.*))",
+	private static final Pattern EXCLUDE = Pattern.compile("\\*\\s*EXCLUDE\\s*(?:\\((.*)\\)|(\"(?:[^\"]|\"\")+\"|[^\\s,()\"]+))",
 	                                                       Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 	private static final Pattern MASK_ITEM = Pattern.compile("(\"(?:[^\"]|\"\")+\"|[^\\s\"]+)\\s+AS\\s+(.+)",
 	                                                         Pattern.CASE_INSENSITIVE | Pattern.DOTALL);

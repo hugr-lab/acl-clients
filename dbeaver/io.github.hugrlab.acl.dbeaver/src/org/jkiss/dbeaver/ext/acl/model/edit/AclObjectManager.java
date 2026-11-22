@@ -246,7 +246,9 @@ public abstract class AclObjectManager<T extends AclPlatformObject> extends SQLO
 		}
 		boolean overwrite = DBWorkbench.getPlatformUI().confirmAction("Changed on the node",
 		    object.getName() + " was changed on the node since it was opened:" + said
-		        + "\n\nSave your values over them anyway?");
+		        + "\n\nSave your values over them anyway? The node's values above are replaced by yours"
+		        + (object instanceof org.jkiss.dbeaver.ext.acl.model.access.AclObjectGrant
+		           ? " - an object grant is written whole, so a mask or a column test added meanwhile goes." : "."));
 		if (!overwrite) {
 			throw new DBException("duckdb-acl: not saved - " + object.getName()
 			                      + " was changed on the node meanwhile; refresh it and edit again");
