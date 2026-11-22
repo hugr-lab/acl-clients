@@ -10,7 +10,8 @@ import java.util.regex.Pattern;
  * physical columns of its source, each exposed or not, under a name, through an expression - and the computed columns
  * the source does not have. Read from and written to the `COLUMNS (…)` text, a SELECT list over the source: `name`,
  * `column AS new_name`, `<expression> AS name` (nullability is the source's). An item it does not take apart - a star,
- * `a.b`, `name: <expr>` - is kept as written.
+ * `a.b`, `name: <expr>` - is kept as written, and the items keep their order. A source column a list reads twice is
+ * the column once and a computed column after that (`amount, amount AS amount2`).
  */
 public final class RelationColumns {
 	/** One physical column. */
@@ -48,6 +49,9 @@ public final class RelationColumns {
 	private final List<Column> columns = new ArrayList<>();
 	private final List<Computed> computed = new ArrayList<>();
 	private final List<String> unknown = new ArrayList<>();
+	// the list's items in its order (a Column, a Computed or an unknown item's text): the order is the table's column
+	// order, which `SELECT *` and a positional INSERT read - written back as it was, what an edit adds after it
+	private final List<Object> order = new ArrayList<>();
 	// whether the applied text was a list: a relation with one never goes back to none by an edit - no list is the
 	// alias form (writable, every source column as it comes), a list of every column as itself is read-only
 	private boolean listed;
@@ -89,6 +93,7 @@ public final class RelationColumns {
 	public void apply(String list) {
 		computed.clear();
 		unknown.clear();
+		order.clear();
 		List<String> items = new ArrayList<>();
 		for (String item : GrantColumns.split(list == null ? "" : list, ',')) {
 			if (!item.trim().isEmpty()) {
@@ -101,14 +106,17 @@ public final class RelationColumns {
 			column.as = column.name;
 			column.expression = "";
 		}
+		java.util.Set<Column> used = new java.util.HashSet<>();
 		for (String item : items) {
 			Matcher named = AS_NAME.matcher(item);
 			if (!named.matches()) {
 				Column column = physical(item);
-				if (column == null) {
-					unknown.add(item); // a star, `a.b`, `name: <expr>`: kept as written
+				if (column == null || !used.add(column)) {
+					unknown.add(item); // a star, `a.b`, `name: <expr>` (or a column listed twice): kept as written
+					order.add(item);
 				} else {
 					column.exposed = true;
+					order.add(column);
 				}
 				continue;
 			}
@@ -116,16 +124,28 @@ public final class RelationColumns {
 			String name = GrantColumns.unquote(named.group(2));
 			Column renamed = physical(left);
 			Column target = physical(named.group(2));
-			if (renamed != null) {
+			if (renamed != null && used.add(renamed)) {
 				renamed.exposed = true; // column AS new_name
 				renamed.as = name;
-			} else if (target != null) {
+				order.add(renamed);
+			} else if (renamed == null && target != null && used.add(target)) {
 				target.exposed = true; // an expression of the source read as the column
 				target.expression = left;
+				order.add(target);
 			} else {
-				computed.add(new Computed(name, left));
+				Computed made = new Computed(name, left);
+				computed.add(made);
+				order.add(made);
 			}
 		}
+	}
+
+	private static String item(Column column) {
+		String as = AclGrammar.fieldIdent(column.as);
+		if (!column.expression.isEmpty()) {
+			return column.expression + " AS " + as;
+		}
+		return column.as.equals(column.name) ? as : AclGrammar.fieldIdent(column.name) + " AS " + as;
 	}
 
 	/** The `COLUMNS` text these states write; empty when every column is exposed as it is (the alias form). */
@@ -138,23 +158,29 @@ public final class RelationColumns {
 			return "";
 		}
 		List<String> items = new ArrayList<>();
-		for (Column column : columns) {
-			if (!column.exposed) {
-				continue;
-			}
-			String as = AclGrammar.fieldIdent(column.as);
-			if (!column.expression.isEmpty()) {
-				items.add(column.expression + " AS " + as);
-			} else if (!column.as.equals(column.name)) {
-				items.add(AclGrammar.fieldIdent(column.name) + " AS " + as);
+		for (Object entry : order) {
+			if (entry instanceof Column column) {
+				if (column.exposed) {
+					items.add(item(column));
+				}
+			} else if (entry instanceof Computed made) {
+				if (computed.contains(made)) { // one the tab removed is gone
+					items.add(made.expression + " AS " + AclGrammar.fieldIdent(made.name));
+				}
 			} else {
-				items.add(as);
+				items.add((String) entry);
 			}
 		}
-		for (Computed made : computed) {
-			items.add(made.expression + " AS " + AclGrammar.fieldIdent(made.name));
+		for (Column column : columns) { // exposed by an edit: after the list's items
+			if (column.exposed && !order.contains(column)) {
+				items.add(item(column));
+			}
 		}
-		items.addAll(unknown);
+		for (Computed made : computed) { // added by an edit
+			if (!order.contains(made)) {
+				items.add(made.expression + " AS " + AclGrammar.fieldIdent(made.name));
+			}
+		}
 		return String.join(", ", items);
 	}
 }

@@ -251,6 +251,29 @@ public class EditStatementsTest {
 			assertEquals(List.of("REVOKE OBJECT sales.people FROM ROLE analyst"), grant.dropStatements());
 		}
 		assertFalse("a new grant reads nothing", new AclObjectGrant(null, role, Map.of()).unreadable());
+		// review: a shape this does not read whole is not read - never "every column" or "no mask"
+		Map<String, Object> strange = new LinkedHashMap<>();
+		strange.put("mode", "some");
+		strange.put("names", List.of("a"));
+		Map<String, Object> noNames = new LinkedHashMap<>();
+		noNames.put("mode", "only");
+		noNames.put("names", List.of());
+		Map<String, Object> noMask = new LinkedHashMap<>();
+		noMask.put("column", "ssn");
+		noMask.put("mask", null);
+		for (Map<String, Object> row : List.of(
+		         row("role", "analyst", "catalog", "sales", "object", "people", "columns", strange, "masks", List.of()),
+		         row("role", "analyst", "catalog", "sales", "object", "people", "columns", noNames, "masks", List.of()),
+		         row("role", "analyst", "catalog", "sales", "object", "people", "columns", "* EXCLUDE (ssn)", "masks",
+		             List.of()),
+		         row("role", "analyst", "catalog", "sales", "object", "people", "columns", test("all"), "masks",
+		             List.of(noMask)),
+		         row("role", "analyst", "catalog", "sales", "object", "people", "columns", test("all"), "masks",
+		             "ssn AS NULL"))) {
+			AclObjectGrant grant = new AclObjectGrant(null, role, row);
+			assertTrue(row.toString(), grant.unreadable());
+			assertThrows(DBException.class, grant::createStatements);
+		}
 	}
 
 	@Test

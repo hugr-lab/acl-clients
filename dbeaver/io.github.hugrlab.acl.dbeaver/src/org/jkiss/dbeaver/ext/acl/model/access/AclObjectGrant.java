@@ -105,51 +105,103 @@ public class AclObjectGrant extends AclGrantObject implements AclPolicyGrant {
 		edit("versions", versions);
 	}
 
-	/** The test as the node prints it, from the view's STRUCT(mode, names): empty = every column. */
+	/**
+	 * The test as the node prints it, from the view's STRUCT(mode, names): empty = every column; null = not read -
+	 * NULL, or any shape this does not read whole (fail closed: a test read as "every column" would widen it).
+	 */
 	private String storedColumns() {
-		Object value = row.get("columns");
-		if (value == null) {
+		Map<?, ?> fields = struct(row.get("columns"));
+		if (fields == null || !(fields.get("mode") instanceof Object modeValue)) {
 			return null;
 		}
-		Map<?, ?> fields = PlatformValues.fieldsOf(value);
-		String mode = fields.get("mode") == null ? "all" : fields.get("mode").toString();
-		List<String> names = new ArrayList<>();
-		for (Object name : PlatformValues.items(fields.get("names"))) {
-			if (name != null) {
-				names.add(AclGrammar.fieldIdent(name.toString()));
-			}
+		String mode = modeValue.toString();
+		if (mode.equals("all")) {
+			return "";
 		}
-		return switch (mode) {
-			case "only" -> String.join(", ", names);
-			case "except" -> "* EXCLUDE (" + String.join(", ", names) + ")";
-			default -> "";
-		};
+		List<Object> listed = list(fields.get("names"));
+		if (listed == null || listed.isEmpty() || !(mode.equals("only") || mode.equals("except"))) {
+			return null;
+		}
+		List<String> names = new ArrayList<>();
+		for (Object name : listed) {
+			if (name == null) {
+				return null;
+			}
+			names.add(AclGrammar.fieldIdent(name.toString()));
+		}
+		return mode.equals("only") ? String.join(", ", names) : "* EXCLUDE (" + String.join(", ", names) + ")";
 	}
 
-	/** The masks as written (`col AS <expr>, …`), from the view's LIST(STRUCT(column, mask)). */
+	/**
+	 * The masks as written (`col AS <expr>, …`), from the view's LIST(STRUCT(column, mask)); null = not read whole
+	 * (NULL, another shape, an item without its column or mask) - a mask dropped would show its column.
+	 */
 	private String storedMasks() {
-		Object value = row.get("masks");
-		if (value == null) {
+		List<Object> listed = list(row.get("masks"));
+		if (listed == null) {
 			return null;
 		}
 		List<String> items = new ArrayList<>();
-		for (Object item : PlatformValues.items(value)) {
-			Map<?, ?> fields = PlatformValues.fieldsOf(item);
-			Object column = fields.get("column");
-			Object mask = fields.get("mask");
-			if (column != null && mask != null) {
-				items.add(AclGrammar.fieldIdent(column.toString()) + " AS " + mask);
+		for (Object item : listed) {
+			Map<?, ?> fields = struct(item);
+			Object column = fields == null ? null : fields.get("column");
+			Object mask = fields == null ? null : fields.get("mask");
+			if (column == null || mask == null) {
+				return null;
 			}
+			items.add(AclGrammar.fieldIdent(column.toString()) + " AS " + mask);
 		}
 		return String.join(", ", items);
 	}
 
+	/** A STRUCT value's fields, or null when it is NULL or not one this reads. */
+	private static Map<?, ?> struct(Object value) {
+		if (value instanceof java.sql.Struct || value instanceof Map<?, ?>) {
+			Map<?, ?> fields = PlatformValues.fieldsOf(value);
+			return fields.isEmpty() ? null : fields;
+		}
+		return null;
+	}
+
+	/** A LIST value's items, or null when it is NULL or not one this reads. */
+	private static List<Object> list(Object value) {
+		try {
+			Object items = value instanceof java.sql.Array array ? array.getArray() : value;
+			if (items instanceof Object[] || items instanceof java.util.Collection<?>) {
+				return PlatformValues.items(items);
+			}
+		} catch (java.sql.SQLException e) {
+			return null;
+		}
+		return null;
+	}
+
 	/**
-	 * A stored grant whose columns or masks the node could not read: a readable test or set of masks is never NULL
-	 * (`all`, `[]`), so NULL is one the node could not read - written again, it would show what they hide.
+	 * A stored grant whose columns or masks this cannot read whole: a readable test or set of masks is never NULL
+	 * (`all`, `[]`), so NULL is one the node could not read - and a shape the driver gave otherwise is one the plugin
+	 * cannot; written again, it would show what they hide.
 	 */
 	public boolean unreadable() {
-		return row.get("role") != null && (row.get("columns") == null || row.get("masks") == null);
+		return row.get("role") != null && (storedColumns() == null || storedMasks() == null);
+	}
+
+	/**
+	 * A GRANT written again replaces the grant whole, so every property is compared with the node's before a save -
+	 * not only the ones changed here: a mask written meanwhile would go otherwise. One the node holds now that this
+	 * cannot read refuses the save.
+	 */
+	@Override
+	public Map<String, String[]> changedOnTheNode(DBRProgressMonitor monitor, Set<String> changed) throws DBException {
+		Set<String> every = new java.util.LinkedHashSet<>(changed);
+		every.addAll(List.of("capsUnstated", "rls", "columns", "masks", "versions"));
+		Map<String, String[]> moved = super.changedOnTheNode(monitor, every);
+		for (String id : List.of("columns", "masks")) {
+			if (moved.containsKey(id) && moved.get(id)[1] == null) {
+				throw new DBException("duckdb-acl: " + getName() + "'s columns or masks as the node holds them now "
+				                      + "cannot be read: written again it would show what they hide - refresh it");
+			}
+		}
+		return moved;
 	}
 
 	@Property(viewable = true, order = 50, name = "Rls checked")

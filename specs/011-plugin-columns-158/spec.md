@@ -62,6 +62,23 @@ property the node holds - its masks and versions included - or is not written. A
   context menu; `aGrantsRowFilterAndColumnsTabs`, `aFunctionsDefinitionTab`: no editor opens) fail the same on main on
   macOS - a UI matter of its own; the Columns tab's new texts there are updated but not run.
 
+## Found by its review, fixed
+
+- A save compared with the node only the properties it changed, while it writes the grant whole: a mask written on the
+  node meanwhile was taken away by a caps edit. An object grant compares every property (caps, RLS, test, masks,
+  versions); one the node now holds that this cannot read refuses the save.
+- A stored test or masks in a shape the plugin does not read whole (an unknown mode, `only` with no names, a mask item
+  without its expression, a value that is no STRUCT / LIST) read as every column / no mask: now unreadable - revoke
+  only.
+- Switching *later columns* and back dropped a name the object lacks (a column gone from the source): each mode keeps
+  its own.
+- A virtual table's list was written back in the source's order, a column listed twice lost (`amount, amount AS
+  amount2`): the items keep their order, a second reading of a column is a computed column.
+- `* EXCLUDE ssn` (no parentheses) is read; a column masked anew reads `NULL`; an edit of the Columns tab that writes
+  nothing (every column hidden under a list, a mask cleared) is taken back, so the tab shows what Save writes.
+- Left: a NEW object grant on an object the role already holds a grant on replaces it (the grammar's rule; the plugin
+  does not look first) - its masks with it. The tree shows the existing grant; a follow-up may refuse the create.
+
 ## Alternatives
 
 - ALTER for an object grant: the node has none (a grant written again is its edit); keeping every property is the

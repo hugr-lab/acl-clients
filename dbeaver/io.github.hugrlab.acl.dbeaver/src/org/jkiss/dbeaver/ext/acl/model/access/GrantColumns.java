@@ -32,13 +32,17 @@ public final class GrantColumns {
 		}
 	}
 
-	private static final Pattern EXCLUDE = Pattern.compile("\\*\\s*EXCLUDE\\s*\\((.*)\\)",
+	// `* EXCLUDE (a, b)`, or duckdb's one-name form `* EXCLUDE a`
+	private static final Pattern EXCLUDE = Pattern.compile("\\*\\s*EXCLUDE\\s*(?:\\((.*)\\)|(\\S.*))",
 	                                                       Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 	private static final Pattern MASK_ITEM = Pattern.compile("(\"(?:[^\"]|\"\")+\"|[^\\s\"]+)\\s+AS\\s+(.+)",
 	                                                         Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
 	private final List<Node> columns = new ArrayList<>();
-	private final List<String> unknownNames = new ArrayList<>(); // of the test, in its mode
+	// names of the test the object lacks, per mode: hidden under EXCLUDE, shown under a list - each kept for its mode,
+	// so switching the mode and back keeps them
+	private final List<String> unknownExcluded = new ArrayList<>();
+	private final List<String> unknownShown = new ArrayList<>();
 	private final List<String> unknownMasks = new ArrayList<>(); // mask items as written
 	private boolean laterShown = true;
 
@@ -59,13 +63,10 @@ public final class GrantColumns {
 	}
 
 	/**
-	 * The mode changed: a name the object lacks keeps its meaning only in its own mode (shown under a list, hidden under
-	 * EXCLUDE) - in the other one leaving it out says the same, so it goes.
+	 * The mode: a name the object lacks keeps its meaning only in its own mode (hidden under EXCLUDE, shown under a
+	 * list) - in the other one leaving it out says the same, so it is written only while its mode is.
 	 */
 	public void setLaterShown(boolean shown) {
-		if (shown != laterShown) {
-			unknownNames.clear();
-		}
 		laterShown = shown;
 	}
 
@@ -137,13 +138,15 @@ public final class GrantColumns {
 
 	/** The states a grant's `COLUMNS` test and `MASK` items say; both empty = every column, unmasked. */
 	public void apply(String test, String masks) {
-		unknownNames.clear();
+		unknownExcluded.clear();
+		unknownShown.clear();
 		unknownMasks.clear();
 		String text = test == null ? "" : test.trim();
 		Matcher except = EXCLUDE.matcher(text);
 		boolean all = text.isEmpty() || text.equals("*");
 		laterShown = all || except.matches();
-		List<String> named = all ? List.of() : names(except.matches() ? except.group(1) : text);
+		String exceptNames = except.matches() ? (except.group(1) != null ? except.group(1) : except.group(2)) : text;
+		List<String> named = all ? List.of() : names(exceptNames);
 		for (Node column : columns) {
 			column.mask = "";
 			column.shown = laterShown ? Shown.VISIBLE : Shown.HIDDEN;
@@ -151,7 +154,7 @@ public final class GrantColumns {
 		for (String name : named) {
 			Node column = column(name);
 			if (column == null) {
-				unknownNames.add(name);
+				(laterShown ? unknownExcluded : unknownShown).add(name);
 			} else {
 				column.shown = laterShown ? Shown.HIDDEN : Shown.VISIBLE;
 			}
@@ -171,9 +174,12 @@ public final class GrantColumns {
 		}
 	}
 
-	/** An edit of one column, as the tab makes it. */
+	/** An edit of one column, as the tab makes it: a column masked anew reads NULL until its mask is written. */
 	public void setShown(Node node, Shown shown) {
 		node.shown = shown;
+		if (shown == Shown.MASKED && (node.mask == null || node.mask.trim().isEmpty())) {
+			node.mask = "NULL";
+		}
 	}
 
 	/**
@@ -186,7 +192,7 @@ public final class GrantColumns {
 		for (Node column : columns) {
 			(column.shown == Shown.HIDDEN ? hidden : shown).add(AclGrammar.fieldIdent(column.name));
 		}
-		for (String name : unknownNames) {
+		for (String name : laterShown ? unknownExcluded : unknownShown) {
 			(laterShown ? hidden : shown).add(AclGrammar.fieldIdent(name));
 		}
 		if (laterShown) {

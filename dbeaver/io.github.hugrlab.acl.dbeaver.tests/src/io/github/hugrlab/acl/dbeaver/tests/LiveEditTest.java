@@ -325,6 +325,15 @@ public class LiveEditTest {
 		assertEquals(masked, onTable.getMasks());
 		assertEquals("ANY", written.get("versions"));
 
+		// review: a mask written on the node meanwhile is named before a save of another property - the save writes the
+		// grant whole, so it would take the mask away
+		run(acl, "GRANT OBJECT t008cat.\"Order Items\" TO ROLE \"t008 Grantee\" WITH (select) RLS 'amount > 2' "
+		         + "MASK 'amount AS -1' VERSIONS 'ANY'");
+		Map<String, String[]> moved = onTable.changedOnTheNode(MONITOR, java.util.Set.of("capInsert"));
+		assertTrue("the mask written meanwhile: " + moved.keySet(), moved.containsKey("masks"));
+		assertFalse(moved.containsKey("rls"));
+		onTable.refreshObject(MONITOR);
+
 		DBECommandContext revoke = context(acl);
 		delete(revoke, onTable);
 		assertEquals(List.of("REVOKE OBJECT t008cat.\"Order Items\" FROM ROLE \"t008 Grantee\""), script(revoke));

@@ -152,18 +152,28 @@ public class GrantColumnsPage extends PolicyPage {
 		}
 	}
 
-	/** An edit of the table: the test and the masks it writes now, into the grant (Save previews them). */
+	/**
+	 * An edit of the table: the test and the masks it writes now, into the grant (Save previews them) - both or neither.
+	 * An edit that writes nothing (every column hidden under a list, a mask cleared) is taken back, so the table always
+	 * shows what Save writes.
+	 */
 	private void changed() {
-		table.refresh();
 		String columns;
 		String masks;
 		try {
 			columns = model.composeColumns();
 			masks = model.composeMasks();
 		} catch (IllegalStateException e) {
-			written.setText("Not written: " + e.getMessage());
+			model.apply(grant().getColumns(), grant().getMasks());
+			filling = true;
+			laterShown.setSelection(model.laterShown());
+			filling = false;
+			table.refresh();
+			written.setText("Not taken: " + e.getMessage() + "\n" + writtenText(nonNull(grant().getColumns()),
+			                                                                       nonNull(grant().getMasks())));
 			return;
 		}
+		table.refresh();
 		show(columns, masks);
 		if (!columns.equals(nonNull(grant().getColumns()))) {
 			set("columns", columns);
@@ -178,8 +188,11 @@ public class GrantColumnsPage extends PolicyPage {
 	}
 
 	private void show(String columns, String masks) {
-		written.setText((columns.isEmpty() ? "COLUMNS: every column" : "COLUMNS " + columns)
-		                + (masks.isEmpty() ? "" : "\nMASK " + masks));
+		written.setText(writtenText(columns, masks));
+	}
+
+	private static String writtenText(String columns, String masks) {
+		return (columns.isEmpty() ? "COLUMNS: every column" : "COLUMNS " + columns) + (masks.isEmpty() ? "" : "\nMASK " + masks);
 	}
 
 	@Override

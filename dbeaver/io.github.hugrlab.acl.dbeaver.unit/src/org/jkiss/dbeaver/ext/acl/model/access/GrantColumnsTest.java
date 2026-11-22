@@ -98,6 +98,40 @@ public class GrantColumnsTest {
 		GrantColumns masked = people();
 		masked.apply("", "");
 		masked.setShown(at(masked, "ssn"), Shown.MASKED);
+		at(masked, "ssn").mask = " "; // cleared in its cell
 		assertThrows("a mask is an expression", IllegalStateException.class, masked::composeMasks);
+	}
+
+	@Test
+	public void switchingTheModeAndBackKeepsWhatTheObjectLacks() {
+		// review: a name the object lacks (a column gone from the source) under EXCLUDE must stay hidden when it returns
+		GrantColumns tab = people();
+		tab.apply("* EXCLUDE (gone)", "");
+		tab.setLaterShown(false);
+		tab.setLaterShown(true);
+		assertEquals("* EXCLUDE (gone)", tab.composeColumns());
+		GrantColumns list = people();
+		list.apply("id, back", "");
+		list.setLaterShown(true);
+		list.setLaterShown(false);
+		assertEquals("id, back", list.composeColumns());
+	}
+
+	@Test
+	public void excludeWithoutParentheses() {
+		GrantColumns tab = people();
+		tab.apply("* EXCLUDE salary", "");
+		assertTrue(tab.laterShown());
+		assertEquals(Shown.HIDDEN, at(tab, "salary").shown);
+		assertEquals(Shown.VISIBLE, at(tab, "id").shown);
+		assertEquals("* EXCLUDE (salary)", tab.composeColumns());
+	}
+
+	@Test
+	public void aColumnMaskedAnewReadsNull() {
+		GrantColumns tab = people();
+		tab.apply("", "");
+		tab.setShown(at(tab, "ssn"), Shown.MASKED);
+		assertEquals("ssn AS NULL", tab.composeMasks());
 	}
 }

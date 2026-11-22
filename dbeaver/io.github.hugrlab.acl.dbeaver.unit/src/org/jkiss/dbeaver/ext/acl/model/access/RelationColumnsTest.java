@@ -77,4 +77,21 @@ public class RelationColumnsTest {
 		assertEquals("\"at\"", AclGrammar.fieldIdent("at"));
 		assertEquals("name", AclGrammar.fieldIdent("name"));
 	}
+
+	@Test
+	public void theListKeepsItsOrderAndEveryItem() {
+		// review: the list's order is the table's column order (SELECT *, a positional INSERT), and a column read twice
+		// is two columns
+		for (String list : new String[] {"amount, amount AS amount2", "ssn AS full_name, id",
+		                                 "* EXCLUDE (ssn), upper(ssn) AS ssn_u", "amount, id, pk"}) {
+			RelationColumns table = orders();
+			table.apply(list);
+			assertEquals(list, table.compose());
+		}
+		RelationColumns table = orders();
+		table.apply("amount, id");
+		table.columns().get(1).exposed = true; // pk, exposed by an edit: after the list's items
+		table.computed().add(new RelationColumns.Computed("total", "amount * 2"));
+		assertEquals("amount, id, pk, amount * 2 AS total", table.compose());
+	}
 }
