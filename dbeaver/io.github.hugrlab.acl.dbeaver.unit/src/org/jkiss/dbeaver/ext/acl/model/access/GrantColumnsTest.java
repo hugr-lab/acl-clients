@@ -1,6 +1,9 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 
@@ -8,102 +11,127 @@ import org.jkiss.dbeaver.ext.acl.model.access.GrantColumns.Node;
 import org.jkiss.dbeaver.ext.acl.model.access.GrantColumns.Shown;
 import org.junit.Test;
 
-/** Spec 008.1 addendum: the Columns tab's tree - read from a grant's COLUMNS text and written back to it. */
+/**
+ * Spec 011 (duckdb-acl spec 158): the Columns tab - an object grant's COLUMNS test and MASK items read into the
+ * object's columns and written back.
+ */
 public class GrantColumnsTest {
-	private static GrantColumns orders() {
+	private static GrantColumns people() {
 		return new GrantColumns(List.of(new String[] {"id", "INTEGER"}, new String[] {"ssn", "VARCHAR"},
-		    new String[] {"address", "STRUCT(city VARCHAR, zip VARCHAR, geo STRUCT(lat DOUBLE, lon DOUBLE))"},
-		    new String[] {"items", "STRUCT(price DOUBLE, \"odd name\" VARCHAR)[]"},
-		    new String[] {"Mixed", "INTEGER"}));
+		    new String[] {"salary", "INTEGER"}, new String[] {"Odd Name", "VARCHAR"}, new String[] {"left", "VARCHAR"}));
 	}
 
-	private static Node at(GrantColumns tree, String... names) {
-		List<Node> level = tree.columns();
-		Node found = null;
-		for (String name : names) {
-			found = level.stream().filter(n -> n.name.equals(name)).findFirst().orElseThrow();
-			level = found.children;
-		}
-		return found;
+	private static Node at(GrantColumns tab, String name) {
+		return tab.columns().stream().filter(n -> n.name.equals(name)).findFirst().orElseThrow();
 	}
 
 	@Test
-	public void theTreeFromTheTypes() {
-		GrantColumns tree = orders();
-		assertEquals("address.geo.lat", at(tree, "address", "geo", "lat").path);
-		assertEquals("items[].price", at(tree, "items", "price").path);
-		assertEquals("items[].\"odd name\"", at(tree, "items", "odd name").path);
-		assertEquals("\"Mixed\"", at(tree, "Mixed").path);
-	}
-
-	@Test
-	public void noListIsEverythingWhole() {
-		GrantColumns tree = orders();
-		tree.apply("");
-		assertEquals(Shown.VISIBLE, at(tree, "address", "geo", "lon").shown);
-		assertEquals("", tree.compose());
-	}
-
-	@Test
-	public void roundTrips() {
-		for (String list : new String[] {"id, ssn = NULL", "id, address", "id, address.city, address.geo.lat",
-		                                 "id, address, address.zip = '***'", "items[].price", "\"Mixed\"",
-		                                 "id, ssn = left(ssn, 1) || '***'",
-		                                 // a struct literal's commas are its own (duckdb-acl spec 150 4e)
-		                                 "id, ssn = struct_extract({'a': 'x', 'b': 'y'}, 'a')"}) {
-			GrantColumns tree = orders();
-			tree.apply(list);
-			assertEquals(list, tree.compose());
+	public void noTestIsEveryColumn() {
+		for (String test : new String[] {"", "*", null}) {
+			GrantColumns tab = people();
+			tab.apply(test, "");
+			assertTrue(tab.columns().stream().allMatch(n -> n.shown == Shown.VISIBLE));
+			assertTrue(tab.laterShown());
+			assertEquals("", tab.composeColumns());
+			assertEquals("", tab.composeMasks());
 		}
 	}
 
 	@Test
-	public void statesFromTheList() {
-		GrantColumns tree = orders();
-		tree.apply("id, address.city, ssn = NULL");
-		assertEquals(Shown.VISIBLE, at(tree, "id").shown);
-		assertEquals(Shown.MASKED, at(tree, "ssn").shown);
-		assertEquals("NULL", at(tree, "ssn").mask);
-		assertEquals("a listed field keeps its struct", Shown.VISIBLE, at(tree, "address").shown);
-		assertEquals(Shown.VISIBLE, at(tree, "address", "city").shown);
-		assertEquals(Shown.HIDDEN, at(tree, "address", "zip").shown);
-		assertEquals(Shown.HIDDEN, at(tree, "items").shown);
-		assertEquals("names compare as the node compares them", Shown.HIDDEN, at(tree, "Mixed").shown);
+	public void theThreeFormsRoundTrip() {
+		String[][] cases = {{"", ""}, {"id, salary", ""}, {"* EXCLUDE (salary, \"Odd Name\")", ""},
+		                    {"id, ssn", "ssn AS CAST('***' AS VARCHAR)"},
+		                    {"* EXCLUDE (salary)", "ssn AS left(ssn, 1) || '***', \"left\" AS NULL"}};
+		for (String[] each : cases) {
+			GrantColumns tab = people();
+			tab.apply(each[0], each[1]);
+			assertEquals(each[0], tab.composeColumns());
+			assertEquals(each[1], tab.composeMasks());
+		}
+	}
+
+	@Test
+	public void theStates() {
+		GrantColumns tab = people();
+		tab.apply("* EXCLUDE (salary)", "ssn AS NULL");
+		assertEquals(Shown.VISIBLE, at(tab, "id").shown);
+		assertEquals(Shown.HIDDEN, at(tab, "salary").shown);
+		assertEquals(Shown.MASKED, at(tab, "ssn").shown);
+		assertEquals("NULL", at(tab, "ssn").mask);
+		tab.apply("id, \"odd name\"", "");
+		assertFalse("a list of names hides what it does not name - later columns too", tab.laterShown());
+		assertEquals(Shown.VISIBLE, at(tab, "Odd Name").shown);
+		assertEquals(Shown.HIDDEN, at(tab, "ssn").shown);
 	}
 
 	@Test
 	public void editsCompose() {
-		GrantColumns tree = orders();
-		tree.apply("");
-		at(tree, "ssn").shown = Shown.MASKED;
-		at(tree, "ssn").mask = "'***'";
-		at(tree, "items").shown = Shown.HIDDEN;
-		at(tree, "address", "geo").shown = Shown.HIDDEN;
-		assertEquals("id, ssn = '***', address.city, address.zip, \"Mixed\"", tree.compose());
-		at(tree, "address", "geo").shown = Shown.VISIBLE;
-		at(tree, "address", "zip").shown = Shown.MASKED;
-		at(tree, "address", "zip").mask = "NULL";
-		assertEquals("a masked field of the whole struct", "id, ssn = '***', address, address.zip = NULL, \"Mixed\"",
-		             tree.compose());
+		GrantColumns tab = people();
+		tab.apply("", "");
+		tab.setShown(at(tab, "salary"), Shown.HIDDEN);
+		tab.setShown(at(tab, "ssn"), Shown.MASKED);
+		at(tab, "ssn").mask = "'***'";
+		assertEquals("a grant of every column hides by EXCLUDE: a later column stays shown, as it was",
+		             "* EXCLUDE (salary)", tab.composeColumns());
+		assertEquals("ssn AS '***'", tab.composeMasks());
+		tab.setLaterShown(false);
+		assertEquals("a masked column is one the grant shows", "id, ssn, \"Odd Name\", \"left\"", tab.composeColumns());
 	}
 
 	@Test
-	public void anEditKeepsTheTreeConsistent() {
-		GrantColumns tree = orders();
-		tree.apply("id");
-		tree.setShown(at(tree, "address", "geo", "lat"), Shown.VISIBLE);
-		assertEquals("a field shown keeps its structs", "id, address.geo.lat", tree.compose());
-		tree.setShown(at(tree, "items"), Shown.VISIBLE);
-		assertEquals("a struct shown with every field hidden is shown whole", "id, address.geo.lat, items", tree.compose());
-		tree.setShown(at(tree, "address"), Shown.HIDDEN);
-		assertEquals("id, items", tree.compose());
+	public void namesAndMasksTheObjectLacksAreKept() {
+		GrantColumns tab = people();
+		tab.apply("* EXCLUDE (gone, salary)", "was AS NULL, ssn AS NULL");
+		assertEquals("* EXCLUDE (salary, gone)", tab.composeColumns());
+		assertEquals("ssn AS NULL, was AS NULL", tab.composeMasks());
+		// in the other mode a name the object lacks says what leaving it out says: it goes
+		tab.setLaterShown(false);
+		assertEquals("id, ssn, \"Odd Name\", \"left\"", tab.composeColumns());
 	}
 
 	@Test
-	public void whatTheTreeDoesNotKnowIsKept() {
-		GrantColumns tree = orders();
-		tree.apply("id, gone, total = id * 2");
-		assertEquals(List.of("gone", "total = id * 2"), tree.unknown());
-		assertEquals("id, gone, total = id * 2", tree.compose());
+	public void nothingToReadIsRefusedNeverEveryColumn() {
+		GrantColumns tab = people();
+		tab.apply("id", "");
+		tab.setShown(at(tab, "id"), Shown.HIDDEN);
+		assertThrows(IllegalStateException.class, tab::composeColumns);
+		GrantColumns masked = people();
+		masked.apply("", "");
+		masked.setShown(at(masked, "ssn"), Shown.MASKED);
+		at(masked, "ssn").mask = " "; // cleared in its cell
+		assertThrows("a mask is an expression", IllegalStateException.class, masked::composeMasks);
+	}
+
+	@Test
+	public void switchingTheModeAndBackKeepsWhatTheObjectLacks() {
+		// review: a name the object lacks (a column gone from the source) under EXCLUDE must stay hidden when it returns
+		GrantColumns tab = people();
+		tab.apply("* EXCLUDE (gone)", "");
+		tab.setLaterShown(false);
+		tab.setLaterShown(true);
+		assertEquals("* EXCLUDE (gone)", tab.composeColumns());
+		GrantColumns list = people();
+		list.apply("id, back", "");
+		list.setLaterShown(true);
+		list.setLaterShown(false);
+		assertEquals("id, back", list.composeColumns());
+	}
+
+	@Test
+	public void excludeWithoutParentheses() {
+		GrantColumns tab = people();
+		tab.apply("* EXCLUDE salary", "");
+		assertTrue(tab.laterShown());
+		assertEquals(Shown.HIDDEN, at(tab, "salary").shown);
+		assertEquals(Shown.VISIBLE, at(tab, "id").shown);
+		assertEquals("* EXCLUDE (salary)", tab.composeColumns());
+	}
+
+	@Test
+	public void aColumnMaskedAnewReadsNull() {
+		GrantColumns tab = people();
+		tab.apply("", "");
+		tab.setShown(at(tab, "ssn"), Shown.MASKED);
+		assertEquals("ssn AS NULL", tab.composeMasks());
 	}
 }

@@ -81,8 +81,8 @@ public class AclRelation extends AclPlatformObject {
 	}
 
 	@Property(viewable = true, editable = true, updatable = true, hidden = true, order = 5, name = "Columns",
-	          description = "A table's declared columns, as COLUMNS (…) writes them: id, amount, ssn = NULL, total = amount * 2, "
-	                        + "id NOT NULL; empty = every column of the physical object")
+	          description = "A table's declared columns, a SELECT list over its source (duckdb-acl spec 158): id, name AS "
+	                        + "full_name, amount * 2 AS total, * EXCLUDE (ssn); empty = every column of the physical object")
 	public String getDeclaredColumns(DBRProgressMonitor monitor) throws DBException {
 		return editedOr("declaredColumns", () -> storedColumns(monitor));
 	}
@@ -172,18 +172,16 @@ public class AclRelation extends AclPlatformObject {
 		List<AclRelationColumn> columns = new ArrayList<>(getColumns(monitor));
 		columns.sort(Comparator.comparingInt(c -> pos(c.text("pos"))));
 		for (AclRelationColumn column : columns) {
-			StringBuilder item = new StringBuilder(AclGrammar.ident(column.getName()));
+			// duckdb-acl spec 158: `expr` empty = the column itself, a NULL name = a star item (its text in `expr`)
+			String name = column.text("name");
 			String expr = column.text("expr");
-			if (!AclGrammar.isBlank(expr)) {
-				item.append(" = ").append(expr);
+			if (name == null) {
+				items.add(expr == null ? "" : expr);
+			} else if (AclGrammar.isBlank(expr)) {
+				items.add(AclGrammar.fieldIdent(name));
+			} else {
+				items.add(expr + " AS " + AclGrammar.fieldIdent(name));
 			}
-			String nullable = column.text("nullable");
-			if ("false".equals(nullable)) {
-				item.append(" NOT NULL");
-			} else if ("true".equals(nullable)) {
-				item.append(" NULL");
-			}
-			items.add(item.toString());
 		}
 		return String.join(", ", items);
 	}

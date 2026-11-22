@@ -90,7 +90,7 @@ SET GLOBAL acl_allow_anonymous_admin = true;
 ACL ADMIN CREATE VIRTUAL TABLE sales.customers AS memory.main.customers PRIMARY KEY (id)
     COMMENT 'customers with nested types';
 ACL ADMIN GRANT TABLE sales.customers TO ROLE analyst WITH (select)
-    COLUMNS (id, name, address, tags, scores, attrs, balance, mood, ssn = '***', seen, visits);
+    MASK (ssn AS '***');
 ACL ADMIN CREATE VIRTUAL VIEW sales.big_orders COMMENT 'orders over 50'
     AS SELECT id, amount FROM memory.main.orders WHERE amount > 50;
 ACL ADMIN CREATE VIRTUAL SCHEMA sales.raw.eu AS memory.raw_eu COMMENT 'raw zone, eu';

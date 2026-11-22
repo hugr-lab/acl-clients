@@ -420,12 +420,12 @@ public class LiveConsoleTest {
 		bot.waitUntil(new DefaultCondition() {
 			@Override
 			public boolean test() {
-				return editorTexts(entity).contains("(none - every column, whole)");
+				return editorTexts(entity).contains("COLUMNS: every column");
 			}
 
 			@Override
 			public String getFailureMessage() {
-				return "the Columns tab shows no tree: " + editorTexts(entity);
+				return "the Columns tab shows no columns: " + editorTexts(entity);
 			}
 		}, 30_000);
 		// an edit of the predicate there: Save previews the grant's statement with it (cancelled - the dev policy stays)
@@ -446,8 +446,9 @@ public class LiveConsoleTest {
 		UIThreadRunnable.asyncExec(() -> part.doSave(new org.eclipse.core.runtime.NullProgressMonitor()));
 		org.eclipse.swtbot.swt.finder.widgets.SWTBotShell persist = bot.shell("sales.orders - Persist Changes");
 		String preview = textsOf(persist);
-		assertTrue(preview, preview.contains("GRANT OBJECT sales.orders TO ROLE analyst WITH (select) RLS (tenant = "
-		                                     + "acl_claim('tenant') AND amount > 0)"));
+		// spec 011: the predicate is one literal, and the grant written again keeps its test and masks (none here)
+		assertTrue(preview, preview.contains("GRANT OBJECT sales.orders TO ROLE analyst WITH (select) RLS 'tenant = "
+		                                     + "acl_claim(''tenant'') AND amount > 0'"));
 		persist.bot().button("Cancel").click();
 		UIThreadRunnable.syncExec(() -> part.getSite().getPage().closeEditor(part, false));
 	}

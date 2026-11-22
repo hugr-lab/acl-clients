@@ -1,13 +1,17 @@
 package org.jkiss.dbeaver.ext.acl.model.access;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.jkiss.dbeaver.DBException;
 import org.junit.Test;
 
 /**
@@ -113,12 +117,15 @@ public class EditStatementsTest {
 		made.setCapSelect(true);
 		made.setCapInsert(true);
 		made.setMain(true);
-		made.setRls("amount > 0");
-		made.setColumns("id, ssn = NULL");
-		assertEquals(List.of("GRANT CATALOG sales TO ROLE \"Mixed Case\" WITH (select, insert) MAIN RLS (amount > 0) COLUMNS 'id, ssn = NULL'"),
+		made.setRls("amount > 0 AND note <> 'x'");
+		// spec 011: the predicate is one literal; a catalog grant writes no COLUMNS (duckdb-acl spec 158)
+		assertEquals(List.of("GRANT CATALOG sales TO ROLE \"Mixed Case\" WITH (select, insert) MAIN RLS "
+		                     + "'amount > 0 AND note <> ''x'''"),
 		             made.createStatements());
 		made.setCapsUnstated(false);
 		assertTrue(made.createStatements().get(0).contains(" CAPS '{}'"));
+		made.setColumns("id, ssn = NULL");
+		assertThrows("a catalog grant takes no column list", DBException.class, made::createStatements);
 
 		AclCatalogGrant stored = new AclCatalogGrant(null, role, row("role", "analyst", "catalog", "sales", "is_main", true,
 		                                                               "caps", caps("select"), "rls", "x > 1"));
@@ -134,6 +141,19 @@ public class EditStatementsTest {
 		assertEquals(List.of("ALTER GRANT CATALOG sales TO ROLE analyst SET CAPS ''"),
 		             stored.alterStatements(null, Set.of("capsUnstated")));
 		assertEquals(List.of("REVOKE CATALOG sales FROM ROLE analyst"), stored.dropStatements());
+
+		// a list an older build stored is shown and only cleared; its versions are kept (no ALTER touches them)
+		AclCatalogGrant legacy = new AclCatalogGrant(null, role, row("role", "analyst", "catalog", "sales", "is_main", true,
+		                                                               "columns", List.of("id", "ssn = NULL"), "versions",
+		                                                               "ANY"));
+		assertEquals("id, ssn = NULL", legacy.getColumns());
+		assertEquals("ANY", legacy.getVersions());
+		legacy.setColumns("id");
+		assertThrows("a legacy list is cleared, never rewritten", DBException.class,
+		             () -> legacy.alterStatements(null, Set.of("columns")));
+		legacy.setColumns("");
+		assertEquals(List.of("ALTER GRANT CATALOG sales TO ROLE analyst SET COLUMNS ''"),
+		             legacy.alterStatements(null, Set.of("columns")));
 	}
 
 	@Test
@@ -162,17 +182,98 @@ public class EditStatementsTest {
 		object.setCapsUnstated(false);
 		assertEquals(List.of("GRANT OBJECT sales.\"a.b\" TO ROLE analyst CAPS '{}'"), object.createStatements());
 		AclObjectGrant stored = new AclObjectGrant(null, role, row("role", "analyst", "catalog", "sales", "object",
-		                                                           "orders", "rls", "id > 0"));
+		                                                           "orders", "rls", "id > 0", "columns", test("all"),
+		                                                           "masks", List.of()));
 		assertEquals("NULL caps: the catalog grant's", "unstated: the catalog grant's", stored.getCaps());
 		stored.setColumns("id, amount");
-		assertEquals(List.of("GRANT OBJECT sales.orders TO ROLE analyst RLS (id > 0) COLUMNS 'id, amount'"),
-		             stored.alterStatements(null, Set.of("columns")));
-		// the stored spelling goes back as it is (a name with a space bare, a keyword bare, a mask with quotes)
-		stored.setColumns("id, odd name, order, tags = ['a', 'b']");
-		assertEquals(List.of("GRANT OBJECT sales.orders TO ROLE analyst RLS (id > 0) COLUMNS "
-		                     + "'id, odd name, order, tags = [''a'', ''b'']'"),
+		assertEquals(List.of("GRANT OBJECT sales.orders TO ROLE analyst RLS 'id > 0' COLUMNS 'id, amount'"),
 		             stored.alterStatements(null, Set.of("columns")));
 		assertEquals(List.of("REVOKE OBJECT sales.orders FROM ROLE analyst"), stored.dropStatements());
+	}
+
+	private static Map<String, Object> test(String mode, String... names) {
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("mode", mode);
+		out.put("names", List.of(names));
+		return out;
+	}
+
+	private static Map<String, Object> mask(String column, String mask) {
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("column", column);
+		out.put("mask", mask);
+		return out;
+	}
+
+	/**
+	 * Spec 011: an object grant is written whole, so a change of one property writes every one the node holds - its
+	 * test, its masks and its versions read from platform.object_grants - each the user's text as one literal.
+	 */
+	@Test
+	public void anObjectGrantWrittenAgainKeepsItsMasksAndVersions() throws Exception {
+		AclRole role = new AclRole(null, null, row("role", "analyst"));
+		AclObjectGrant stored = new AclObjectGrant(null, role, row("role", "analyst", "catalog", "sales", "object", "people",
+		                                                           "caps", caps("select"), "rls", "id > 0",
+		                                                           "columns", test("except", "salary", "Odd Name"),
+		                                                           "masks", List.of(mask("ssn", "CAST('***' AS VARCHAR)"),
+		                                                                            mask("left", "NULL")),
+		                                                           "versions", "ANY"));
+		assertEquals("* EXCLUDE (salary, \"Odd Name\")", stored.getColumns());
+		assertEquals("ssn AS CAST('***' AS VARCHAR), \"left\" AS NULL", stored.getMasks());
+		stored.setRls("tenant = acl_claim('tenant')");
+		assertEquals(List.of("GRANT OBJECT sales.people TO ROLE analyst WITH (select) RLS 'tenant = acl_claim(''tenant'')' "
+		                     + "COLUMNS '* EXCLUDE (salary, \"Odd Name\")' MASK 'ssn AS CAST(''***'' AS VARCHAR), "
+		                     + "\"left\" AS NULL' VERSIONS 'ANY'"),
+		             stored.alterStatements(null, Set.of("rls")));
+		AclObjectGrant only = new AclObjectGrant(null, role, row("role", "analyst", "catalog", "sales", "object", "people",
+		                                                         "columns", test("only", "id", "name"), "masks", List.of()));
+		assertEquals("id, name", only.getColumns());
+		assertEquals("", only.getMasks());
+		// a mask text holding a quote or a would-be second statement stays one value
+		only.setMasks("name AS '1''); DROP ROLE x; --'");
+		only.setVersions("AT (VERSION => 3)");
+		assertEquals(List.of("GRANT OBJECT sales.people TO ROLE analyst COLUMNS 'id, name' MASK "
+		                     + "'name AS ''1''''); DROP ROLE x; --''' VERSIONS 'AT (VERSION => 3)'"),
+		             only.alterStatements(null, Set.of("masks", "versions")));
+	}
+
+	/** Spec 011: a grant whose columns or masks the node could not read (NULL) is never written again - only revoked. */
+	@Test
+	public void anUnreadableObjectGrantIsOnlyRevoked() throws Exception {
+		AclRole role = new AclRole(null, null, row("role", "analyst"));
+		for (Map<String, Object> row : List.of(row("role", "analyst", "catalog", "sales", "object", "people", "masks", List.of()),
+		                                       row("role", "analyst", "catalog", "sales", "object", "people", "columns",
+		                                           test("all")))) {
+			AclObjectGrant grant = new AclObjectGrant(null, role, row);
+			assertTrue(grant.unreadable());
+			grant.setRls("true");
+			assertThrows(DBException.class, () -> grant.alterStatements(null, Set.of("rls")));
+			assertEquals(List.of("REVOKE OBJECT sales.people FROM ROLE analyst"), grant.dropStatements());
+		}
+		assertFalse("a new grant reads nothing", new AclObjectGrant(null, role, Map.of()).unreadable());
+		// review: a shape this does not read whole is not read - never "every column" or "no mask"
+		Map<String, Object> strange = new LinkedHashMap<>();
+		strange.put("mode", "some");
+		strange.put("names", List.of("a"));
+		Map<String, Object> noNames = new LinkedHashMap<>();
+		noNames.put("mode", "only");
+		noNames.put("names", List.of());
+		Map<String, Object> noMask = new LinkedHashMap<>();
+		noMask.put("column", "ssn");
+		noMask.put("mask", null);
+		for (Map<String, Object> row : List.of(
+		         row("role", "analyst", "catalog", "sales", "object", "people", "columns", strange, "masks", List.of()),
+		         row("role", "analyst", "catalog", "sales", "object", "people", "columns", noNames, "masks", List.of()),
+		         row("role", "analyst", "catalog", "sales", "object", "people", "columns", "* EXCLUDE (ssn)", "masks",
+		             List.of()),
+		         row("role", "analyst", "catalog", "sales", "object", "people", "columns", test("all"), "masks",
+		             List.of(noMask)),
+		         row("role", "analyst", "catalog", "sales", "object", "people", "columns", test("all"), "masks",
+		             "ssn AS NULL"))) {
+			AclObjectGrant grant = new AclObjectGrant(null, role, row);
+			assertTrue(row.toString(), grant.unreadable());
+			assertThrows(DBException.class, grant::createStatements);
+		}
 	}
 
 	@Test
@@ -182,13 +283,13 @@ public class EditStatementsTest {
 		table.setName("Order Items");
 		table.setPhys("memory.main.orders");
 		assertEquals(List.of("CREATE VIRTUAL TABLE \"My Cat\".\"Order Items\" AS memory.main.orders"), table.createStatements());
-		table.setDeclaredColumns("id NOT NULL, amount, ssn = NULL");
+		table.setDeclaredColumns("id, amount, NULL AS ssn");
 		table.setRls("amount > 0");
 		table.setPrimaryKey("id");
 		table.setComment("oi");
 		table.setEnumTypes("varchar");
-		assertEquals(List.of("CREATE VIRTUAL TABLE \"My Cat\".\"Order Items\" AS memory.main.orders COLUMNS (id NOT NULL, "
-		                         + "amount, ssn = NULL) RLS (amount > 0) PRIMARY KEY (id) COMMENT 'oi'",
+		assertEquals(List.of("CREATE VIRTUAL TABLE \"My Cat\".\"Order Items\" AS memory.main.orders COLUMNS (id, "
+		                         + "amount, NULL AS ssn) RLS (amount > 0) PRIMARY KEY (id) COMMENT 'oi'",
 		                     "ALTER VIRTUAL TABLE \"My Cat\".\"Order Items\" SET TYPES (aliases = default, enums = varchar)"),
 		             table.createStatements());
 

@@ -67,7 +67,7 @@ public abstract class PolicyPage extends AbstractDatabaseObjectEditor<AclPlatfor
 
 	/** The object's columns as the node answers them (name, type); empty when it cannot (a new grant, no object). */
 	protected void loadColumns(Consumer<List<String[]>> then, Consumer<String> failed) {
-		ask("Read the object's columns", "", "", rows -> {
+		ask("Read the object's columns", "", "", "", rows -> {
 			List<String[]> columns = new ArrayList<>();
 			String refused = null;
 			for (Map<String, Object> row : rows) {
@@ -107,14 +107,14 @@ public abstract class PolicyPage extends AbstractDatabaseObjectEditor<AclPlatfor
 	}
 
 	/** platform.check_grant with these values, in the background; the answer on the UI thread. */
-	protected void ask(String title, String rls, String columns, Consumer<List<Map<String, Object>>> then,
+	protected void ask(String title, String rls, String columns, String masks, Consumer<List<Map<String, Object>>> then,
 	                   Consumer<String> failed) {
 		new AbstractJob(title) {
 			@NotNull
 			@Override
 			protected IStatus run(@NotNull DBRProgressMonitor monitor) {
 				try {
-					List<Map<String, Object>> rows = grant().check(monitor, rls, columns);
+					List<Map<String, Object>> rows = grant().check(monitor, rls, columns, masks);
 					UIUtils.asyncExec(() -> then.accept(rows));
 				} catch (Exception e) {
 					UIUtils.asyncExec(() -> failed.accept(e.getMessage()));

@@ -14,9 +14,11 @@ import org.jkiss.dbeaver.model.struct.DBSObject;
 
 /**
  * A role's catalog grant (platform.grants). Read: one property per column of its view (spec 007.3). Written (spec
- * 008.1): `GRANT CATALOG c TO ROLE r [WITH (…) | CAPS '{}'] [MAIN] [RLS (…)] [COLUMNS (…)]`; a change is one `ALTER
- * GRANT CATALOG c TO ROLE r SET CAPS | MAIN | RLS | COLUMNS` per property; `REVOKE CATALOG c FROM ROLE r` (which takes
- * the role's object grants in that catalog with it - the node's rule).
+ * 008.1, spec 011): `GRANT CATALOG c TO ROLE r [WITH (…) | CAPS '{}'] [MAIN] [RLS '…']`; a change is one `ALTER GRANT
+ * CATALOG c TO ROLE r SET CAPS | MAIN | RLS` per property, so what the plugin does not edit (its versions) stays;
+ * `REVOKE CATALOG c FROM ROLE r` (which takes the role's object grants in that catalog with it - the node's rule). A
+ * catalog grant states no columns since duckdb-acl spec 158: a list an older build stored refuses every read under the
+ * grant, and is only cleared here (`SET COLUMNS ''`).
  */
 public class AclCatalogGrant extends AclGrantObject implements AclPolicyGrant {
 	public AclCatalogGrant(AclDataSource dataSource, DBSObject parent, Map<String, Object> row) {
@@ -61,14 +63,22 @@ public class AclCatalogGrant extends AclGrantObject implements AclPolicyGrant {
 		edit("rls", rls);
 	}
 
-	@Property(viewable = true, editable = true, updatable = true, hidden = true, order = 5, name = "Columns",
-	          description = "The grant's own column list, as COLUMNS (…) writes it: id, amount, ssn = NULL, address.city")
+	@Property(viewable = true, editable = true, updatable = true, hidden = true, order = 5, name = "Legacy columns",
+	          description = "A column list an older build stored: since duckdb-acl spec 158 it refuses every read under "
+	                        + "the grant - clear it; which columns a role sees is the object grant's")
 	public String getColumns() {
 		return edited("columns", text("columns"));
 	}
 
 	public void setColumns(String columns) {
 		edit("columns", columns);
+	}
+
+	@Property(viewable = true, order = 6, name = "Versions",
+	          description = "Which versions of a time-travel table the role reads; empty = the current one (duckdb-acl "
+	                        + "spec 168). Changed from the SQL editor: GRANT CATALOG … VERSIONS …")
+	public String getVersions() {
+		return text("versions");
 	}
 
 	@Property(viewable = true, order = 50, name = "Rls checked")
@@ -135,18 +145,14 @@ public class AclCatalogGrant extends AclGrantObject implements AclPolicyGrant {
 			sql.append(" MAIN");
 		}
 		if (!AclGrammar.isBlank(getRls())) {
-			sql.append(" RLS (").append(getRls().trim()).append(')');
+			sql.append(" RLS ").append(AclGrammar.literal(getRls().trim()));
 		}
-		if (!AclGrammar.isBlank(getColumns())) {
-			// the list as the node stores it (`odd name`, a keyword bare) is no `COLUMNS (…)` the node's rule reads since
-			// duckdb-acl spec 150 4e: written back as the quoted list, which takes the stored spelling as it is
-			sql.append(" COLUMNS ").append(AclGrammar.literal(getColumns().trim()));
-		}
+		noColumns();
 		return List.of(sql.toString());
 	}
 
 	@Override
-	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) {
+	public List<String> alterStatements(DBRProgressMonitor monitor, Set<String> changed) throws DBException {
 		String alter = "ALTER GRANT CATALOG " + target() + " SET ";
 		List<String> out = new ArrayList<>();
 		if (anyCaps(changed)) {
@@ -159,9 +165,18 @@ public class AclCatalogGrant extends AclGrantObject implements AclPolicyGrant {
 			out.add(alter + "RLS " + AclGrammar.literal(blankToEmpty(getRls())));
 		}
 		if (changed.contains("columns")) {
-			out.add(alter + "COLUMNS " + AclGrammar.literal(blankToEmpty(getColumns())));
+			noColumns();
+			out.add(alter + "COLUMNS ''");
 		}
 		return out;
+	}
+
+	/** A catalog grant takes no column list (duckdb-acl spec 158): a legacy one is only cleared. */
+	private void noColumns() throws DBException {
+		if (!AclGrammar.isBlank(getColumns())) {
+			throw new DBException("A catalog grant takes no column list (duckdb-acl spec 158): clear it - which columns "
+			                      + "a role sees, and masked how, is said on the object's grant");
+		}
 	}
 
 	static String blankToEmpty(String text) {

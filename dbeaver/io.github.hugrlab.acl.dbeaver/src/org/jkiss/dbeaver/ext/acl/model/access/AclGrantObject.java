@@ -201,7 +201,17 @@ public abstract class AclGrantObject extends AclPlatformObject {
 		setCap("lineage", held);
 	}
 
-	@Property(viewable = false, editable = true, updatable = true, order = 32, category = "Capabilities", name = "manage",
+	@Property(viewable = false, editable = true, updatable = true, order = 32, category = "Capabilities", name = "ingest",
+	          description = "A door's bulk load into what it writes (duckdb-acl spec 173), on top of the verb")
+	public boolean isCapIngest() {
+		return has("ingest");
+	}
+
+	public void setCapIngest(boolean held) {
+		setCap("ingest", held);
+	}
+
+	@Property(viewable = false, editable = true, updatable = true, order = 33, category = "Capabilities", name = "manage",
 	          description = "Administer this catalog (a catalog grant)")
 	public boolean isCapManage() {
 		return has("manage");

@@ -62,7 +62,10 @@ public class GrantRowFilterPage extends PolicyPage {
 			}
 		});
 		split.setWeights(3, 1);
-		new CheckPanel(page, this, () -> new String[] {predicate.getText(), grant().getColumns()});
+		// a catalog grant states no columns (duckdb-acl spec 158): its check is of the predicate
+		new CheckPanel(page, this, () -> getDatabaseObject() instanceof AclObjectGrant
+		                                 ? new String[] {predicate.getText(), grant().getColumns(), grant().getMasks()}
+		                                 : new String[] {predicate.getText(), "", ""});
 	}
 
 	@Override

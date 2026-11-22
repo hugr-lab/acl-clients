@@ -247,26 +247,26 @@ public class LiveEditTest {
 		AclRelation orders = create(table, AclRelation.class, catalog);
 		set(table, orders, "name", "Order Items");
 		set(table, orders, "phys", "memory.main.orders");
-		set(table, orders, "declaredColumns", "id NOT NULL, amount, tenant");
+		set(table, orders, "declaredColumns", "id, amount, tenant");
 		set(table, orders, "rls", "amount > 0");
 		set(table, orders, "primaryKey", "id");
-		assertEquals(List.of("CREATE VIRTUAL TABLE t008cat.\"Order Items\" AS memory.main.orders COLUMNS (id NOT NULL, "
+		assertEquals(List.of("CREATE VIRTUAL TABLE t008cat.\"Order Items\" AS memory.main.orders COLUMNS (id, "
 		                     + "amount, tenant) RLS (amount > 0) PRIMARY KEY (id)"), script(table));
 		table.saveChanges(MONITOR, new HashMap<>());
 		orders.setPersisted(true);
 		orders.refreshObject(MONITOR);
-		assertEquals("id NOT NULL, amount, tenant", orders.getDeclaredColumns(MONITOR));
+		assertEquals("id, amount, tenant", orders.getDeclaredColumns(MONITOR));
 		assertEquals("id", orders.getPrimaryKey(MONITOR));
 		assertEquals("amount > 0", orders.getRls());
 
 		DBECommandContext narrow = context(acl);
-		set(narrow, orders, "declaredColumns", "id NOT NULL, amount");
+		set(narrow, orders, "declaredColumns", "id, amount");
 		set(narrow, orders, "comment", "two columns");
-		assertEquals(List.of("ALTER VIRTUAL TABLE t008cat.\"Order Items\" SET COLUMNS (id NOT NULL, amount)",
+		assertEquals(List.of("ALTER VIRTUAL TABLE t008cat.\"Order Items\" SET COLUMNS (id, amount)",
 		                     "COMMENT ON VIRTUAL TABLE t008cat.\"Order Items\" IS 'two columns'"), script(narrow));
 		narrow.saveChanges(MONITOR, new HashMap<>());
 		orders.refreshObject(MONITOR);
-		assertEquals("id NOT NULL, amount", orders.getDeclaredColumns(MONITOR));
+		assertEquals("id, amount", orders.getDeclaredColumns(MONITOR));
 		assertEquals("two columns", orders.getComment());
 
 		// the grants, under the role
@@ -303,11 +303,36 @@ public class LiveEditTest {
 		set(object, onTable, "catalog", CATALOG);
 		set(object, onTable, "object", "Order Items");
 		set(object, onTable, "capSelect", true);
-		set(object, onTable, "rls", "tenant = 'acme'");
+		set(object, onTable, "rls", "amount > 1");
+		set(object, onTable, "masks", "amount AS 0");
+		set(object, onTable, "versions", "ANY");
+		assertEquals(List.of("GRANT OBJECT t008cat.\"Order Items\" TO ROLE \"t008 Grantee\" WITH (select) RLS 'amount > 1' "
+		                     + "MASK 'amount AS 0' VERSIONS 'ANY'"), script(object));
 		object.saveChanges(MONITOR, new HashMap<>());
 		onTable.setPersisted(true);
 		onTable.refreshObject(MONITOR);
-		assertEquals("tenant = 'acme'", onTable.getRls());
+		assertEquals("amount > 1", onTable.getRls());
+		String masked = onTable.getMasks();
+		assertTrue(masked, masked.startsWith("amount AS "));
+
+		// spec 011: a grant is written whole - a change of its RLS keeps the mask and the versions the node holds
+		DBECommandContext narrowRows = context(acl);
+		set(narrowRows, onTable, "rls", "amount > 2");
+		narrowRows.saveChanges(MONITOR, new HashMap<>());
+		onTable.refreshObject(MONITOR);
+		Map<String, Object> written = rows(acl, PlatformSql.view("object_grants", "role", GRANTEE)).get(0);
+		assertEquals("amount > 2", written.get("rls"));
+		assertEquals(masked, onTable.getMasks());
+		assertEquals("ANY", written.get("versions"));
+
+		// review: a mask written on the node meanwhile is named before a save of another property - the save writes the
+		// grant whole, so it would take the mask away
+		run(acl, "GRANT OBJECT t008cat.\"Order Items\" TO ROLE \"t008 Grantee\" WITH (select) RLS 'amount > 2' "
+		         + "MASK 'amount AS -1' VERSIONS 'ANY'");
+		Map<String, String[]> moved = onTable.changedOnTheNode(MONITOR, java.util.Set.of("capInsert"));
+		assertTrue("the mask written meanwhile: " + moved.keySet(), moved.containsKey("masks"));
+		assertFalse(moved.containsKey("rls"));
+		onTable.refreshObject(MONITOR);
 
 		DBECommandContext revoke = context(acl);
 		delete(revoke, onTable);
@@ -389,7 +414,7 @@ public class LiveEditTest {
 		AclObjectGrant orders = find(analyst.getObjectGrants(MONITOR), "sales.orders");
 		assertNotNull("dev/node.sh grants analyst sales.orders", orders);
 		List<String> columns = new ArrayList<>();
-		for (Map<String, Object> row : orders.check(MONITOR, orders.getRls(), "")) {
+		for (Map<String, Object> row : orders.check(MONITOR, orders.getRls(), "", "")) {
 			if ("column".equals(String.valueOf(row.get("item")))) {
 				columns.add(String.valueOf(row.get("name")));
 			}
@@ -397,7 +422,7 @@ public class LiveEditTest {
 		assertEquals("no list: every column the object exposes", List.of("id", "tenant", "amount"), columns);
 		String status = null;
 		String message = null;
-		for (Map<String, Object> row : orders.check(MONITOR, "nope > 1", "")) {
+		for (Map<String, Object> row : orders.check(MONITOR, "nope > 1", "", "")) {
 			if ("rls".equals(String.valueOf(row.get("item")))) {
 				status = String.valueOf(row.get("status"));
 				message = String.valueOf(row.get("message"));
@@ -406,12 +431,12 @@ public class LiveEditTest {
 		assertEquals("refused", status);
 		assertTrue(message, message.contains("does not bind against it"));
 		String mask = null;
-		for (Map<String, Object> row : orders.check(MONITOR, "", "id, amount = 0")) {
+		for (Map<String, Object> row : orders.check(MONITOR, "", "id, amount", "amount AS 0")) {
 			if ("column".equals(String.valueOf(row.get("item"))) && "amount".equals(String.valueOf(row.get("name")))) {
 				mask = String.valueOf(row.get("message"));
 			}
 		}
-		assertEquals("a mask is answered with its column", "0", mask);
+		assertTrue("a mask is answered with its column: " + mask, mask != null && mask.contains("0"));
 		assertEquals("nothing written", "tenant = acl_claim('tenant')",
 		             rows(acl, PlatformSql.view("object_grants", "role", "analyst", "object", "orders")).get(0).get("rls"));
 	}
