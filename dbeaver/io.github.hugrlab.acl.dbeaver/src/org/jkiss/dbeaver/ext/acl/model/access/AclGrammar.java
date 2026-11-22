@@ -21,7 +21,8 @@ public final class AclGrammar {
 
 	/** Every capability a grant may name (duckdb-acl spec 012 / 016 / 050 / 052 / 082 / 129 / 009), in the node's order. */
 	public static final List<String> CAPABILITIES = List.of("select", "insert", "update", "delete", "merge", "create",
-	                                                        "drop", "temp", "explain", "secrets", "lineage", "manage");
+	                                                        "drop", "temp", "explain", "secrets", "lineage", "ingest",
+	                                                        "manage");
 
 	/** A word duckdb's own writer leaves bare (`KeywordHelper::RequiresQuotes`, capitals allowed). */
 	private static final Pattern PLAIN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");

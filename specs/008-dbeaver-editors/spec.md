@@ -45,7 +45,7 @@ Phases 3-4 of design/079 close that gap:
   grammar can change them) and **Delete** come from DBeaver itself. **Save** shows the composed script in
   DBeaver's own persist dialog (the "show SQL" preview), and DBeaver then refreshes the node it changed.
 - A property that is a list or a structure gets a dialog of its own, opened from the property: a grant's
-  capabilities (checkboxes), a COLUMNS list (items with masks and spec 102 paths), a client's REQUIRE /
+  capabilities (checkboxes), an object grant's columns and masks (spec 011), a client's REQUIRE /
   ATTRIBUTES, a resource group's limits.
 - **Prefill** comes from the same `platform` rows the branch already reads (007.3). The form never shows a
   value it did not read.
@@ -248,12 +248,9 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
   Save previews and writes them as before.
 - **Row filter**: the predicate in a multi-line editor, beside the object's columns (double-click inserts a name).
 - **Columns**: the object's columns as the node answers them (`check_grant` with no list: every column it exposes,
-  with its type - the grantor needs no grant on the catalog) in a tree - a STRUCT's fields and a list of structs'
-  (`items[].price`) as children - each **Visible / Masked / Hidden**, a mask's expression in its own cell; under it the
-  `COLUMNS (…)` the tree writes. The tree reads the grant's list and writes it back in spec 102's forms (`address` whole,
-  `address.city` narrowed, `address, address.ssn = '***'` a masked field of the whole); a field shown keeps its struct, a
-  struct shown again with every field hidden is shown whole; an item the tree does not know is kept as written
-  (`GrantColumns`, pure). A catalog grant's list is text (names across the catalog - not probed).
+  with its type - the grantor needs no grant on the catalog), each **Visible / Masked / Hidden**, a mask's expression in
+  its own cell; under it the `COLUMNS` test and the `MASK` items it writes. Since spec 011 (duckdb-acl spec 158) a test
+  on names and the masks of its own clause, no field tree (`GrantColumns`, pure); a catalog grant states no columns.
 - **Check with the node** on both: `platform.check_grant` with the tab's values - one row per finding (the write's
   own words for a refusal, in red), "The write would be accepted / refused". Nothing is written.
 - **Tests**: unit `GrantColumnsTest` (the tree from types, round trips of every form, edits, unknown items kept); live
@@ -385,12 +382,10 @@ node checks (duckdb-acl spec 122, `platform.check_grant`), not the client.
 - Not every word is a name: an admin scope and a cluster setting's name are WORDS to the node (`AclGrammar.word`: as
   they are - `policy`, `cluster`, `schema` are keywords, and the node refuses a quoted word). A column in a column list
   (a grant's, a relation's) keeps the spelling it had (`fieldIdent` - lower-case words bare, anything else quoted), and
-  a relation's stored rename keeps its physical side AS WRITTEN while it stays a rename (`RelationColumns`): the node
-  reads those with duckdb's parser and its spec 102 path reader, and there a spelling changes meaning - a quoted
-  physical column is a computed reading (the relation read-only), a bare one a rename (writable), so an edit of
-  another column re-spelling `n = "name"` as `n = name` gave the relation writes (and `s = Sales` as `s = "Sales"`
-  took them). A physical function's name is quoted only where the node does not read it bare (`functionParts`:
-  `system.main.upper`, `left`, `"left".main.f`) - its spelling changes nothing there but how it shows.
+  a relation's list is a SELECT list since spec 011 (duckdb-acl spec 158: `column AS name`, `<expr> AS name`), where
+  a quoted column is the same column as a bare one. A physical function's name is quoted only where the node does not
+  read it bare (`functionParts`: `system.main.upper`, `left`, `"left".main.f`) - its spelling changes nothing there
+  but how it shows.
 - `CREATE ISSUER "<name>"` with no URL is the node's short form (the quoted name IS the URL), so a quoted name with
   no URL (an issuer whose URL is its secret's) is written `CREATE ISSUER "admin" URL '' FROM SECRET s`.
 - Found by the reviews beside it, fixed: a relation WITH a list never composes back to none - an edit that left every

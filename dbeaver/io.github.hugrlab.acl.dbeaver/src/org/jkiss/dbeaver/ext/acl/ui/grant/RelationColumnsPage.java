@@ -8,7 +8,6 @@ import org.eclipse.jface.viewers.ArrayContentProvider;
 import org.eclipse.jface.viewers.CellEditor;
 import org.eclipse.jface.viewers.CheckboxCellEditor;
 import org.eclipse.jface.viewers.ColumnLabelProvider;
-import org.eclipse.jface.viewers.ComboBoxCellEditor;
 import org.eclipse.jface.viewers.EditingSupport;
 import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.jface.viewers.TableViewerColumn;
@@ -26,14 +25,12 @@ import org.jkiss.dbeaver.ext.acl.model.access.RelationColumns.Column;
 import org.jkiss.dbeaver.ext.acl.model.access.RelationColumns.Computed;
 
 /**
- * A virtual table's Columns (spec 008.2): the source's physical columns, each exposed or not, under a name of the
- * table's, through an expression (a mask over the physical row), with a nullability mark - and the computed columns the
- * source does not have; the `COLUMNS (…)` it writes under the table. Nothing changed = every column as it is (the
+ * A virtual table's Columns (spec 008.2, spec 011): the source's physical columns, each exposed or not, under a name of
+ * the table's, through an expression over the source - and the computed columns the source does not have; the `COLUMNS
+ * (…)` it writes under the table, a SELECT list (duckdb-acl spec 158). Nothing changed = every column as it is (the
  * alias form - writable); a mask, a computed column or a predicate make the table read-only (the node's rule).
  */
 public class RelationColumnsPage extends PolicyPage {
-	private static final String[] NULLABLE = {"", "NOT NULL", "NULL"};
-
 	private TableViewer table;
 	private Text written;
 	private Label hint;
@@ -51,8 +48,8 @@ public class RelationColumnsPage extends PolicyPage {
 		page.setLayout(new GridLayout(1, false));
 		hint = new Label(page, SWT.WRAP);
 		hint.setText("Which columns of the source the table exposes, and how: a name of its own (a rename), an "
-		             + "expression over the physical row (a mask: NULL, '***'), NOT NULL (a promise a key may rest on). "
-		             + "Computed columns are the table's own. Nothing changed = every column as it is (writable).");
+		             + "expression over the source (upper(name)). Computed columns are the table's own. Nothing changed "
+		             + "= every column as it is (writable). What a role sees of them is its object grant's.");
 		hint.setLayoutData(new GridData(SWT.FILL, SWT.TOP, true, false));
 		table = new TableViewer(page, SWT.BORDER | SWT.FULL_SELECTION);
 		table.getTable().setHeaderVisible(true);
@@ -87,18 +84,6 @@ public class RelationColumnsPage extends PolicyPage {
 				            ((Computed) e).expression = text;
 			            }
 		            }));
-		column("Nullability", 100, e -> e instanceof Column c ? c.nullable : ((Computed) e).nullable,
-		       edit(e -> true, e -> new ComboBoxCellEditor(table.getTable(), NULLABLE, SWT.READ_ONLY), e -> {
-			       String now = e instanceof Column c ? c.nullable : ((Computed) e).nullable;
-			       return Math.max(0, java.util.Arrays.asList(NULLABLE).indexOf(now));
-		       }, (e, v) -> {
-			       String mark = v instanceof Integer i && i >= 0 ? NULLABLE[i] : "";
-			       if (e instanceof Column c) {
-				       c.nullable = mark;
-			       } else {
-				       ((Computed) e).nullable = mark;
-			       }
-		       }));
 		Composite buttons = new Composite(page, SWT.NONE);
 		buttons.setLayout(new GridLayout(2, false));
 		add = new Button(buttons, SWT.PUSH);

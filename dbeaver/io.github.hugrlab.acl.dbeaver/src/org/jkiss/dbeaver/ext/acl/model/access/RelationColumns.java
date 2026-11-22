@@ -2,13 +2,15 @@ package org.jkiss.dbeaver.ext.acl.model.access;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * A virtual table's own column list as the Columns tab edits it (spec 008.2): the physical columns of its source, each
- * exposed or not, under a name, through an expression, with a nullability mark - and the computed columns the source
- * does not have. Read from and written to the `COLUMNS (…)` text (the docs' items: `name`, `new_name = column`, `name =
- * <expression>`, `name NOT NULL` / `name NULL`). An item the table does not know (a field path) is kept as written.
+ * A virtual table's own column list as the Columns tab edits it (spec 008.2, spec 011 / duckdb-acl spec 158): the
+ * physical columns of its source, each exposed or not, under a name, through an expression - and the computed columns
+ * the source does not have. Read from and written to the `COLUMNS (…)` text, a SELECT list over the source: `name`,
+ * `column AS new_name`, `<expression> AS name` (nullability is the source's). An item it does not take apart - a star,
+ * `a.b`, `name: <expr>` - is kept as written.
  */
 public final class RelationColumns {
 	/** One physical column. */
@@ -17,11 +19,7 @@ public final class RelationColumns {
 		public final String type;
 		public boolean exposed = true;
 		public String as;               // the name the virtual table gives it
-		public String expression = "";  // a mask over the physical row; empty = the column itself
-		public String nullable = "";    // "", "NOT NULL" or "NULL"
-		// the physical side of a stored rename as written (`n = "name"`): written back as it was - the node reads a
-		// quoted physical column as a computed reading (read-only) and a bare one as a rename (writable)
-		String renamedFrom;
+		public String expression = "";  // an expression of the source the column is read as; empty = the column itself
 
 		Column(String name, String type) {
 			this.name = name;
@@ -34,13 +32,18 @@ public final class RelationColumns {
 	public static final class Computed {
 		public String name;
 		public String expression;
-		public String nullable = "";
 
 		public Computed(String name, String expression) {
 			this.name = name;
 			this.expression = expression;
 		}
 	}
+
+	/** `<left> AS <name>` at the item's end; the name bare or quoted. */
+	private static final Pattern AS_NAME = Pattern.compile("(.*\\S)\\s+AS\\s+(\"(?:[^\"]|\"\")+\"|[A-Za-z_][A-Za-z0-9_$]*)",
+	                                                       Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+	/** One name: a column of the source as written. */
+	private static final Pattern NAME = Pattern.compile("\"(?:[^\"]|\"\")+\"|[A-Za-z_][A-Za-z0-9_$]*");
 
 	private final List<Column> columns = new ArrayList<>();
 	private final List<Computed> computed = new ArrayList<>();
@@ -68,33 +71,18 @@ public final class RelationColumns {
 		return unknown;
 	}
 
+	/** The source's column a name is, when it is one name. */
 	private Column physical(String name) {
-		String bare = unquote(name.trim());
+		if (!NAME.matcher(name.trim()).matches()) {
+			return null;
+		}
+		String bare = GrantColumns.unquote(name);
 		for (Column column : columns) {
 			if (column.name.equalsIgnoreCase(bare)) {
 				return column;
 			}
 		}
 		return null;
-	}
-
-	private static String unquote(String name) {
-		if (name.length() >= 2 && name.startsWith("\"") && name.endsWith("\"")) {
-			return name.substring(1, name.length() - 1).replace("\"\"", "\"");
-		}
-		return name;
-	}
-
-	/** `name NOT NULL` / `name NULL`: the mark taken off; [rest, mark]. */
-	private static String[] mark(String item) {
-		String upper = item.toUpperCase(Locale.ROOT);
-		if (upper.endsWith(" NOT NULL")) {
-			return new String[] {item.substring(0, item.length() - 9).trim(), "NOT NULL"};
-		}
-		if (upper.endsWith(" NULL") && !upper.endsWith("= NULL")) {
-			return new String[] {item.substring(0, item.length() - 5).trim(), "NULL"};
-		}
-		return new String[] {item, ""};
 	}
 
 	/** The states a relation's `COLUMNS` text says; empty = every physical column, as it is (the alias form). */
@@ -112,43 +100,30 @@ public final class RelationColumns {
 			column.exposed = items.isEmpty();
 			column.as = column.name;
 			column.expression = "";
-			column.nullable = "";
-			column.renamedFrom = null;
 		}
 		for (String item : items) {
-			String[] marked = mark(item);
-			List<String> sides = GrantColumns.split(marked[0], '=');
-			String left = sides.get(0).trim();
-			if (left.contains(".") && !left.startsWith("\"")) {
-				unknown.add(item); // a field path (spec 102): kept as written
-				continue;
-			}
-			if (sides.size() == 1) {
-				Column column = physical(left);
+			Matcher named = AS_NAME.matcher(item);
+			if (!named.matches()) {
+				Column column = physical(item);
 				if (column == null) {
-					unknown.add(item);
+					unknown.add(item); // a star, `a.b`, `name: <expr>`: kept as written
 				} else {
 					column.exposed = true;
-					column.nullable = marked[1];
 				}
 				continue;
 			}
-			String right = marked[0].substring(marked[0].indexOf('=') + 1).trim();
-			Column renamed = physical(right);
-			Column target = physical(left);
-			if (renamed != null && !right.contains("(") && !right.contains(" ")) {
-				renamed.exposed = true; // new_name = column
-				renamed.as = unquote(left);
-				renamed.nullable = marked[1];
-				renamed.renamedFrom = right;
+			String left = named.group(1).trim();
+			String name = GrantColumns.unquote(named.group(2));
+			Column renamed = physical(left);
+			Column target = physical(named.group(2));
+			if (renamed != null) {
+				renamed.exposed = true; // column AS new_name
+				renamed.as = name;
 			} else if (target != null) {
-				target.exposed = true; // a mask over the physical row
-				target.expression = right;
-				target.nullable = marked[1];
+				target.exposed = true; // an expression of the source read as the column
+				target.expression = left;
 			} else {
-				Computed made = new Computed(unquote(left), right);
-				made.nullable = marked[1];
-				computed.add(made);
+				computed.add(new Computed(name, left));
 			}
 		}
 	}
@@ -157,8 +132,7 @@ public final class RelationColumns {
 	public String compose() {
 		boolean plain = computed.isEmpty() && unknown.isEmpty();
 		for (Column column : columns) {
-			plain &= column.exposed && column.as.equals(column.name) && column.expression.isEmpty()
-			         && column.nullable.isEmpty();
+			plain &= column.exposed && column.as.equals(column.name) && column.expression.isEmpty();
 		}
 		if (plain && !listed) {
 			return "";
@@ -168,17 +142,17 @@ public final class RelationColumns {
 			if (!column.exposed) {
 				continue;
 			}
-			String item = AclGrammar.fieldIdent(column.as);
+			String as = AclGrammar.fieldIdent(column.as);
 			if (!column.expression.isEmpty()) {
-				item += " = " + column.expression;
+				items.add(column.expression + " AS " + as);
 			} else if (!column.as.equals(column.name)) {
-				item += " = " + (column.renamedFrom != null ? column.renamedFrom : AclGrammar.fieldIdent(column.name));
+				items.add(AclGrammar.fieldIdent(column.name) + " AS " + as);
+			} else {
+				items.add(as);
 			}
-			items.add(item + (column.nullable.isEmpty() ? "" : " " + column.nullable));
 		}
 		for (Computed made : computed) {
-			items.add(AclGrammar.fieldIdent(made.name) + " = " + made.expression
-			          + (made.nullable.isEmpty() ? "" : " " + made.nullable));
+			items.add(made.expression + " AS " + AclGrammar.fieldIdent(made.name));
 		}
 		items.addAll(unknown);
 		return String.join(", ", items);

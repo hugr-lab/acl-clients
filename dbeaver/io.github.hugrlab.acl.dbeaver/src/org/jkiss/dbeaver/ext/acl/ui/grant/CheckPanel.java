@@ -22,7 +22,7 @@ final class CheckPanel {
 	private final Label said;
 	private final Table table;
 
-	/** `values` = the RLS and the column list to check, as the tabs hold them now. */
+	/** `values` = the RLS, the column test and the masks to check, as the tabs hold them now. */
 	CheckPanel(Composite parent, PolicyPage page, Supplier<String[]> values) {
 		Composite panel = new Composite(parent, SWT.NONE);
 		panel.setLayout(new GridLayout(2, false));
@@ -47,7 +47,7 @@ final class CheckPanel {
 		check.addListener(SWT.Selection, e -> {
 			String[] now = values.get();
 			said.setText("Checking...");
-			page.ask("Check the grant", now[0], now[1], this::show, error -> {
+			page.ask("Check the grant", now[0], now[1], now[2], this::show, error -> {
 				table.removeAll();
 				said.setText(error == null ? "the node did not answer" : error);
 			});
