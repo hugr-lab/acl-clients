@@ -38,6 +38,9 @@ public class GrantColumnsPage extends PolicyPage {
 	private Text catalogList;
 	private Label hint;
 	private GrantColumns model;
+	private Object lastWritten; // the model's states as last written into the grant
+	private String lastColumns = ""; // the texts the tab last wrote (or found) - while the grant holds them, its own
+	private String lastMasks = "";
 	private boolean filling;
 
 	@Override
@@ -164,7 +167,7 @@ public class GrantColumnsPage extends PolicyPage {
 			columns = model.composeColumns();
 			masks = model.composeMasks();
 		} catch (IllegalStateException e) {
-			model.apply(grant().getColumns(), grant().getMasks());
+			model.restore(lastWritten);
 			filling = true;
 			laterShown.setSelection(model.laterShown());
 			filling = false;
@@ -174,6 +177,9 @@ public class GrantColumnsPage extends PolicyPage {
 			return;
 		}
 		table.refresh();
+		lastWritten = model.snapshot();
+		lastColumns = columns;
+		lastMasks = masks;
 		show(columns, masks);
 		if (!columns.equals(nonNull(grant().getColumns()))) {
 			set("columns", columns);
@@ -225,12 +231,41 @@ public class GrantColumnsPage extends PolicyPage {
 		if (table.getTable().isDisposed()) {
 			return;
 		}
+		AclObjectGrant grant = (AclObjectGrant) getDatabaseObject();
+		String nowColumns = nonNull(grant.getColumns());
+		String nowMasks = nonNull(grant.getMasks());
+		boolean hadModel = model != null;
+		boolean sameObject = hadModel && model.sameColumns(exposed);
+		if (sameObject && nowColumns.equals(lastColumns) && nowMasks.equals(lastMasks)) {
+			return; // the tab's own edits, not saved yet, and the grant still holds what it wrote: kept
+		}
+		// what the node read with duckdb's parser (platform.object_grants), never a text read here; a new grant: none
+		List<String> test = grant.storedTest();
+		List<String[]> masks = grant.storedMaskPairs();
 		model = new GrantColumns(exposed);
-		model.apply(grant().getColumns(), grant().getMasks());
+		model.apply(test == null ? "all" : test.get(0), test == null ? List.of() : test.subList(1, test.size()),
+		            masks == null ? List.of() : masks);
+		lastWritten = model.snapshot();
+		table.getTable().setEnabled(true);
+		if (nowColumns.equals(nonNull(grant.storedColumns())) && nowMasks.equals(nonNull(grant.storedMasks()))) {
+			lastColumns = nowColumns; // as the node holds it (an undo comes back here too)
+			lastMasks = nowMasks;
+		} else if (hadModel && !sameObject) {
+			// another object: what the tab wrote was for the one before - its columns again, as the node holds them
+			lastColumns = model.composeColumns();
+			lastMasks = model.composeMasks();
+			set("columns", lastColumns);
+			set("masks", lastMasks);
+		} else {
+			// set by something other than this tab: shown only once the node read it (save it, or undo it)
+			hint.setText("This grant's columns or masks were changed outside this tab: save or undo that first - the "
+			             + "tab shows what the node reads.");
+			table.getTable().setEnabled(false);
+		}
 		table.setInput(model.columns());
 		filling = true;
 		laterShown.setSelection(model.laterShown());
-		laterShown.setEnabled(editable());
+		laterShown.setEnabled(editable() && table.getTable().isEnabled());
 		filling = false;
 		show(nonNull(grant().getColumns()), nonNull(grant().getMasks()));
 	}

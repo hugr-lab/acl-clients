@@ -111,6 +111,11 @@ public abstract class AclPlatformObject implements DBSObject, DBPRefreshableObje
 		return edits.containsKey(id) ? (T) edits.get(id) : stored.read();
 	}
 
+	/** Whether the user changed a property (not yet saved). */
+	public boolean isEdited(String id) {
+		return edits.containsKey(id);
+	}
+
 	protected void edit(String id, Object value) {
 		edits.put(id, value);
 	}

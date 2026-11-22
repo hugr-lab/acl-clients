@@ -167,7 +167,22 @@ public class AclRelation extends AclPlatformObject {
 
 	// --- what is stored -------------------------------------------------------------------------------------------
 
-	private String storedColumns(DBRProgressMonitor monitor) throws DBException {
+	/**
+	 * The declared list as the node read it (duckdb's parser): its platform.relation_columns rows in order, each (name,
+	 * expr) - `expr` empty = the column itself, a NULL name = a star item; empty = no list (the alias form).
+	 */
+	public List<String[]> declaredRows(DBRProgressMonitor monitor) throws DBException {
+		List<AclRelationColumn> columns = new ArrayList<>(getColumns(monitor));
+		columns.sort(Comparator.comparingInt(c -> pos(c.text("pos"))));
+		List<String[]> out = new ArrayList<>();
+		for (AclRelationColumn column : columns) {
+			out.add(new String[] {column.text("name"), column.text("expr")});
+		}
+		return out;
+	}
+
+	/** The declared list as the node holds it, as it is written; empty = none. */
+	public String storedColumns(DBRProgressMonitor monitor) throws DBException {
 		List<String> items = new ArrayList<>();
 		List<AclRelationColumn> columns = new ArrayList<>(getColumns(monitor));
 		columns.sort(Comparator.comparingInt(c -> pos(c.text("pos"))));

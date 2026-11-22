@@ -12,8 +12,8 @@ import org.jkiss.dbeaver.ext.acl.model.access.GrantColumns.Shown;
 import org.junit.Test;
 
 /**
- * Spec 011 (duckdb-acl spec 158): the Columns tab - an object grant's COLUMNS test and MASK items read into the
- * object's columns and written back.
+ * Spec 011 (duckdb-acl spec 158): the Columns tab - filled from the node's reading of an object grant (its test's mode
+ * and names, its masks as pairs) and composing the COLUMNS test and MASK items it writes. It reads no text.
  */
 public class GrantColumnsTest {
 	private static GrantColumns people() {
@@ -25,113 +25,95 @@ public class GrantColumnsTest {
 		return tab.columns().stream().filter(n -> n.name.equals(name)).findFirst().orElseThrow();
 	}
 
-	@Test
-	public void noTestIsEveryColumn() {
-		for (String test : new String[] {"", "*", null}) {
-			GrantColumns tab = people();
-			tab.apply(test, "");
-			assertTrue(tab.columns().stream().allMatch(n -> n.shown == Shown.VISIBLE));
-			assertTrue(tab.laterShown());
-			assertEquals("", tab.composeColumns());
-			assertEquals("", tab.composeMasks());
-		}
+	private static String[] mask(String column, String mask) {
+		return new String[] {column, mask};
 	}
 
 	@Test
-	public void theThreeFormsRoundTrip() {
-		String[][] cases = {{"", ""}, {"id, salary", ""}, {"* EXCLUDE (salary, \"Odd Name\")", ""},
-		                    {"id, ssn", "ssn AS CAST('***' AS VARCHAR)"},
-		                    {"* EXCLUDE (salary)", "ssn AS left(ssn, 1) || '***', \"left\" AS NULL"}};
-		for (String[] each : cases) {
-			GrantColumns tab = people();
-			tab.apply(each[0], each[1]);
-			assertEquals(each[0], tab.composeColumns());
-			assertEquals(each[1], tab.composeMasks());
-		}
-	}
-
-	@Test
-	public void theStates() {
+	public void everyColumn() {
 		GrantColumns tab = people();
-		tab.apply("* EXCLUDE (salary)", "ssn AS NULL");
-		assertEquals(Shown.VISIBLE, at(tab, "id").shown);
+		tab.apply("all", List.of(), List.of());
+		assertTrue(tab.columns().stream().allMatch(n -> n.shown == Shown.VISIBLE));
+		assertTrue(tab.laterShown());
+		assertEquals("", tab.composeColumns());
+		assertEquals("", tab.composeMasks());
+	}
+
+	@Test
+	public void theNodesReadingWrittenBack() {
+		GrantColumns tab = people();
+		tab.apply("except", List.of("salary", "Odd Name"), List.of(mask("ssn", "CAST('***' AS VARCHAR)"),
+		                                                           mask("left", "NULL")));
+		assertEquals("* EXCLUDE (salary, \"Odd Name\")", tab.composeColumns());
+		assertEquals("ssn AS CAST('***' AS VARCHAR), \"left\" AS NULL", tab.composeMasks());
 		assertEquals(Shown.HIDDEN, at(tab, "salary").shown);
 		assertEquals(Shown.MASKED, at(tab, "ssn").shown);
-		assertEquals("NULL", at(tab, "ssn").mask);
-		tab.apply("id, \"odd name\"", "");
-		assertFalse("a list of names hides what it does not name - later columns too", tab.laterShown());
-		assertEquals(Shown.VISIBLE, at(tab, "Odd Name").shown);
-		assertEquals(Shown.HIDDEN, at(tab, "ssn").shown);
+		GrantColumns only = people();
+		only.apply("only", List.of("id", "odd name"), List.of());
+		assertFalse("a list of names hides what it does not name - later columns too", only.laterShown());
+		assertEquals(Shown.VISIBLE, at(only, "Odd Name").shown);
+		assertEquals(Shown.HIDDEN, at(only, "ssn").shown);
+		assertEquals("id, \"Odd Name\"", only.composeColumns());
+	}
+
+	@Test
+	public void aMaskIsTheTextAsTheNodeHoldsIt() {
+		// review: a mask with commas, `AS` or a string of any kind is a value - nothing here splits it
+		GrantColumns tab = people();
+		String odd = "CASE WHEN x THEN E'a, b AS c' ELSE $$d, e$$ END";
+		tab.apply("all", List.of(), List.of(mask("ssn", odd), mask("salary", "0")));
+		tab.setShown(at(tab, "id"), Shown.HIDDEN);
+		assertEquals("ssn AS " + odd + ", salary AS 0", tab.composeMasks());
 	}
 
 	@Test
 	public void editsCompose() {
 		GrantColumns tab = people();
-		tab.apply("", "");
+		tab.apply("all", List.of(), List.of());
 		tab.setShown(at(tab, "salary"), Shown.HIDDEN);
 		tab.setShown(at(tab, "ssn"), Shown.MASKED);
+		assertEquals("a column masked anew reads NULL", "ssn AS NULL", tab.composeMasks());
 		at(tab, "ssn").mask = "'***'";
-		assertEquals("a grant of every column hides by EXCLUDE: a later column stays shown, as it was",
-		             "* EXCLUDE (salary)", tab.composeColumns());
+		assertEquals("* EXCLUDE (salary)", tab.composeColumns());
 		assertEquals("ssn AS '***'", tab.composeMasks());
 		tab.setLaterShown(false);
 		assertEquals("a masked column is one the grant shows", "id, ssn, \"Odd Name\", \"left\"", tab.composeColumns());
 	}
 
 	@Test
-	public void namesAndMasksTheObjectLacksAreKept() {
+	public void namesAndMasksTheObjectLacksAreKeptInTheirMode() {
 		GrantColumns tab = people();
-		tab.apply("* EXCLUDE (gone, salary)", "was AS NULL, ssn AS NULL");
+		tab.apply("except", List.of("gone", "salary"), List.of(mask("was", "NULL"), mask("ssn", "NULL")));
 		assertEquals("* EXCLUDE (salary, gone)", tab.composeColumns());
 		assertEquals("ssn AS NULL, was AS NULL", tab.composeMasks());
-		// in the other mode a name the object lacks says what leaving it out says: it goes
 		tab.setLaterShown(false);
 		assertEquals("id, ssn, \"Odd Name\", \"left\"", tab.composeColumns());
+		tab.setLaterShown(true);
+		assertEquals("switched back: still hidden when it returns", "* EXCLUDE (salary, gone)", tab.composeColumns());
 	}
 
 	@Test
 	public void nothingToReadIsRefusedNeverEveryColumn() {
 		GrantColumns tab = people();
-		tab.apply("id", "");
+		tab.apply("only", List.of("id"), List.of());
+		Object before = tab.snapshot();
 		tab.setShown(at(tab, "id"), Shown.HIDDEN);
 		assertThrows(IllegalStateException.class, tab::composeColumns);
+		tab.restore(before);
+		assertEquals("id", tab.composeColumns());
 		GrantColumns masked = people();
-		masked.apply("", "");
+		masked.apply("all", List.of(), List.of());
 		masked.setShown(at(masked, "ssn"), Shown.MASKED);
 		at(masked, "ssn").mask = " "; // cleared in its cell
 		assertThrows("a mask is an expression", IllegalStateException.class, masked::composeMasks);
 	}
 
 	@Test
-	public void switchingTheModeAndBackKeepsWhatTheObjectLacks() {
-		// review: a name the object lacks (a column gone from the source) under EXCLUDE must stay hidden when it returns
+	public void theSameObjectIsItsColumns() {
+		// review: a new grant's object changed after an edit is another object - the tab starts again from it
 		GrantColumns tab = people();
-		tab.apply("* EXCLUDE (gone)", "");
-		tab.setLaterShown(false);
-		tab.setLaterShown(true);
-		assertEquals("* EXCLUDE (gone)", tab.composeColumns());
-		GrantColumns list = people();
-		list.apply("id, back", "");
-		list.setLaterShown(true);
-		list.setLaterShown(false);
-		assertEquals("id, back", list.composeColumns());
-	}
-
-	@Test
-	public void excludeWithoutParentheses() {
-		GrantColumns tab = people();
-		tab.apply("* EXCLUDE salary", "");
-		assertTrue(tab.laterShown());
-		assertEquals(Shown.HIDDEN, at(tab, "salary").shown);
-		assertEquals(Shown.VISIBLE, at(tab, "id").shown);
-		assertEquals("* EXCLUDE (salary)", tab.composeColumns());
-	}
-
-	@Test
-	public void aColumnMaskedAnewReadsNull() {
-		GrantColumns tab = people();
-		tab.apply("", "");
-		tab.setShown(at(tab, "ssn"), Shown.MASKED);
-		assertEquals("ssn AS NULL", tab.composeMasks());
+		assertTrue(tab.sameColumns(List.of(new String[] {"id", "INTEGER"}, new String[] {"ssn", "VARCHAR"},
+		    new String[] {"salary", "INTEGER"}, new String[] {"Odd Name", "VARCHAR"}, new String[] {"left", "VARCHAR"})));
+		assertFalse(tab.sameColumns(List.of(new String[] {"id", "INTEGER"}, new String[] {"card", "VARCHAR"})));
 	}
 }

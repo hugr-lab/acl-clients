@@ -110,18 +110,22 @@ public class AclClusterItem extends AclPlatformObject {
 		edit("options", value);
 	}
 
-	/** The stored options (JSON) as ATTACH writes them. */
+	/** The stored options (JSON, read by a JSON parser) as ATTACH writes them. */
 	static String options(String json) {
-		if (json == null || json.isBlank() || json.trim().equals("{}")) {
+		if (json == null || json.isBlank()) {
 			return "";
 		}
-		String inner = json.trim().replaceAll("^\\{|\\}$", "");
 		List<String> out = new ArrayList<>();
-		for (String pair : GrantColumns.split(inner, ',')) {
-			String[] kv = pair.split(":", 2);
-			String key = kv[0].trim().replaceAll("^\"|\"$", "");
-			String value = kv.length > 1 ? kv[1].trim() : "";
-			out.add(value.equals("true") ? key : value.startsWith("\"") ? key + " " + AclGrammar.literal(value.replaceAll("^\"|\"$", "")) : key + " " + value);
+		for (Map.Entry<String, com.google.gson.JsonElement> each :
+		     com.google.gson.JsonParser.parseString(json).getAsJsonObject().entrySet()) {
+			com.google.gson.JsonElement value = each.getValue();
+			if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isBoolean() && value.getAsBoolean()) {
+				out.add(each.getKey());
+			} else if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()) {
+				out.add(each.getKey() + " " + AclGrammar.literal(value.getAsString()));
+			} else {
+				out.add(each.getKey() + " " + value);
+			}
 		}
 		return String.join(", ", out);
 	}
