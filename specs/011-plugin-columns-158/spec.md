@@ -91,6 +91,13 @@ texts are not edited by hand: hidden from the properties panel, edited by the ta
 source's column when the node printed it as one reference (`a` / `"a"`, compared, not read). A cluster source's
 options (JSON) are read by a JSON parser (Gson), not by hand.
 
+Found by its review, fixed: a tab kept its model whenever the property was edited, so a new grant whose object (a
+new relation whose source) changed after an edit kept the old object's columns - and wrote them for the new one - and
+an Undo left the tab showing the undone edit, whose next edit wrote it again (a mask taken away). The tab keeps its
+model only while the object is the same and the property still holds the text the tab wrote; otherwise it starts again
+from the node's reading - the object changed: and the property with it; set by something else: the tab is disabled
+until it is saved or undone (it shows only what the node read). A relation item's reference compares in any case.
+
 ## Alternatives
 
 - ALTER for an object grant: the node has none (a grant written again is its edit); keeping every property is the

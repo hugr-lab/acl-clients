@@ -59,6 +59,19 @@ public final class RelationColumns {
 		return columns;
 	}
 
+	/** Whether these are the columns of a source of these (name, type): the same source. */
+	public boolean sameColumns(List<String[]> physical) {
+		if (physical.size() != columns.size()) {
+			return false;
+		}
+		for (int i = 0; i < physical.size(); i++) {
+			if (!physical.get(i)[0].equals(columns.get(i).name)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	public List<Computed> computed() {
 		return computed;
 	}
@@ -80,7 +93,8 @@ public final class RelationColumns {
 	/** The source's column an expression is when the node printed it as one column reference (`a` or `"a"`). */
 	private Column reference(String expr) {
 		for (Column column : columns) {
-			if (expr.equals(column.name) || expr.equals("\"" + column.name.replace("\"", "\"\"") + "\"")) {
+			// names compare as duckdb compares them: in any case, quoted or not
+			if (expr.equalsIgnoreCase(column.name) || expr.equalsIgnoreCase("\"" + column.name.replace("\"", "\"\"") + "\"")) {
 				return column;
 			}
 		}

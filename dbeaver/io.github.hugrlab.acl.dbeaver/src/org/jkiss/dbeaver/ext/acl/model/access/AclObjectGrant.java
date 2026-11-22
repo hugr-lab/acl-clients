@@ -155,7 +155,7 @@ public class AclObjectGrant extends AclGrantObject implements AclPolicyGrant {
 	}
 
 	/** The test as it is written (`a, b`, `* EXCLUDE (a, b)`; empty = every column); null = not read. */
-	private String storedColumns() {
+	public String storedColumns() {
 		List<String> test = storedTest();
 		if (test == null) {
 			return null;
@@ -172,7 +172,7 @@ public class AclObjectGrant extends AclGrantObject implements AclPolicyGrant {
 	}
 
 	/** The masks as they are written (`col AS <expr>, …`); null = not read. */
-	private String storedMasks() {
+	public String storedMasks() {
 		List<String[]> pairs = storedMaskPairs();
 		if (pairs == null) {
 			return null;

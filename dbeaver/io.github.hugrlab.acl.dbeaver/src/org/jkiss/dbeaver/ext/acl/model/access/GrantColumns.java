@@ -50,6 +50,19 @@ public final class GrantColumns {
 		return columns;
 	}
 
+	/** Whether these are the columns of an object exposing these (name, type): the same object. */
+	public boolean sameColumns(List<String[]> exposed) {
+		if (exposed.size() != columns.size()) {
+			return false;
+		}
+		for (int i = 0; i < exposed.size(); i++) {
+			if (!exposed.get(i)[0].equals(columns.get(i).name)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	/** Whether a column the object gains later is shown (`* EXCLUDE`) or hidden (a list of names). */
 	public boolean laterShown() {
 		return laterShown;

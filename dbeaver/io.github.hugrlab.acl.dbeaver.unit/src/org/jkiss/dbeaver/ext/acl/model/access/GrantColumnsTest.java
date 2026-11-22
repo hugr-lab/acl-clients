@@ -107,4 +107,13 @@ public class GrantColumnsTest {
 		at(masked, "ssn").mask = " "; // cleared in its cell
 		assertThrows("a mask is an expression", IllegalStateException.class, masked::composeMasks);
 	}
+
+	@Test
+	public void theSameObjectIsItsColumns() {
+		// review: a new grant's object changed after an edit is another object - the tab starts again from it
+		GrantColumns tab = people();
+		assertTrue(tab.sameColumns(List.of(new String[] {"id", "INTEGER"}, new String[] {"ssn", "VARCHAR"},
+		    new String[] {"salary", "INTEGER"}, new String[] {"Odd Name", "VARCHAR"}, new String[] {"left", "VARCHAR"})));
+		assertFalse(tab.sameColumns(List.of(new String[] {"id", "INTEGER"}, new String[] {"card", "VARCHAR"})));
+	}
 }

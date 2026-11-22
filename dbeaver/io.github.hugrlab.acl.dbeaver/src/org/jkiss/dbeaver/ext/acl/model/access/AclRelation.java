@@ -181,7 +181,8 @@ public class AclRelation extends AclPlatformObject {
 		return out;
 	}
 
-	private String storedColumns(DBRProgressMonitor monitor) throws DBException {
+	/** The declared list as the node holds it, as it is written; empty = none. */
+	public String storedColumns(DBRProgressMonitor monitor) throws DBException {
 		List<String> items = new ArrayList<>();
 		List<AclRelationColumn> columns = new ArrayList<>(getColumns(monitor));
 		columns.sort(Comparator.comparingInt(c -> pos(c.text("pos"))));

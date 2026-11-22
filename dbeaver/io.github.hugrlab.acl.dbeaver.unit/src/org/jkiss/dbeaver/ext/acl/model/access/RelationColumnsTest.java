@@ -84,4 +84,14 @@ public class RelationColumnsTest {
 		table.columns().get(1).as = "ident";
 		assertEquals("id, pk AS ident, amount, '***' AS ssn", table.compose());
 	}
+
+	@Test
+	public void aReferenceInAnyCaseIsTheColumn() {
+		// duckdb compares names in any case, quoted or not
+		RelationColumns table = orders();
+		table.apply(rows("ident", "PK", "id", ""));
+		assertEquals("ident", table.columns().get(1).as);
+		assertTrue(table.computed().isEmpty());
+		assertFalse(table.sameColumns(List.<String[]>of(new String[] {"id", "INTEGER"})));
+	}
 }
