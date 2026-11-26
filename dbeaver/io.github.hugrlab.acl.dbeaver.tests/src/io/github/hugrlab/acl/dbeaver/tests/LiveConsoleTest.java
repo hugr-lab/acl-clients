@@ -268,6 +268,7 @@ public class LiveConsoleTest {
 				return "the new role is not in the tree: " + roles.getNodes();
 			}
 		}, 30_000);
+		activateNavigator(); // Delete is enabled only while the navigator is the active part
 		roles.getNode("t008 ui").select().contextMenu("Delete").click();
 		org.eclipse.swtbot.swt.finder.widgets.SWTBotShell confirm = bot.shell("Delete object");
 		java.util.Set<String> before = new java.util.HashSet<>();
@@ -387,6 +388,7 @@ public class LiveConsoleTest {
 				return "no grant sales.orders: " + grants.getNodes();
 			}
 		}, 30_000);
+		activateNavigator();
 		grants.getNode("sales.orders").doubleClick();
 		org.eclipse.swtbot.eclipse.finder.widgets.SWTBotEditor editor = waitForEditor(bot);
 		org.eclipse.ui.IEditorPart part = UIThreadRunnable.syncExec(() -> editor.getReference().getEditor(true));
@@ -473,6 +475,7 @@ public class LiveConsoleTest {
 				return "no function orders_over: " + functions.getNodes();
 			}
 		}, 30_000);
+		activateNavigator();
 		functions.getNode("orders_over").doubleClick();
 		org.eclipse.swtbot.eclipse.finder.widgets.SWTBotEditor editor = waitForEditor(bot);
 		org.eclipse.ui.IEditorPart part = UIThreadRunnable.syncExec(() -> editor.getReference().getEditor(true));
@@ -593,6 +596,7 @@ public class LiveConsoleTest {
 					return "no relation o: " + relations.getNodes();
 				}
 			}, 30_000);
+			activateNavigator();
 			relations.getNode("o").doubleClick();
 			org.eclipse.swtbot.eclipse.finder.widgets.SWTBotEditor editor = waitForEditor(bot);
 			org.eclipse.ui.IEditorPart part = UIThreadRunnable.syncExec(() -> editor.getReference().getEditor(true));
@@ -647,6 +651,23 @@ public class LiveConsoleTest {
 	}
 
 	/** Expand a path of the navigator, waiting at each level for its children (DBeaver loads them in the background). */
+	/**
+	 * Make the navigator the workbench's active part. DBeaver's open (a double click) and Delete are commands enabled
+	 * only while the navigator is active; a test runtime never takes the OS focus, so which part is active is whatever
+	 * the previous test left (a closed editor, a view-as copy) - the commands were then disabled ("Command
+	 * 'org.jkiss.dbeaver.core.object.open' is disabled") and nothing opened. The page activates a part without focus.
+	 */
+	private static void activateNavigator() {
+		UIThreadRunnable.syncExec(() -> {
+			org.eclipse.ui.IWorkbenchPage page = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage();
+			try {
+				page.activate(page.showView(NAVIGATOR));
+			} catch (Exception e) {
+				throw new IllegalStateException(e);
+			}
+		});
+	}
+
 	private static org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem expandTo(SWTWorkbenchBot bot,
 	    org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem from, String... path) {
 		org.eclipse.swtbot.swt.finder.widgets.SWTBotTreeItem at = from;

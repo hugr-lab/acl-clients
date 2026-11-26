@@ -122,6 +122,10 @@ Phases 3-4 of design/079 close that gap:
   - the persist dialog shows our grammar;
   - Save applies it, and the branch refreshes to the new state;
   - Delete confirms.
+  - the test makes the navigator the active part (`IWorkbenchPage.activate`) before a double click or Delete:
+    DBeaver enables its open and Delete commands only while the navigator is active, and a test runtime never takes
+    the OS focus, so the part a previous test left active disabled them ("Command 'org.jkiss.dbeaver.core.object.open'
+    is disabled" - three cases failed on macOS until 2026-11-26).
 - Install check and build as in 007.
 
 ## Alternatives considered
